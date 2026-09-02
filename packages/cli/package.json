@@ -1,0 +1,10 @@
+{
+  "name": "openshain",
+  "version": "0.0.0",
+  "description": "Reference CLI agent for the openshain runtime",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

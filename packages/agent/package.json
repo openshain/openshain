@@ -1,0 +1,10 @@
+{
+  "name": "@openshain/agent",
+  "version": "0.0.0",
+  "description": "Tool loop and model providers (bring your own key)",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
