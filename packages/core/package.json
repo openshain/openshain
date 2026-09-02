@@ -1,0 +1,10 @@
+{
+  "name": "@openshain/core",
+  "version": "0.0.0",
+  "description": "Contracts (provider interfaces), fundamental objects, and the work runtime",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

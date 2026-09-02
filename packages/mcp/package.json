@@ -1,0 +1,10 @@
+{
+  "name": "@openshain/mcp",
+  "version": "0.0.0",
+  "description": "MCP server that exposes the runtime to any agent",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@openshain/tools",
+  "version": "0.0.0",
+  "description": "Standard tool provider: filesystem, CSV, Markdown, documents, email",
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
