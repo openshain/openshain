@@ -31,8 +31,8 @@ export function buildProjection(input: ProjectionInput): Projection {
   const { config } = input;
   const system = [
     config.profession.instructions.trim(),
-    `会社: ${config.company.name}`,
-    `代理する人: ${config.principal.name} (${config.principal.id})`,
+    `この会社は ${config.company.name}。`,
+    `あなたが代理する人は ${config.principal.name}(${config.principal.id})。`,
   ].join("\n\n");
 
   const messages: ModelMessage[] = [];
@@ -83,7 +83,7 @@ export function buildProjection(input: ProjectionInput): Projection {
 
   pushUserPart({
     type: "text",
-    text: `残り: model 呼び出し ${input.budget.modelCallsLeft} 回、Tool 呼び出し ${input.budget.toolCallsLeft} 回`,
+    text: `残り model 呼び出し ${input.budget.modelCallsLeft} 回、Tool 呼び出し ${input.budget.toolCallsLeft} 回`,
   });
 
   return { system, messages, tools: input.tools, budget: { ...input.budget } };

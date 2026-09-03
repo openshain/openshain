@@ -101,6 +101,14 @@ const opaquePart = z.looseObject({
 });
 const jsonPart = z.looseObject({ type: z.literal("json"), value: z.unknown() });
 const artifact = z.looseObject({ path: z.string(), sha256: z.string() });
+const modelUsageFile = z.looseObject({
+  input_tokens: z.int().nonnegative(),
+  output_tokens: z.int().nonnegative(),
+  cached_input_tokens: z.int().nonnegative().optional(),
+  cache_write_tokens: z.int().nonnegative().optional(),
+  reasoning_tokens: z.int().nonnegative().optional(),
+});
+type ModelUsageFile = z.infer<typeof modelUsageFile>;
 
 export const payloadFileSchemas = {
   "work.created": z.looseObject({
@@ -148,13 +156,7 @@ export const payloadFileSchemas = {
       kind: z.literal("model_inference"),
       provider: z.string(),
       model: z.string(),
-      usage: z.looseObject({
-        input_tokens: z.int().nonnegative(),
-        output_tokens: z.int().nonnegative(),
-        cached_input_tokens: z.int().nonnegative().optional(),
-        cache_write_tokens: z.int().nonnegative().optional(),
-        reasoning_tokens: z.int().nonnegative().optional(),
-      }),
+      usage: modelUsageFile,
     }),
     z.looseObject({
       kind: z.literal("tool_execution"),
@@ -276,30 +278,18 @@ interface Codec<T extends EventType> {
   fromFile(payload: FilePayload<T>): EventPayloads[T];
 }
 
-function usageToFile(
-  usage: ModelUsage,
-): FilePayload<"usage.recorded"> extends infer U
-  ? U extends { kind: "model_inference"; usage: infer F }
-    ? F
-    : never
-  : never {
-  const out: { [key: string]: number } = {
+function usageToFile(usage: ModelUsage): ModelUsageFile {
+  const out: ModelUsageFile = {
     input_tokens: usage.inputTokens,
     output_tokens: usage.outputTokens,
   };
   if (usage.cachedInputTokens !== undefined) out.cached_input_tokens = usage.cachedInputTokens;
   if (usage.cacheWriteTokens !== undefined) out.cache_write_tokens = usage.cacheWriteTokens;
   if (usage.reasoningTokens !== undefined) out.reasoning_tokens = usage.reasoningTokens;
-  return out as ReturnType<typeof usageToFile>;
+  return out;
 }
 
-function usageFromFile(usage: {
-  input_tokens: number;
-  output_tokens: number;
-  cached_input_tokens?: number | undefined;
-  cache_write_tokens?: number | undefined;
-  reasoning_tokens?: number | undefined;
-}): ModelUsage {
+function usageFromFile(usage: ModelUsageFile): ModelUsage {
   const out: ModelUsage = { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens };
   if (usage.cached_input_tokens !== undefined) out.cachedInputTokens = usage.cached_input_tokens;
   if (usage.cache_write_tokens !== undefined) out.cacheWriteTokens = usage.cache_write_tokens;

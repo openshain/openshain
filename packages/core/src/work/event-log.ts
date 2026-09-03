@@ -19,10 +19,12 @@ const appendQueues = new Map<string, Promise<unknown>>();
 function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
   const previous = appendQueues.get(path) ?? Promise.resolve();
   const run = previous.then(task, task);
-  appendQueues.set(
-    path,
-    run.catch(() => undefined),
-  );
+  const settled = run
+    .catch(() => undefined)
+    .then(() => {
+      if (appendQueues.get(path) === settled) appendQueues.delete(path);
+    });
+  appendQueues.set(path, settled);
   return run;
 }
 

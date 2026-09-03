@@ -83,7 +83,7 @@ describe("buildProjection", () => {
     expect(last?.role).toBe("user");
     expect(last?.content.at(-1)).toEqual({
       type: "text",
-      text: "残り: model 呼び出し 29 回、Tool 呼び出し 100 回",
+      text: "残り model 呼び出し 29 回、Tool 呼び出し 100 回",
     });
     expect(projection.messages).toHaveLength(1);
   });
@@ -129,7 +129,7 @@ describe("buildProjection", () => {
     expect(projection.messages[2]?.content).toEqual([
       { type: "tool_result", callId: "c1", content: "a,b\n1,2", isError: false },
       { type: "tool_result", callId: "c2", content: "path escapes the workspace", isError: true },
-      { type: "text", text: "残り: model 呼び出し 29 回、Tool 呼び出し 100 回" },
+      { type: "text", text: "残り model 呼び出し 29 回、Tool 呼び出し 100 回" },
     ]);
     expect(projection.messages[0]?.content).toHaveLength(1);
   });
