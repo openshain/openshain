@@ -264,3 +264,101 @@ describe("runWork", () => {
     expect(done.outcome?.summary).toBe("from option");
   });
 });
+
+describe("runWork with ask_user", () => {
+  const ask = (id: string, question: string) =>
+    callTools({ id, name: "ask_user", input: { question } });
+
+  test("asks the person, records the answer as the tool result and goes on", async () => {
+    const { model, runtime, work } = await setup([
+      ask("q1", "どの月ですか?"),
+      say("7月分を集計しました"),
+    ]);
+    const questions: string[] = [];
+
+    const done = await runWork(runtime, work.id, {
+      onInput: async (question) => {
+        questions.push(question);
+        return "7月";
+      },
+    });
+
+    expect(done.status).toBe("completed");
+    expect(questions).toEqual(["どの月ですか?"]);
+    const events = await runtime.works.events(work.id);
+    expect(types(events).slice(5)).toEqual([
+      "tool.called",
+      "human.input_requested",
+      "work.status_changed",
+      "human.input_provided",
+      "tool.completed",
+      "work.status_changed",
+      "model.requested",
+      "model.completed",
+      "usage.recorded",
+      "evidence.recorded",
+      "work.completed",
+    ]);
+    expect(events.find((e) => e.type === "human.input_requested")?.payload).toEqual({
+      callId: "q1",
+      question: "どの月ですか?",
+    });
+    const answer = model.requests[1]?.messages.at(-1)?.content[0];
+    expect(answer).toEqual({ type: "tool_result", callId: "q1", content: "7月", isError: false });
+  });
+
+  test("offers ask_user to the model next to the workspace tools", async () => {
+    const { model, runtime, work } = await setup([say("ok")]);
+
+    await runWork(runtime, work.id);
+
+    const names = model.requests[0]?.tools?.map((t) => t.name) ?? [];
+    expect(names).toContain("ask_user");
+    expect(names).toContain("fs_read");
+  });
+
+  test("without a way to ask, leaves the work waiting for input and resumes later", async () => {
+    const { runtime, work } = await setup([ask("q1", "どの月ですか?"), say("8月分を集計しました")]);
+
+    const waiting = await runWork(runtime, work.id);
+
+    expect(waiting.status).toBe("waiting_input");
+    const done = await runWork(runtime, work.id, { onInput: async () => "8月" });
+
+    expect(done.status).toBe("completed");
+    expect(done.outcome?.summary).toBe("8月分を集計しました");
+    const events = await runtime.works.events(work.id);
+    expect(events.filter((e) => e.type === "human.input_provided")).toHaveLength(1);
+  });
+
+  test("a question counts as a tool call for the budget", async () => {
+    const { runtime, work } = await setup(
+      [ask("q1", "a?"), ask("q2", "b?"), say("never")],
+      "limits:\n  max_tool_calls: 1\n",
+    );
+
+    const done = await runWork(runtime, work.id, { onInput: async () => "x" });
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.reason).toBe("limit_reached");
+  });
+
+  test("evidence refs point at the events that wrote the artifacts", async () => {
+    const { runtime, work } = await setup([
+      callTools({ id: "c1", name: "fs_write", input: { path: "a.md", content: "a" } }),
+      callTools({ id: "c2", name: "fs_list", input: {} }),
+      say("done"),
+    ]);
+
+    await runWork(runtime, work.id);
+
+    const events = await runtime.works.events(work.id);
+    const evidence = events.find((e) => e.type === "evidence.recorded");
+    const writeEvent = events.find(
+      (e) => e.type === "tool.completed" && (e.payload as { callId: string }).callId === "c1",
+    );
+    if (!writeEvent) throw new Error("expected the write event");
+    expect(payloadOf<{ refs: string[] }>(evidence).refs).toEqual([writeEvent.id]);
+    expect(payloadOf<{ artifacts: unknown[] }>(evidence).artifacts).toHaveLength(1);
+  });
+});
