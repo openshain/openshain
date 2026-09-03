@@ -53,7 +53,7 @@ examples/tools/echo(契約と module 読み込みだけに依存)
 
 `openshain.yaml` の zod schema(version、company、principal、profession、model、tools、limits、debug)と `loadConfig(workspaceRoot)`。不備は行番号つきの `OpenshainError("config", …)`。
 
-- 受け入れ: spec の設定例がそのまま通る。`api_key_env` 欠落、未知の provider 名、`allow` に文字列以外、のそれぞれで行番号つきのエラーになる。`limits` と `debug` の省略時に既定値が入る。
+- 受け入れ: spec の設定例がそのまま通る。`api_key_env` 欠落、未知の provider 名(呼び出し側が既知の provider 一覧を渡したとき)、`allow` に文字列以外、のそれぞれで行番号つきのエラーになる。`limits` と `debug` の省略時に既定値が入る。
 - 検証: `bun test packages/core/src/config`
 - 依存: Task 1
 - ファイル: `packages/core/src/config/schema.ts`、`load.ts`、test、`package.json`(zod、yaml)
@@ -95,7 +95,7 @@ ModelProvider と message の型。`buildProjection(events, config, budget)`: sy
 
 - 受け入れ: 同じイベント列から 2 回作った投影が JSON 文字列として一致する。`opaque` は同じ provider にだけ返る。直近の user message の末尾に残量の 1 行がある。tool_result は 1 つの user message にまとまる。
 - 検証: `bun test packages/core/src/work/projection.test.ts`
-- 依存: Task 3、Task 5
+- 依存: Task 2(Config の型)、Task 3、Task 5
 - ファイル: `packages/core/src/model/types.ts`、`work/projection.ts`、test
 - サイズ: M
 
@@ -104,6 +104,8 @@ ModelProvider と message の型。`buildProjection(events, config, budget)`: sy
 - `bun run typecheck`、`bun run lint`、`bun test` が通る
 - core の公開 export(`packages/core/src/index.ts`)が上の型と関数を出している
 - レビュー
+
+Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証、書き込みは handle と lock を通す、末尾に改行のないログの拒否、行き先が存在しない symlink も行き先で判定、reducer の厳密化、書いたイベントの読み返し確認、lock の所有権の確認と pid の範囲の限定、先頭が `.` の項目の予約、投影の正規形化と tool 呼び出しの対応検査。あわせて payload schema を loose にし、`tool.rejected` に code、`model.completed` に raw、human の入力に call_id、usage に cache 書き込みを足した。残した課題は 3 つ。TOCTOU(Task 8 で O_NOFOLLOW)、pid の再利用(spec に既知の限界として記載)、`list()` の性能(work.json を読む案は次の checkpoint)。
 
 ### Phase 2: 縦 1 本(fake model → 標準 Tool → CLI)
 

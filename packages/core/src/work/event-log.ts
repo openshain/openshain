@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
 import { newEventId, type WorkId } from "../ids.ts";
@@ -13,6 +13,21 @@ import {
 
 export const EVENTS_FILE_NAME = "events.jsonl";
 
+/** Appends to one file are serialized within the process, so two instances cannot interleave the size check and the write. */
+const appendQueues = new Map<string, Promise<unknown>>();
+
+function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
+  const previous = appendQueues.get(path) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const settled = run
+    .catch(() => undefined)
+    .then(() => {
+      if (appendQueues.get(path) === settled) appendQueues.delete(path);
+    });
+  appendQueues.set(path, settled);
+  return run;
+}
+
 export interface NewEvent<T extends EventType = EventType> {
   type: T;
   payload: EventPayloads[T];
@@ -20,21 +35,29 @@ export interface NewEvent<T extends EventType = EventType> {
   occurredAt?: string;
 }
 
-/** Append-only log of one work's events. The file is the source of truth. */
+/**
+ * Append-only log of one work's events. The file is the source of truth.
+ *
+ * Every line is checked on open and on read; a line that cannot be read stops
+ * the reader. Every event is checked on append by reading its own line back
+ * before it is written, so what is written can always be read. A change to the
+ * file by someone else between two operations of this instance is refused.
+ */
 export class EventLog {
   private constructor(
     private readonly path: string,
     private readonly workId: WorkId,
     private nextSeq: number,
+    private size: number,
   ) {}
 
   /** Opens (creating the directory if needed) and checks the existing log end to end. */
   static async open(dir: string, workId: WorkId): Promise<EventLog> {
     await mkdir(dir, { recursive: true });
     const path = join(dir, EVENTS_FILE_NAME);
-    const existing = await readAll(path, workId);
-    const last = existing.at(-1);
-    return new EventLog(path, workId, (last?.seq ?? 0) + 1);
+    const { events, size } = await readAll(path, workId);
+    const last = events.at(-1);
+    return new EventLog(path, workId, (last?.seq ?? 0) + 1, size);
   }
 
   async append<T extends EventType>(input: NewEvent<T>): Promise<Event<T>> {
@@ -49,56 +72,93 @@ export class EventLog {
       recordedAt: now,
       payload: input.payload,
     } as Event<T>;
-    await appendFile(this.path, `${JSON.stringify(eventToFile(event))}\n`, "utf8");
-    this.nextSeq += 1;
+
+    const line = `${JSON.stringify(eventToFile(event))}\n`;
+    try {
+      eventFromFile(JSON.parse(line));
+    } catch (cause) {
+      throw new OpenshainError(
+        "invalid_event",
+        `${input.type} event cannot be read back once written: ${(cause as Error).message}`,
+        { cause },
+      );
+    }
+
+    await serialized(this.path, async () => {
+      const current = await fileSize(this.path);
+      if (current !== this.size) {
+        throw new OpenshainError(
+          "concurrent_write",
+          `${this.path} changed since it was opened (expected ${this.size} bytes, found ${current}); another writer is active`,
+        );
+      }
+      await appendFile(this.path, line, "utf8");
+      this.size += Buffer.byteLength(line, "utf8");
+      this.nextSeq += 1;
+    });
     return event;
   }
 
-  read(): Promise<AnyEvent[]> {
-    return readAll(this.path, this.workId);
+  async read(): Promise<AnyEvent[]> {
+    return (await readAll(this.path, this.workId)).events;
   }
 }
 
-async function readAll(path: string, workId: WorkId): Promise<AnyEvent[]> {
+async function fileSize(path: string): Promise<number> {
+  try {
+    return (await stat(path)).size;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw err;
+  }
+}
+
+async function readAll(
+  path: string,
+  workId: WorkId,
+): Promise<{ events: AnyEvent[]; size: number }> {
   let text: string;
   try {
     text = await readFile(path, "utf8");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { events: [], size: 0 };
     throw err;
+  }
+  const corrupt = (detail: string, cause?: unknown) =>
+    new OpenshainError("corrupt_log", `${path}: ${detail}`, { cause });
+
+  if (text.length > 0 && !text.endsWith("\n")) {
+    throw corrupt("does not end with a newline; the last write did not complete");
   }
 
   const events: AnyEvent[] = [];
   const lines = text.split("\n");
-  const corrupt = (lineNo: number, detail: string, cause?: unknown) =>
-    new OpenshainError("corrupt_log", `${path}: line ${lineNo} ${detail}`, { cause });
-
   lines.forEach((line, index) => {
     const lineNo = index + 1;
     if (line === "") {
       if (index === lines.length - 1) return; // trailing newline
-      throw corrupt(lineNo, "is empty");
+      throw corrupt(`line ${lineNo} is empty`);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
     } catch (cause) {
-      throw corrupt(lineNo, "is not valid JSON", cause);
+      throw corrupt(`line ${lineNo} is not valid JSON`, cause);
     }
     let event: AnyEvent;
     try {
       event = eventFromFile(parsed);
     } catch (cause) {
-      throw corrupt(lineNo, `is not a valid event: ${(cause as Error).message}`, cause);
+      throw corrupt(`line ${lineNo} is not a valid event: ${(cause as Error).message}`, cause);
     }
     if (event.workId !== workId) {
-      throw corrupt(lineNo, `belongs to ${event.workId}, expected ${workId}`);
+      throw corrupt(`line ${lineNo} belongs to ${event.workId}, expected ${workId}`);
     }
     const expectedSeq = events.length + 1;
     if (event.seq !== expectedSeq) {
-      throw corrupt(lineNo, `has seq ${event.seq}, expected ${expectedSeq}`);
+      throw corrupt(`line ${lineNo} has seq ${event.seq}, expected ${expectedSeq}`);
     }
     events.push(event);
   });
-  return events;
+  return { events, size: Buffer.byteLength(text, "utf8") };
 }

@@ -65,10 +65,15 @@ const samples: Event[] = [
   {
     ...base,
     type: "tool.rejected",
-    payload: { callId: "call_2", name: "fs_write", reason: "path escapes the workspace" },
+    payload: {
+      callId: "call_2",
+      name: "fs_write",
+      code: "outside_workspace",
+      reason: "path escapes the workspace",
+    },
   },
-  { ...base, type: "human.input_requested", payload: { question: "どの月?" } },
-  { ...base, type: "human.input_provided", payload: { answer: "7月" } },
+  { ...base, type: "human.input_requested", payload: { callId: "call_3", question: "どの月?" } },
+  { ...base, type: "human.input_provided", payload: { callId: "call_3", answer: "7月" } },
   {
     ...base,
     type: "usage.recorded",
@@ -76,7 +81,22 @@ const samples: Event[] = [
       kind: "model_inference",
       provider: "anthropic",
       model: "claude-opus-5",
-      usage: { inputTokens: 100, outputTokens: 20, cachedInputTokens: 80, reasoningTokens: 5 },
+      usage: {
+        inputTokens: 100,
+        outputTokens: 20,
+        cachedInputTokens: 80,
+        cacheWriteTokens: 10,
+        reasoningTokens: 5,
+      },
+    },
+  },
+  {
+    ...base,
+    type: "model.completed",
+    payload: {
+      stopReason: "end_turn",
+      content: [{ type: "text", text: "done" }],
+      raw: { id: "msg_1" },
     },
   },
   {
@@ -148,9 +168,10 @@ describe("event file mapping", () => {
     const payload = eventToFile(event).payload as { usage: Record<string, unknown> };
 
     expect(payload.usage).toEqual({
+      cache_write_tokens: 10,
+      cached_input_tokens: 80,
       input_tokens: 100,
       output_tokens: 20,
-      cached_input_tokens: 80,
       reasoning_tokens: 5,
     });
   });
@@ -188,5 +209,52 @@ describe("event file mapping", () => {
     const file = { ...eventToFile(samples[0] as Event), occurred_at: "yesterday" };
 
     expect(() => eventFromFile(file)).toThrow(OpenshainError);
+  });
+});
+
+describe("event file hardening", () => {
+  test("keeps a payload field this version does not know, so newer logs stay readable", () => {
+    const file = eventToFile(samples[0] as Event);
+    const withExtra = { ...file, payload: { ...(file.payload as object), added_later: "x" } };
+
+    const event = eventFromFile(withExtra);
+
+    expect((event.payload as Record<string, unknown>).added_later).toBe("x");
+  });
+
+  test("writes undefined inside free-form data as null so the line stays readable", () => {
+    const event: Event = {
+      ...base,
+      type: "tool.completed",
+      payload: { callId: "c", content: [{ type: "json", value: undefined }], isError: false },
+    };
+
+    const file = eventToFile(event);
+    const line = JSON.stringify(file);
+
+    expect(line).toContain('"value":null');
+    expect(() => eventFromFile(JSON.parse(line))).not.toThrow();
+  });
+
+  test("sorts object keys inside data so equal events are equal bytes", () => {
+    const a: Event = {
+      ...base,
+      type: "tool.called",
+      payload: { callId: "c", provider: "p", name: "t", input: { z: 1, a: { d: 1, b: 2 } } },
+    };
+    const b: Event = {
+      ...base,
+      type: "tool.called",
+      payload: { callId: "c", provider: "p", name: "t", input: { a: { b: 2, d: 1 }, z: 1 } },
+    };
+
+    expect(JSON.stringify(eventToFile(a))).toBe(JSON.stringify(eventToFile(b)));
+  });
+
+  test("omits raw from model.completed unless it was given", () => {
+    const event = samples.find((e) => e.type === "model.completed" && !("raw" in e.payload));
+    if (!event) throw new Error("sample missing");
+
+    expect(eventToFile(event).payload).not.toHaveProperty("raw");
   });
 });

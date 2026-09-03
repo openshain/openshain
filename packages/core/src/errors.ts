@@ -10,6 +10,12 @@ export const ERROR_CODES = [
   "invalid_id",
   "invalid_tool",
   "invalid_path",
+  "lock_held",
+  "not_found",
+  "reserved_path",
+  "outside_workspace",
+  "concurrent_write",
+  "invalid_event",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
