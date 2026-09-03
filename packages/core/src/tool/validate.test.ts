@@ -62,3 +62,41 @@ describe("compileInputValidator", () => {
     expect(() => compileInputValidator({ type: "object", properties: 5 })).toThrow();
   });
 });
+
+describe("compileInputValidator hardening", () => {
+  test("rejects a schema that does not describe an object", () => {
+    expect(() => compileInputValidator({})).toThrow(/"type": "object"/);
+    expect(() => compileInputValidator({ type: "string" })).toThrow(/"type": "object"/);
+  });
+
+  test("rejects a pattern that can backtrack catastrophically", () => {
+    expect(() =>
+      compileInputValidator({
+        type: "object",
+        properties: { value: { type: "string", pattern: "^([a-zA-Z]+)+$" } },
+      }),
+    ).toThrow(/backtrack/);
+  });
+
+  test("rejects an unsafe key in patternProperties, even when nested", () => {
+    expect(() =>
+      compileInputValidator({
+        type: "object",
+        properties: {
+          rows: { type: "array", items: { type: "object", patternProperties: { "(a+)+$": {} } } },
+        },
+      }),
+    ).toThrow(/backtrack/);
+  });
+
+  test("accepts ordinary patterns", () => {
+    const validate = compileInputValidator({
+      type: "object",
+      properties: { path: { type: "string", pattern: "^[a-z0-9/._-]+\\.csv$" } },
+      required: ["path"],
+    });
+
+    expect(validate({ path: "receipts/2026-07.csv" })).toEqual({ ok: true });
+    expect(validate({ path: "../x" }).ok).toBe(false);
+  });
+});
