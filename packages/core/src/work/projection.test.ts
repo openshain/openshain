@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { OpenshainError } from "../errors.ts";
 import { newEventId, newWorkId } from "../ids.ts";
 import type { ToolDefinition } from "../tool/types.ts";
 import type { AnyEvent, Event, EventPayloads, EventType } from "./events.ts";
@@ -112,6 +113,7 @@ describe("buildProjection", () => {
       event("tool.rejected", {
         callId: "c2",
         name: "fs_read",
+        code: "outside_workspace",
         reason: "path escapes the workspace",
       }),
     ];
@@ -202,7 +204,7 @@ describe("buildProjection", () => {
         model: "m",
         usage: { inputTokens: 1, outputTokens: 1 },
       }),
-      event("human.input_requested", { question: "どの月?" }),
+      event("human.input_requested", { callId: "ask1", question: "どの月?" }),
       { ...event("work.completed", { summary: "x" }), type: "plugin.custom", payload: {} },
     ];
 
@@ -230,5 +232,59 @@ describe("buildProjection", () => {
     const second = JSON.stringify(buildProjection(input(events)));
 
     expect(first).toBe(second);
+  });
+});
+
+describe("buildProjection hardening", () => {
+  test("returns the budget as data next to the line in the prompt", () => {
+    expect(buildProjection(input([created])).budget).toEqual({
+      modelCallsLeft: 29,
+      toolCallsLeft: 100,
+    });
+  });
+
+  test("rejects a tool result that answers no call in the preceding assistant message", () => {
+    const events: AnyEvent[] = [
+      created,
+      event("tool.completed", {
+        callId: "orphan",
+        content: [{ type: "text", text: "?" }],
+        isError: false,
+      }),
+    ];
+
+    expect(() => buildProjection(input(events))).toThrow(OpenshainError);
+  });
+
+  test("rejects a tool call that was never answered before the conversation goes on", () => {
+    const events: AnyEvent[] = [
+      created,
+      event("model.completed", {
+        stopReason: "tool_call",
+        content: [{ type: "tool_call", id: "c1", name: "fs_read", input: {} }],
+      }),
+    ];
+
+    expect(() => buildProjection(input(events))).toThrow(/without a result/);
+  });
+
+  test("builds the same bytes when only the key order inside tool input differs", () => {
+    const make = (toolInput: Record<string, unknown>): AnyEvent[] => [
+      created,
+      event("model.completed", {
+        stopReason: "tool_call",
+        content: [{ type: "tool_call", id: "c1", name: "fs_read", input: toolInput }],
+      }),
+      event("tool.completed", {
+        callId: "c1",
+        content: [{ type: "text", text: "ok" }],
+        isError: false,
+      }),
+    ];
+
+    const a = JSON.stringify(buildProjection(input(make({ path: "a.csv", encoding: "utf8" }))));
+    const b = JSON.stringify(buildProjection(input(make({ encoding: "utf8", path: "a.csv" }))));
+
+    expect(a).toBe(b);
   });
 });

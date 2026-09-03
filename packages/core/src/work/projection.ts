@@ -1,7 +1,9 @@
 import type { Config } from "../config/schema.ts";
+import { OpenshainError } from "../errors.ts";
 import type { ModelMessage, UserPart } from "../model/types.ts";
 import type { ToolDefinition } from "../tool/types.ts";
-import type { AnyEvent, Event, ToolContent } from "./events.ts";
+import type { AssistantPart } from "./events.ts";
+import { type AnyEvent, canonical, type Event, type ToolContent } from "./events.ts";
 
 export interface ProjectionInput {
   events: readonly AnyEvent[];
@@ -17,6 +19,7 @@ export interface Projection {
   system: string;
   messages: ModelMessage[];
   tools: ToolDefinition[];
+  budget: { modelCallsLeft: number; toolCallsLeft: number };
 }
 
 /**
@@ -45,9 +48,9 @@ export function buildProjection(input: ProjectionInput): Projection {
         pushUserPart({ type: "text", text: (event as Event<"work.created">).payload.objective });
         break;
       case "model.completed": {
-        const content = (event as Event<"model.completed">).payload.content.filter(
-          (part) => part.type !== "opaque" || part.provider === input.providerId,
-        );
+        const content = (event as Event<"model.completed">).payload.content
+          .filter((part) => part.type !== "opaque" || part.provider === input.providerId)
+          .map((part) => canonical(part) as AssistantPart);
         if (content.length > 0) messages.push({ role: "assistant", content });
         break;
       }
@@ -76,12 +79,59 @@ export function buildProjection(input: ProjectionInput): Projection {
     }
   }
 
+  checkToolPairs(messages);
+
   pushUserPart({
     type: "text",
     text: `残り: model 呼び出し ${input.budget.modelCallsLeft} 回、Tool 呼び出し ${input.budget.toolCallsLeft} 回`,
   });
 
-  return { system, messages, tools: input.tools };
+  return { system, messages, tools: input.tools, budget: { ...input.budget } };
+}
+
+/**
+ * Every tool_result must answer a tool_call in the assistant message right
+ * before it, and every tool_call must be answered before the conversation goes
+ * on. Providers reject anything else, so the log is treated as corrupt.
+ */
+function checkToolPairs(messages: ModelMessage[]): void {
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (!message) continue;
+    if (message.role === "assistant") {
+      const calls = message.content.filter((p) => p.type === "tool_call").map((p) => p.id);
+      if (calls.length === 0) continue;
+      const next = messages[i + 1];
+      const answered = new Set(
+        next?.role === "user"
+          ? next.content.filter((p) => p.type === "tool_result").map((p) => p.callId)
+          : [],
+      );
+      const missing = calls.filter((id) => !answered.has(id));
+      if (missing.length > 0) {
+        throw new OpenshainError(
+          "corrupt_log",
+          `tool calls without a result before the conversation continues: ${missing.join(", ")}`,
+        );
+      }
+    } else {
+      const results = message.content.filter((p) => p.type === "tool_result").map((p) => p.callId);
+      if (results.length === 0) continue;
+      const previous = messages[i - 1];
+      const known = new Set(
+        previous?.role === "assistant"
+          ? previous.content.filter((p) => p.type === "tool_call").map((p) => p.id)
+          : [],
+      );
+      const orphans = results.filter((id) => !known.has(id));
+      if (orphans.length > 0) {
+        throw new OpenshainError(
+          "corrupt_log",
+          `tool results that answer no call in the preceding assistant message: ${orphans.join(", ")}`,
+        );
+      }
+    }
+  }
 }
 
 function renderContent(content: ToolContent[]): string {

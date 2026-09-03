@@ -41,6 +41,7 @@ export {
   type AnyEvent,
   type Artifact,
   type AssistantPart,
+  canonical,
   type Event,
   type EventFile,
   EventFileSchema,
@@ -51,13 +52,23 @@ export {
   type ModelUsage,
   payloadFileSchemas,
   type StopReason,
+  TOOL_REJECTION_CODES,
   type ToolContent,
+  type ToolRejectionCode,
   type UnknownEvent,
 } from "./work/events.ts";
 export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
 export { buildProjection, type Projection, type ProjectionInput } from "./work/projection.ts";
-export { type CreateWorkInput, WORK_DIR_NAME, WORK_FILE_NAME, WorkStore } from "./work/store.ts";
 export {
+  type CreateWorkInput,
+  type ListResult,
+  WORK_DIR_NAME,
+  WORK_FILE_NAME,
+  type WorkHandle,
+  WorkStore,
+} from "./work/store.ts";
+export {
+  isTerminal,
   reduceWork,
   transition,
   WORK_STATUSES,
