@@ -65,7 +65,7 @@ Event の zod schema(共通項目と type ごとの payload)。`EventLog` の ap
 
 - 受け入れ: append と read の往復で等しい。seq が飛ばない。壊れた末尾行があれば `OpenshainError("corrupt_log", …)` で止まり、黙って読み飛ばさない。未知の type は読めるが payload は検証しない。
 - 検証: `bun test packages/core/src/work/event-log.test.ts`
-- 依存: Task 1
+- 依存: Task 1、Task 2(zod を core の依存に入れるのが Task 2 のため)
 - ファイル: `packages/core/src/work/events.ts`、`event-log.ts`、test
 - サイズ: M
 
