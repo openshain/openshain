@@ -32,7 +32,15 @@ export async function loadConfig(
 export function parseConfig(text: string, options: ParseConfigOptions = {}): Config {
   const fileName = options.fileName ?? CONFIG_FILE_NAME;
   const lineCounter = new LineCounter();
-  const doc = parseDocument(text, { lineCounter });
+  let doc: ReturnType<typeof parseDocument>;
+  let data: unknown;
+  try {
+    doc = parseDocument(text, { lineCounter });
+    data = doc.errors.length > 0 ? undefined : doc.toJS();
+  } catch (cause) {
+    // yaml refuses resource-exhaustion documents (alias bombs) with a plain error
+    throw new OpenshainError("config", `${fileName}: ${(cause as Error).message}`, { cause });
+  }
 
   if (doc.errors.length > 0) {
     const lines = doc.errors.map((error) => {
@@ -55,7 +63,7 @@ export function parseConfig(text: string, options: ParseConfigOptions = {}): Con
     return `${fileName}:${line}:${col} ${where}: ${message}`;
   };
 
-  const result = ConfigFileSchema.safeParse(doc.toJS());
+  const result = ConfigFileSchema.safeParse(data);
   if (!result.success) {
     const problems = result.error.issues.map((issue) => problem(issue.path, issue.message));
     throw new OpenshainError("config", problems.join("\n"));
