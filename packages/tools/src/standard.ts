@@ -25,7 +25,7 @@ const definitions: ToolDefinition[] = [
   {
     name: "fs_list",
     description:
-      'List the files and directories at a path inside the workspace. Use "." for the root.',
+      'List the files and directories at a path inside the workspace. Use "." for the root. Returns each entry with its name and whether it is a file or a directory.',
     inputSchema: {
       type: "object",
       properties: { path: { ...pathProperty, default: "." } },
@@ -35,7 +35,8 @@ const definitions: ToolDefinition[] = [
   },
   {
     name: "fs_read",
-    description: "Read a text file inside the workspace.",
+    description:
+      "Read a text file inside the workspace and return its contents. For a CSV file use csv_read; for a Markdown file whose headings you need, use markdown_read.",
     inputSchema: {
       type: "object",
       properties: { path: pathProperty },
@@ -46,7 +47,8 @@ const definitions: ToolDefinition[] = [
   },
   {
     name: "fs_write",
-    description: "Write a text file inside the workspace, creating or replacing it.",
+    description:
+      "Write a text file inside the workspace, creating or replacing it. Returns the file's path and the hash of its contents.",
     inputSchema: {
       type: "object",
       properties: { path: pathProperty, content: { type: "string" } },
@@ -68,7 +70,8 @@ const definitions: ToolDefinition[] = [
   },
   {
     name: "csv_write",
-    description: "Write rows to a CSV file with a header row.",
+    description:
+      "Write rows to a CSV file with a header row, creating or replacing it. Returns the file's path and the hash of its contents.",
     inputSchema: {
       type: "object",
       properties: {
@@ -139,7 +142,7 @@ async function fsList(ctx: ToolContext, path: string): Promise<ToolResult> {
     .filter(
       (entry) => resolved !== root || !(RESERVED_PATHS as readonly string[]).includes(entry.name),
     )
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
     .map((entry) => ({
       name: entry.name,
       type: entry.isDirectory() ? "directory" : entry.isFile() ? "file" : "other",
@@ -183,11 +186,20 @@ async function csvWrite(
 
 async function markdownRead(ctx: ToolContext, path: string): Promise<ToolResult> {
   const text = await readText(ctx, path);
-  const headings = text
-    .split("\n")
-    .map((line) => /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line))
-    .filter((match): match is RegExpExecArray => match !== null)
-    .map((match) => ({ level: match[1]?.length ?? 1, text: match[2] ?? "" }));
+  const headings: { level: number; text: string }[] = [];
+  let fence: string | undefined;
+  for (const line of text.split("\n")) {
+    const fenceMatch = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (fenceMatch) {
+      const marker = fenceMatch[1] ?? "";
+      if (!fence) fence = marker[0];
+      else if (marker[0] === fence) fence = undefined;
+      continue;
+    }
+    if (fence) continue;
+    const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (match) headings.push({ level: match[1]?.length ?? 1, text: match[2] ?? "" });
+  }
   return {
     content: [
       { type: "text", text },

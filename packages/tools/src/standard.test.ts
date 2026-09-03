@@ -185,6 +185,43 @@ describe("standard tools", () => {
     });
   });
 
+  test("markdown_read ignores headings inside fenced code blocks", async () => {
+    const { root, call } = await workspace();
+    await writeFile(
+      join(root, "code.md"),
+      "# 本物\n\n```sh\n# コメント\n```\n\n~~~\n## これも違う\n~~~\n\n## 本物 2\n",
+    );
+
+    const result = await call("markdown_read", { path: "code.md" });
+
+    expect(result.content[1]).toEqual({
+      type: "json",
+      value: {
+        headings: [
+          { level: 1, text: "本物" },
+          { level: 2, text: "本物 2" },
+        ],
+      },
+    });
+  });
+
+  test("fs_list orders entries by code point, the same on every machine", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, "b.txt"), "");
+    await writeFile(join(root, "B.txt"), "");
+    await writeFile(join(root, "a.txt"), "");
+
+    const result = await call("fs_list", { path: "." });
+
+    expect((result.content[0] as { value: { name: string }[] }).value.map((e) => e.name)).toEqual([
+      "B.txt",
+      "a.txt",
+      "b.txt",
+      "notes.md",
+      "receipts",
+    ]);
+  });
+
   test("fs_read refuses a file larger than the limit as a tool error", async () => {
     const { root, call } = await workspace();
     await writeFile(join(root, "big.bin"), Buffer.alloc(2 * 1024 * 1024, 65));
