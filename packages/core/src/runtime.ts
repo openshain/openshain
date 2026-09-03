@@ -3,8 +3,9 @@ import type { Config } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
 import type { ModelProvider } from "./model/types.ts";
 import { loadToolModule } from "./tool/load-module.ts";
-import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
-import type { ToolCall, ToolProvider, ToolResult } from "./tool/types.ts";
+import { ToolRegistry } from "./tool/registry.ts";
+import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
+import type { ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
 import { type WorkHandle, WorkStore } from "./work/store.ts";
 
@@ -12,7 +13,7 @@ export interface RuntimeProviders {
   /** Model providers by the id used in openshain.yaml. */
   models: Record<string, (model: Config["model"]) => ModelProvider>;
   /** Tool providers by the id used in openshain.yaml. Modules are loaded from the config directly. */
-  tools: Record<string, (context: { workspaceRoot: string; config: Config }) => ToolProvider>;
+  tools: Record<string, () => ToolProvider>;
 }
 
 export interface CreateRuntimeOptions {
@@ -20,13 +21,22 @@ export interface CreateRuntimeOptions {
   providers: RuntimeProviders;
 }
 
+/** What the outside world learns about a registered tool. Calls go through runtime.tools.call. */
+export interface ToolSummary {
+  definition: ToolDefinition;
+  providerId: string;
+}
+
+/** Longer tool output is cut here so that one tool cannot flood the model's context. */
+export const MAX_TOOL_TEXT_CHARS = 50_000;
+
 export interface Runtime {
   readonly workspaceRoot: string;
   readonly config: Config;
   readonly model: ModelProvider;
   readonly works: WorkStore;
   readonly tools: {
-    list(): RegisteredTool[];
+    list(): ToolSummary[];
     /** Validates, runs and records one tool call for the given work. Never throws for a tool's own failure. */
     call(work: WorkHandle, call: ToolCall): Promise<ToolResult>;
   };
@@ -52,7 +62,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
 
   const registry = new ToolRegistry();
   for (const entry of config.tools) {
-    const options = entry.allow ? { allow: entry.allow } : {};
+    const registerOptions = entry.allow ? { allow: entry.allow } : {};
     if ("provider" in entry) {
       const factory = providers.tools[entry.provider];
       if (!factory) {
@@ -61,9 +71,9 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
           `unknown tool provider "${entry.provider}"; known providers: ${Object.keys(providers.tools).join(", ")}`,
         );
       }
-      await registry.register(factory({ workspaceRoot, config }), options);
+      await registry.register(factory(), registerOptions);
     } else {
-      await registry.register(await loadToolModule(workspaceRoot, entry.module), options);
+      await registry.register(await loadToolModule(workspaceRoot, entry.module), registerOptions);
     }
   }
 
@@ -74,7 +84,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
     model,
     works,
     tools: {
-      list: () => registry.list(),
+      list: () => registry.list().map(({ definition, providerId }) => ({ definition, providerId })),
       call: (work, call) => callTool({ registry, config, workspaceRoot, work, call }),
     },
   };
@@ -128,6 +138,7 @@ async function callTool(input: {
     result = { content: [{ type: "text", text: message }], isError: true };
   }
   const durationMs = Math.max(0, Math.round(performance.now() - started));
+  result = { ...result, content: result.content.map(capContent) };
 
   await work.append({
     type: "tool.completed",
@@ -148,4 +159,15 @@ async function callTool(input: {
 
 function isRejectionCode(code: string): code is ToolRejectionCode {
   return (TOOL_REJECTION_CODES as readonly string[]).includes(code);
+}
+
+/** Cuts a content part down to MAX_TOOL_TEXT_CHARS and says so at the end. */
+function capContent(part: ToolContent): ToolContent {
+  const text = part.type === "text" ? part.text : JSON.stringify(part.value);
+  if (text.length <= MAX_TOOL_TEXT_CHARS) return part;
+  const cut = text.length - MAX_TOOL_TEXT_CHARS;
+  return {
+    type: "text",
+    text: `${text.slice(0, MAX_TOOL_TEXT_CHARS)}\n…[${cut} characters cut by the runtime]`,
+  };
 }
