@@ -59,6 +59,7 @@ function fakeTools(): ToolProvider {
     call: async (call, ctx) => {
       const input = call.input as { text: string };
       if (input.text === "throw") throw new Error("tool blew up");
+      if (input.text === "huge") return { content: [{ type: "text", text: "x".repeat(60_000) }] };
       if (input.text === "escape") {
         throw new OpenshainError("outside_workspace", 'path escapes the workspace: "../x"');
       }
@@ -302,5 +303,33 @@ describe("runtime.tools.call", () => {
       "usage.recorded",
     ]);
     expect(payloadOf<{ isError: boolean }>(events[2]).isError).toBe(true);
+  });
+});
+
+describe("runtime.tools.call output cap", () => {
+  test("cuts a huge tool result and says so, in the result and in the event", async () => {
+    const root = await workspace();
+    const runtime = await createRuntime({ workspaceRoot: root, providers: providers() });
+    const work = await runtime.works.create({
+      objective: "t",
+      principal: "alice",
+      profession: "generic",
+    });
+    const handle = await runtime.works.open(work.id);
+
+    const result = await runtime.tools.call(handle, {
+      id: "c1",
+      name: "echo",
+      input: { text: "huge" },
+    });
+    await handle.close();
+
+    const text = (result.content[0] as { text: string }).text;
+    expect(text.length).toBeLessThan(60_000);
+    expect(text).toContain("characters cut by the runtime");
+    const completed = (await runtime.works.events(work.id))[2];
+    expect(
+      (payloadOf<{ content: { text: string }[] }>(completed).content[0]?.text ?? "").length,
+    ).toBe(text.length);
   });
 });
