@@ -6,5 +6,10 @@
   "license": "Apache-2.0",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@openshain/core": "workspace:*",
+    "csv-parse": "7.0.2",
+    "csv-stringify": "6.8.3"
   }
 }
