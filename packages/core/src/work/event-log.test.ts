@@ -150,3 +150,22 @@ describe("EventLog hardening", () => {
     expect(await log.read()).toHaveLength(1);
   });
 });
+
+describe("EventLog concurrency", () => {
+  test("two instances appending at the same time cannot both succeed", async () => {
+    const { dir, workId, log } = await freshLog();
+    await log.append({ type: "work.completed", payload: { summary: "seed" } });
+    const a = await EventLog.open(join(dir, "work", workId), workId);
+    const b = await EventLog.open(join(dir, "work", workId), workId);
+
+    const results = await Promise.allSettled([
+      a.append({ type: "work.failed", payload: { reason: "a", detail: "" } }),
+      b.append({ type: "work.failed", payload: { reason: "b", detail: "" } }),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect((rejected.reason as OpenshainError).code).toBe("concurrent_write");
+    expect((await log.read()).map((e) => e.seq)).toEqual([1, 2]);
+  });
+});
