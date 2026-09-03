@@ -15,6 +15,19 @@ export {
   parseWorkId,
   type WorkId,
 } from "./ids.ts";
+export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
+export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
+export {
+  type JsonSchema,
+  TOOL_NAME_PATTERN,
+  type ToolCall,
+  type ToolContext,
+  type ToolDefinition,
+  type ToolEffect,
+  type ToolProvider,
+  type ToolResult,
+} from "./tool/types.ts";
+export { compileInputValidator, type InputValidation } from "./tool/validate.ts";
 export { EVENTS_FILE_NAME, EventLog, type NewEvent } from "./work/event-log.ts";
 export {
   type AnyEvent,

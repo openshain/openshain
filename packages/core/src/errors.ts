@@ -8,6 +8,8 @@ export const ERROR_CODES = [
   "invalid_transition",
   "duplicate_tool",
   "invalid_id",
+  "invalid_tool",
+  "invalid_path",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
