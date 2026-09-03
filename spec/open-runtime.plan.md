@@ -105,7 +105,7 @@ ModelProvider と message の型。`buildProjection(events, config, budget)`: sy
 - core の公開 export(`packages/core/src/index.ts`)が上の型と関数を出している
 - レビュー
 
-レビューの結果(2026-09-03): 6 観点で見て、破れていた約束 9 件を直した。WorkId の実行時検証、書き込み handle と lock、末尾改行なしのログ、ダングリング symlink、reducer の厳密化、書いたイベントの読み返し、lock の所有権と pid の範囲、隠しファイルの予約、投影の正規形と tool の対応検査。あわせて payload schema を loose に、`tool.rejected` に code、`model.completed` に raw、human の入力に call_id、usage に cache 書き込みを足した。残した課題: TOCTOU(Task 8 で O_NOFOLLOW)、pid の再利用(spec に既知の限界として記載)、`list()` の性能(work.json を読む案は次の checkpoint)。
+Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証、書き込みは handle と lock を通す、末尾に改行のないログの拒否、行き先が存在しない symlink も行き先で判定、reducer の厳密化、書いたイベントの読み返し確認、lock の所有権の確認と pid の範囲の限定、先頭が `.` の項目の予約、投影の正規形化と tool 呼び出しの対応検査。あわせて payload schema を loose にし、`tool.rejected` に code、`model.completed` に raw、human の入力に call_id、usage に cache 書き込みを足した。残した課題は 3 つ。TOCTOU(Task 8 で O_NOFOLLOW)、pid の再利用(spec に既知の限界として記載)、`list()` の性能(work.json を読む案は次の checkpoint)。
 
 ### Phase 2: 縦 1 本(fake model → 標準 Tool → CLI)
 

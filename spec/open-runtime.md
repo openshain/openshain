@@ -53,7 +53,7 @@ openshain の最初の実装単位。Model、Tool、Agent の入口を交換で�
 
 `openshain.yaml` と `work/`、および先頭が `.` の項目(`.git`、`.github`、`.env` など)は Runtime の予約パス。Tool からは読み書きとも拒否する。
 
-lock は取得した書き手(pid と開始時刻)だけが解放できる。pid が 1 以下か整数でない lock は死んだものとして引き継ぐ。既知の限界: 別のプロセスに再利用された pid は検出できず、手で lock を消すまで `lock_held` のままになる。
+lock は取得した書き手(pid と開始時刻)だけが解放できる。pid が 1 以下か整数でない lock は死んだものとして引き継ぐ。既知の限界として、別のプロセスに再利用された pid は検出できない。手で lock を消すまで `lock_held` のままになる。
 
 ### openshain.yaml の責務
 
@@ -104,7 +104,7 @@ outcome:
 
 ### Event
 
-`events.jsonl` の 1 行。`v` はイベント行の schema の版で、読む側は版ごとに解釈する。envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通す。後から項目を足しても古い Runtime がログを拒否しないため。envelope を変えるときは `v` を上げる。
+`events.jsonl` の 1 行。`v` はイベント行の schema の版で、読む側は版ごとに解釈する。envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通す。これにより、後から項目を足しても古い Runtime がログを拒否しない。envelope を変えるときは `v` を上げる。
 
 書き込みは正規形で行う。キーは再帰的にソートし、自由形式の値(`input`、`data`、`value`、`raw`)の中の undefined は null にする。同じイベントは同じバイト列になる。append は自分の行を読み返してから書き、読めない行は書かない。末尾が改行で終わっていないファイルと、開いてから他の書き手が変えたファイルへの追記は拒否する。
 
@@ -148,7 +148,7 @@ model に渡す内容は events.jsonl から組み立てる。会話履歴を別
 - 過去の message は書き換えない。追記だけ。
 - 同じイベント列からは byte 単位で同じ messages を作る。provider の thinking を返せる条件であり、prompt cache の前提でもある。
 - provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider には無変更で返し、別の provider には渡さない。
-- 直近の user message の末尾に Runtime の 1 行を足す。「残り: model 呼び出し N 回、Tool 呼び出し M 回」。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。追記なので過去の message は変わらない。
+- 直近の user message の末尾に Runtime の 1 行を足す。「残り model 呼び出し N 回、Tool 呼び出し M 回」。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。追記なので過去の message は変わらない。
 - tool_result は直前の assistant message の tool_call に対応していなければならず、tool_call は次の message までに結果を持たなければならない。どちらかが欠けたログは壊れたものとして扱う。
 
 ## Contract
@@ -235,7 +235,7 @@ export interface ToolResult {
 
 - 名前が重複する Tool が登録されたら起動時にエラーにする。黙って上書きしない。
 - Runtime は `inputSchema` で入力を検証してから `call` する。不一致は `tool.rejected` として記録し、model には `isError` の結果として返す。
-- `inputSchema` は `type: object` でなければならない。`pattern` と `patternProperties` に破局的な後退を起こす正規表現があれば登録を拒否する。入力を握るのは model だからである。
+- `inputSchema` は `type: object` でなければならない。入力の値を渡すのは model なので、`pattern` と `patternProperties` に破局的な後退を起こす正規表現があれば登録を拒否する。
 - 1 つの応答に複数の tool_call が来たら、順に実行し、結果はまとめて 1 つの user message で返す。分けて返すと model が並列呼び出しをやめる。
 - `effect: "mutate"` の Tool は、この段階では直接実行する。後の段階で ChangeSet を通す差し込み口になる。
 
@@ -415,7 +415,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 - Anthropic と OpenAI 互換の provider は、記録した HTTP 応答を fetch の差し替えで返して試す。実 API への smoke test は `OPENSHAIN_LIVE_TESTS=1` のときだけ動く。
 - MCP Server は MCP SDK の in-memory transport で、client から `work_create` → Tool 呼び出し → `work_complete` を通す。
 - 第三者 Tool は、一時 workspace の `openshain.yaml` に `examples/tools/echo` を書いて読み込む。
-- テストで確認する約束: workspace 外、予約パス、隠しファイル、行き先が外を向く symlink は拒否される、schema 不一致と許可リスト外は実行前に止まる、上限で止まる、同じ Work の使用量が合計できる、同値のイベント列から同じバイト列の投影が作られる、2 つ目の書き手は lock と `concurrent_write` の両方で止まる、書いたイベントは必ず読める、Tool に対応しない model は起動時に止まる。
+- テストで確認する約束: workspace 外、予約パス(先頭が `.` の項目を含む)、行き先が外を向く symlink は拒否される、schema 不一致と許可リスト外は実行前に止まる、上限で止まる、同じ Work の使用量が合計できる、同値のイベント列から同じバイト列の投影が作られる、2 つ目の書き手は lock と `concurrent_write` の両方で止まる、書いたイベントは必ず読める、Tool に対応しない model は起動時に止まる。
 
 ## 完了の条件
 
