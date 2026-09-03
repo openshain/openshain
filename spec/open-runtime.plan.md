@@ -20,8 +20,8 @@ core の土台(エラー、ID、設定、イベントログ、Work、Tool の登
 ```
 errors, ids
   ├── config (yaml + zod)
-  ├── work: events → event log → lock → Work と遷移 → projection
-  ├── tool: 契約 → registry(一意性、allow)→ ajv 検証 → path guard
+  ├── work: events(zod は config で入る)→ event log → lock → Work と遷移 → projection
+  ├── tool: 契約(events の ToolContent と Artifact を使う)→ registry(一意性、allow)→ ajv 検証 → path guard
   └── model: 契約
         └── createRuntime(config → registry、module 読み込み、events)
               ├── tools/standard(path guard、after の sha256)
@@ -85,7 +85,7 @@ ToolDefinition と ToolProvider の型。`ToolRegistry`(provider 登録、名前
 
 - 受け入れ: 同名 Tool の 2 重登録が `duplicate_tool` で止まる。allow 外の Tool は `listTools` に出ない。schema 不一致の入力が実行前に落ち、理由が読める。`../x`、`/etc/passwd`、`work/x`、`openshain.yaml`、root 外への symlink がすべて拒否される。
 - 検証: `bun test packages/core/src/tool`
-- 依存: Task 1
+- 依存: Task 1、Task 3(ToolResult が events.ts の ToolContent と Artifact を使う)
 - ファイル: `packages/core/src/tool/types.ts`、`registry.ts`、`validate.ts`、`paths.ts`、test、`package.json`(ajv)
 - サイズ: M
 
