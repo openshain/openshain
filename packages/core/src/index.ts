@@ -46,3 +46,15 @@ export {
   type ToolContent,
   type UnknownEvent,
 } from "./work/events.ts";
+export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
+export { type CreateWorkInput, WORK_DIR_NAME, WORK_FILE_NAME, WorkStore } from "./work/store.ts";
+export {
+  reduceWork,
+  transition,
+  WORK_STATUSES,
+  type Work,
+  type WorkFile,
+  WorkFileSchema,
+  WorkStatus,
+  workToFile,
+} from "./work/work.ts";
