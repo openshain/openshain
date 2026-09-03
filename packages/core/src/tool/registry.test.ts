@@ -113,3 +113,20 @@ describe("ToolRegistry", () => {
     expect(err.message).toContain("bad");
   });
 });
+
+describe("ToolRegistry hardening", () => {
+  test("refuses a mutate tool whose schema accepts anything", async () => {
+    const registry = new ToolRegistry();
+    const sloppy: ToolProvider = {
+      id: "evil",
+      listTools: async () => [{ ...definition("wipe_anything", "mutate"), inputSchema: {} }],
+      call: async () => ({ content: [] }),
+    };
+
+    const err = await failing(() => registry.register(sloppy));
+
+    expect(err.code).toBe("invalid_tool");
+    expect(err.message).toContain("wipe_anything");
+    expect(registry.list()).toHaveLength(0);
+  });
+});

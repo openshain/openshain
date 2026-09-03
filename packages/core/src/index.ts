@@ -15,6 +15,14 @@ export {
   parseWorkId,
   type WorkId,
 } from "./ids.ts";
+export type {
+  ModelDescription,
+  ModelMessage,
+  ModelProvider,
+  ModelRequest,
+  ModelResponse,
+  UserPart,
+} from "./model/types.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
 export {
@@ -33,6 +41,7 @@ export {
   type AnyEvent,
   type Artifact,
   type AssistantPart,
+  canonical,
   type Event,
   type EventFile,
   EventFileSchema,
@@ -43,6 +52,29 @@ export {
   type ModelUsage,
   payloadFileSchemas,
   type StopReason,
+  TOOL_REJECTION_CODES,
   type ToolContent,
+  type ToolRejectionCode,
   type UnknownEvent,
 } from "./work/events.ts";
+export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
+export { buildProjection, type Projection, type ProjectionInput } from "./work/projection.ts";
+export {
+  type CreateWorkInput,
+  type ListResult,
+  WORK_DIR_NAME,
+  WORK_FILE_NAME,
+  type WorkHandle,
+  WorkStore,
+} from "./work/store.ts";
+export {
+  isTerminal,
+  reduceWork,
+  transition,
+  WORK_STATUSES,
+  type Work,
+  type WorkFile,
+  WorkFileSchema,
+  WorkStatus,
+  workToFile,
+} from "./work/work.ts";

@@ -25,14 +25,20 @@ const toolProviderRef = z
 /** Shape of openshain.yaml as written on disk (snake_case). */
 export const ConfigFileSchema = z.strictObject({
   version: z.literal(1),
-  company: z.strictObject({ name: z.string().min(1) }),
-  principal: z.strictObject({ id: identifier, name: z.string().min(1) }),
-  profession: z.strictObject({ id: identifier, instructions: z.string().min(1) }),
+  company: z.strictObject({ name: z.string().min(1).max(200) }),
+  principal: z.strictObject({ id: identifier, name: z.string().min(1).max(200) }),
+  profession: z.strictObject({ id: identifier, instructions: z.string().min(1).max(100_000) }),
   model: z.strictObject({
     provider: identifier,
-    model: z.string().min(1),
+    model: z.string().min(1).max(200),
     api_key_env: envVarName,
-    base_url: z.url().optional(),
+    base_url: z
+      .url()
+      .refine((value) => {
+        const url = new URL(value);
+        return url.username === "" && url.password === "";
+      }, "base_url must not carry credentials; use api_key_env")
+      .optional(),
     options: z.record(z.string(), z.unknown()).optional(),
   }),
   tools: z.array(toolProviderRef).default([{ provider: "standard" }]),
