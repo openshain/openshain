@@ -1,0 +1,192 @@
+import { describe, expect, test } from "bun:test";
+import { OpenshainError } from "../errors.ts";
+import { newEventId, newWorkId } from "../ids.ts";
+import { type Event, eventFromFile, eventToFile } from "./events.ts";
+
+const base = {
+  v: 1 as const,
+  id: newEventId(),
+  workId: newWorkId(),
+  seq: 3,
+  occurredAt: "2026-09-10T01:23:45.000Z",
+  recordedAt: "2026-09-10T01:23:45.100Z",
+};
+
+const samples: Event[] = [
+  {
+    ...base,
+    type: "work.created",
+    payload: { objective: "集計して", principal: "alice", profession: "generic", type: "request" },
+  },
+  {
+    ...base,
+    type: "work.status_changed",
+    payload: { from: "queued", to: "in_progress", reason: "run" },
+  },
+  {
+    ...base,
+    type: "model.requested",
+    payload: {
+      provider: "anthropic",
+      model: "claude-opus-5",
+      messageCount: 3,
+      toolNames: ["fs_read"],
+    },
+  },
+  {
+    ...base,
+    type: "model.completed",
+    payload: {
+      stopReason: "tool_call",
+      content: [
+        { type: "text", text: "読みます" },
+        { type: "tool_call", id: "call_1", name: "fs_read", input: { path: "a.csv" } },
+        { type: "opaque", provider: "anthropic", data: { signature: "x" } },
+      ],
+    },
+  },
+  { ...base, type: "model.failed", payload: { code: "rate_limit", message: "slow down" } },
+  {
+    ...base,
+    type: "tool.called",
+    payload: { callId: "call_1", provider: "standard", name: "fs_read", input: { path: "a.csv" } },
+  },
+  {
+    ...base,
+    type: "tool.completed",
+    payload: {
+      callId: "call_1",
+      content: [{ type: "text", text: "a,b\n1,2" }],
+      isError: false,
+      observation: { source: "a.csv", retrievedAt: "2026-09-10T01:23:45.050Z" },
+      after: [{ path: "out.md", sha256: "abc" }],
+    },
+  },
+  {
+    ...base,
+    type: "tool.rejected",
+    payload: { callId: "call_2", name: "fs_write", reason: "path escapes the workspace" },
+  },
+  { ...base, type: "human.input_requested", payload: { question: "どの月?" } },
+  { ...base, type: "human.input_provided", payload: { answer: "7月" } },
+  {
+    ...base,
+    type: "usage.recorded",
+    payload: {
+      kind: "model_inference",
+      provider: "anthropic",
+      model: "claude-opus-5",
+      usage: { inputTokens: 100, outputTokens: 20, cachedInputTokens: 80, reasoningTokens: 5 },
+    },
+  },
+  {
+    ...base,
+    type: "usage.recorded",
+    payload: { kind: "tool_execution", provider: "standard", usage: { durationMs: 12 } },
+  },
+  {
+    ...base,
+    type: "evidence.recorded",
+    payload: {
+      claim: "summary.md を作成",
+      refs: ["evt_x"],
+      artifacts: [{ path: "summary.md", sha256: "abc" }],
+    },
+  },
+  { ...base, type: "work.completed", payload: { summary: "done" } },
+  { ...base, type: "work.failed", payload: { reason: "limit_reached", detail: "30 model calls" } },
+];
+
+describe("event file mapping", () => {
+  test.each(samples.map((e) => [e.type, e] as const))("%s survives a round trip", (_, event) => {
+    expect(eventFromFile(eventToFile(event))).toEqual(event);
+  });
+
+  test("writes snake_case keys and keeps tool input untouched", () => {
+    const event = samples.find((e) => e.type === "tool.completed");
+    if (!event) throw new Error("sample missing");
+
+    const file = eventToFile(event) as Record<string, unknown>;
+    const payload = file.payload as Record<string, unknown>;
+
+    expect(Object.keys(file)).toEqual([
+      "v",
+      "id",
+      "work_id",
+      "seq",
+      "type",
+      "occurred_at",
+      "recorded_at",
+      "payload",
+    ]);
+    expect(payload.call_id).toBe("call_1");
+    expect(payload.is_error).toBe(false);
+    expect((payload.observation as Record<string, unknown>).retrieved_at).toBe(
+      "2026-09-10T01:23:45.050Z",
+    );
+  });
+
+  test("keeps arbitrary keys inside tool input as written", () => {
+    const event: Event = {
+      ...base,
+      type: "tool.called",
+      payload: {
+        callId: "c",
+        provider: "p",
+        name: "t",
+        input: { file_name: "x", nested: { camelCase: 1 } },
+      },
+    };
+
+    expect(eventFromFile(eventToFile(event))).toEqual(event);
+  });
+
+  test("writes usage token counts in snake_case", () => {
+    const event = samples.find((e) => e.type === "usage.recorded");
+    if (!event) throw new Error("sample missing");
+
+    const payload = eventToFile(event).payload as { usage: Record<string, unknown> };
+
+    expect(payload.usage).toEqual({
+      input_tokens: 100,
+      output_tokens: 20,
+      cached_input_tokens: 80,
+      reasoning_tokens: 5,
+    });
+  });
+
+  test("passes unknown event types through without validating the payload", () => {
+    const file = {
+      ...eventToFile(samples[0] as Event),
+      type: "plugin.custom",
+      payload: { anything: [1, 2] },
+    };
+
+    const event = eventFromFile(file);
+
+    expect(event.type).toBe("plugin.custom");
+    expect(event.payload).toEqual({ anything: [1, 2] });
+  });
+
+  test("rejects a known type whose payload has the wrong shape", () => {
+    const file = {
+      ...eventToFile(samples[0] as Event),
+      type: "tool.called",
+      payload: { name: "fs_read" },
+    };
+
+    expect(() => eventFromFile(file)).toThrow(OpenshainError);
+    try {
+      eventFromFile(file);
+    } catch (err) {
+      expect((err as OpenshainError).code).toBe("corrupt_log");
+      expect((err as OpenshainError).message).toContain("call_id");
+    }
+  });
+
+  test("rejects an envelope with a bad timestamp", () => {
+    const file = { ...eventToFile(samples[0] as Event), occurred_at: "yesterday" };
+
+    expect(() => eventFromFile(file)).toThrow(OpenshainError);
+  });
+});
