@@ -15,3 +15,21 @@ export {
   parseWorkId,
   type WorkId,
 } from "./ids.ts";
+export { EVENTS_FILE_NAME, EventLog, type NewEvent } from "./work/event-log.ts";
+export {
+  type AnyEvent,
+  type Artifact,
+  type AssistantPart,
+  type Event,
+  type EventFile,
+  EventFileSchema,
+  type EventPayloads,
+  type EventType,
+  eventFromFile,
+  eventToFile,
+  type ModelUsage,
+  payloadFileSchemas,
+  type StopReason,
+  type ToolContent,
+  type UnknownEvent,
+} from "./work/events.ts";
