@@ -13,6 +13,7 @@ import {
   OpenshainError,
   type Runtime,
   resolveWorkspacePath,
+  type ToolDefinition,
   type Work,
   type WorkHandle,
   type WorkId,
@@ -21,11 +22,29 @@ import {
 export interface RunWorkOptions {
   /** Defaults to the runtime's model. */
   model?: ModelProvider;
+  /** Answers the model's questions to the person. Without it, a question leaves the work waiting for input. */
+  onInput?: (question: string) => Promise<string>;
   signal?: AbortSignal;
 }
 
+/** The one tool the runtime itself provides: stop and ask the person. */
+export const ASK_USER: ToolDefinition = {
+  name: "ask_user",
+  description:
+    "Ask the person you work for a question when you cannot proceed without their answer. Use it sparingly; prefer the workspace over guessing.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      question: { type: "string", description: "The question, in the person's language." },
+    },
+    required: ["question"],
+    additionalProperties: false,
+  },
+  effect: "observe",
+};
+
 /**
- * Drives one work from its current state to completion or failure:
+ * Drives one work from its current state to completion, failure or a wait:
  * build the projection, ask the model, run the tool calls it made, repeat.
  * Every step is recorded in the work's event log before the next one starts.
  */
@@ -42,6 +61,17 @@ export async function runWork(
       throw new OpenshainError("invalid_transition", `work ${workId} is already ${work.status}`);
     }
     if (work.status === "queued") await handle.transition("in_progress", "run");
+    if (work.status === "waiting_input") {
+      const pending = pendingQuestion(await handle.events());
+      if (!pending) {
+        throw new OpenshainError(
+          "corrupt_log",
+          `work ${workId} waits for input but no question is pending`,
+        );
+      }
+      if (!options.onInput) return work;
+      await answer(handle, pending.callId, await options.onInput(pending.question));
+    }
     return await loop(runtime, handle, model, options);
   } finally {
     await handle.close();
@@ -55,7 +85,7 @@ async function loop(
   options: RunWorkOptions,
 ): Promise<Work> {
   const { limits } = runtime.config;
-  const tools = runtime.tools.list().map((t) => t.definition);
+  const tools = [...runtime.tools.list().map((t) => t.definition), ASK_USER];
   const description = model.describe();
 
   for (;;) {
@@ -138,8 +168,13 @@ async function loop(
           if (used >= limits.maxToolCalls) {
             return fail(handle, "limit_reached", `tool calls exhausted (${limits.maxToolCalls})`);
           }
-          await runtime.tools.call(handle, { id: call.id, name: call.name, input: call.input });
           used += 1;
+          if (call.name === ASK_USER.name) {
+            const outcome = await askUser(handle, call.id, call.input, options);
+            if (outcome === "waiting") return handle.current();
+            continue;
+          }
+          await runtime.tools.call(handle, { id: call.id, name: call.name, input: call.input });
         }
         break;
       }
@@ -221,4 +256,46 @@ async function currentHash(root: string, path: string, recorded: string): Promis
   } catch {
     return recorded;
   }
+}
+
+/** Records the question, parks the work, and answers it right away when the caller can. */
+async function askUser(
+  handle: WorkHandle,
+  callId: string,
+  input: unknown,
+  options: RunWorkOptions,
+): Promise<"answered" | "waiting"> {
+  const question = String((input as { question?: unknown } | null)?.question ?? "");
+  await handle.append({
+    type: "tool.called",
+    payload: { callId, provider: "runtime", name: ASK_USER.name, input },
+  });
+  await handle.append({ type: "human.input_requested", payload: { callId, question } });
+  await handle.transition("waiting_input", "the model asked the person a question");
+  if (!options.onInput) return "waiting";
+  await answer(handle, callId, await options.onInput(question));
+  return "answered";
+}
+
+async function answer(handle: WorkHandle, callId: string, text: string): Promise<void> {
+  await handle.append({ type: "human.input_provided", payload: { callId, answer: text } });
+  await handle.append({
+    type: "tool.completed",
+    payload: { callId, content: [{ type: "text", text }], isError: false },
+  });
+  await handle.transition("in_progress", "the person answered");
+}
+
+/** The last question that has no answer yet. */
+function pendingQuestion(events: AnyEvent[]): { callId: string; question: string } | undefined {
+  const answered = new Set(
+    events
+      .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
+      .map((e) => e.payload.callId),
+  );
+  const open = events
+    .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
+    .filter((e) => !answered.has(e.payload.callId))
+    .at(-1);
+  return open ? { callId: open.payload.callId, question: open.payload.question } : undefined;
 }
