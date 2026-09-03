@@ -23,6 +23,11 @@
     "packages/cli": {
       "name": "openshain",
       "version": "0.0.0",
+      "dependencies": {
+        "@openshain/agent": "workspace:*",
+        "@openshain/core": "workspace:*",
+        "@openshain/tools": "workspace:*",
+      },
     },
     "packages/core": {
       "name": "@openshain/core",
