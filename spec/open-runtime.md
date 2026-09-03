@@ -330,7 +330,7 @@ const work = await runtime.works.create({ objective: "…" });
 await runWork(runtime, work.id);
 ```
 
-`runtime.works`(create、get、list)、`runtime.tools`(list、call)、`runtime.events`(append、read)を公開する。CLI と MCP はこの SDK の上に載る。
+`runtime.works`(create、get、list、open)、`runtime.tools`(list、call)、`runtime.model`、`runtime.config` を公開する。イベントの読み取りは `works.events`、追記は `works.open` が返す handle を通す。CLI と MCP はこの SDK の上に載る。
 
 ## 設定ファイル `openshain.yaml`
 
