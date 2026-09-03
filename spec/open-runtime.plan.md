@@ -278,9 +278,9 @@ Checkpoint 1 の後は、Task 8(標準 Tool)、Task 13 と 14(provider)、Task 1
 | lock の pid 生存確認が WSL と macOS で挙動が違う | 低 | `process.kill(pid, 0)` の例外種別で判定し、両 OS でテスト |
 | 投影の決定性が provider の `opaque` で崩れる | 中 | Task 6 のテストで JSON 文字列の一致を固定する |
 
-## 未決(レビューで決めたいこと)
+## レビューで決めたこと
 
-- PR の粒度。1 タスク 1 PR(19 本)で進めるか、Phase ごと(5 本)にまとめるか。
-- CSV は `csv-parse` と `csv-stringify` でよいか(代案: papaparse、自前)。
-- CLI に色や spinner を入れるか。この計画では入れない(依存を足さない)。
-- live smoke の 2 つ目の vendor をどこで試すか(OpenAI 本家か、Ollama などローカルか)。
+- PR の粒度は 1 タスク 1 PR。19 本。
+- CSV は `csv-parse` と `csv-stringify`。
+- CLI に色や spinner の依存は入れない。`node:util` の `parseArgs` と素の行出力。
+- live smoke の 2 つ目の provider は、Anthropic の OpenAI 互換 endpoint 経由で Claude を呼ぶ。`ANTHROPIC_API_KEY` 1 つで両 provider を本物で試せる。endpoint と対応範囲(tool calling、usage の項目)は Task 15 の実装時に公式ドキュメントで確認する。
