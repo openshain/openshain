@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
-import { newWorkId } from "../ids.ts";
+import { newWorkId, type WorkId } from "../ids.ts";
 import { WorkStore } from "./store.ts";
 
 async function freshStore() {
@@ -60,13 +60,15 @@ describe("WorkStore", () => {
     const first = await store.create({ ...request, objective: "one" });
     const second = await store.create({ ...request, objective: "two" });
 
-    expect((await store.list()).map((w) => w.id)).toEqual([first.id, second.id]);
+    const { works, problems } = await store.list();
+    expect(works.map((w) => w.id)).toEqual([first.id, second.id]);
+    expect(problems).toEqual([]);
   });
 
   test("list is empty when the work directory does not exist", async () => {
     const { store } = await freshStore();
 
-    expect(await store.list()).toEqual([]);
+    expect(await store.list()).toEqual({ works: [], problems: [] });
   });
 
   test("append records an event and refreshes the snapshot", async () => {
@@ -106,5 +108,86 @@ describe("WorkStore", () => {
       [1, "work.created"],
       [2, "work.status_changed"],
     ]);
+  });
+});
+
+describe("WorkStore hardening", () => {
+  test("refuses an id that is not a work id, so nothing can escape work/", async () => {
+    const { root, store } = await freshStore();
+    const crafted = `${"../".repeat(6)}tmp/elsewhere` as WorkId;
+
+    await expect(store.get(crafted)).rejects.toBeInstanceOf(OpenshainError);
+    await store.get(crafted).catch((err: OpenshainError) => expect(err.code).toBe("invalid_id"));
+    await expect(
+      store.append(crafted, { type: "work.completed", payload: { summary: "x" } }),
+    ).rejects.toBeInstanceOf(OpenshainError);
+    await expect(stat(join(root, "work"))).rejects.toThrow();
+  });
+
+  test("list reports a broken work directory instead of failing altogether", async () => {
+    const { root, store } = await freshStore();
+    const healthy = await store.create(request);
+    const broken = newWorkId();
+    await mkdir(join(root, "work", broken), { recursive: true });
+    await writeFile(join(root, "work", broken, "events.jsonl"), "not json\n");
+
+    const { works, problems } = await store.list();
+
+    expect(works.map((w) => w.id)).toEqual([healthy.id]);
+    expect(problems.map((p) => [p.id, p.error.code])).toEqual([[broken, "corrupt_log"]]);
+  });
+
+  test("a second writer is refused while a handle is open", async () => {
+    const { store } = await freshStore();
+    const work = await store.create(request);
+    const handle = await store.open(work.id);
+
+    await expect(store.open(work.id)).rejects.toBeInstanceOf(OpenshainError);
+    await store
+      .transition(work.id, "in_progress", "run")
+      .catch((err: OpenshainError) => expect(err.code).toBe("lock_held"));
+
+    await handle.close();
+    await store.transition(work.id, "in_progress", "run");
+    expect((await store.get(work.id)).status).toBe("in_progress");
+  });
+
+  test("a handle appends several events under one lock and refreshes the snapshot", async () => {
+    const { root, store } = await freshStore();
+    const work = await store.create(request);
+    const handle = await store.open(work.id);
+
+    await handle.transition("in_progress", "run");
+    await handle.append({ type: "work.completed", payload: { summary: "done" } });
+    const current = await handle.current();
+    await handle.close();
+
+    expect(current.status).toBe("completed");
+    const snapshot = JSON.parse(await readFile(join(root, "work", work.id, "work.json"), "utf8"));
+    expect(snapshot.status).toBe("completed");
+    await expect(stat(join(root, "work", work.id, "lock"))).rejects.toThrow();
+  });
+
+  test("a closed handle cannot write", async () => {
+    const { store } = await freshStore();
+    const work = await store.create(request);
+    const handle = await store.open(work.id);
+    await handle.close();
+
+    await expect(
+      handle.append({ type: "work.completed", payload: { summary: "x" } }),
+    ).rejects.toBeInstanceOf(OpenshainError);
+  });
+
+  test("transition refuses to end a work; completion and failure have their own events", async () => {
+    const { store } = await freshStore();
+    const work = await store.create(request);
+    await store.transition(work.id, "in_progress", "run");
+
+    const promise = store.transition(work.id, "completed", "shortcut");
+
+    await expect(promise).rejects.toBeInstanceOf(OpenshainError);
+    await promise.catch((err: OpenshainError) => expect(err.code).toBe("invalid_transition"));
+    expect((await store.get(work.id)).status).toBe("in_progress");
   });
 });
