@@ -13,6 +13,19 @@ import {
 
 export const EVENTS_FILE_NAME = "events.jsonl";
 
+/** Appends to one file are serialized within the process, so two instances cannot interleave the size check and the write. */
+const appendQueues = new Map<string, Promise<unknown>>();
+
+function serialized<T>(path: string, task: () => Promise<T>): Promise<T> {
+  const previous = appendQueues.get(path) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  appendQueues.set(
+    path,
+    run.catch(() => undefined),
+  );
+  return run;
+}
+
 export interface NewEvent<T extends EventType = EventType> {
   type: T;
   payload: EventPayloads[T];
@@ -69,16 +82,18 @@ export class EventLog {
       );
     }
 
-    const current = await fileSize(this.path);
-    if (current !== this.size) {
-      throw new OpenshainError(
-        "concurrent_write",
-        `${this.path} changed since it was opened (expected ${this.size} bytes, found ${current}); another writer is active`,
-      );
-    }
-    await appendFile(this.path, line, "utf8");
-    this.size += Buffer.byteLength(line, "utf8");
-    this.nextSeq += 1;
+    await serialized(this.path, async () => {
+      const current = await fileSize(this.path);
+      if (current !== this.size) {
+        throw new OpenshainError(
+          "concurrent_write",
+          `${this.path} changed since it was opened (expected ${this.size} bytes, found ${current}); another writer is active`,
+        );
+      }
+      await appendFile(this.path, line, "utf8");
+      this.size += Buffer.byteLength(line, "utf8");
+      this.nextSeq += 1;
+    });
     return event;
   }
 
