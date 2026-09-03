@@ -143,7 +143,7 @@ export class WorkStore {
     const assertOpen = () => {
       if (!open) throw new OpenshainError("lock_held", `work ${id} handle is closed`);
     };
-    return {
+    const handle: WorkHandle = {
       id,
       async current() {
         return reduceWork(await log.read());
@@ -167,7 +167,7 @@ export class WorkStore {
         }
         const work = reduceWork(await log.read());
         transition(work.status, to);
-        return this.append({
+        return handle.append({
           type: "work.status_changed",
           payload: { from: work.status, to, reason },
         });
@@ -178,6 +178,7 @@ export class WorkStore {
         await lock.release();
       },
     };
+    return handle;
   }
 
   private dir(id: WorkId): string {
