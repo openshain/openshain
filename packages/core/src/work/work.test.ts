@@ -199,3 +199,51 @@ describe("workToFile", () => {
     expect(failed.failure).toEqual({ reason: "model_error", detail: "boom" });
   });
 });
+
+describe("reduceWork hardening", () => {
+  test("refuses a status change that would end the work", () => {
+    expect(() =>
+      reduceWork([
+        created,
+        started,
+        event(3, "work.status_changed", {
+          from: "in_progress",
+          to: "completed",
+          reason: "shortcut",
+        }),
+      ]),
+    ).toThrow(/work\.completed/);
+    expect(() =>
+      reduceWork([
+        created,
+        started,
+        event(3, "work.status_changed", { from: "in_progress", to: "failed", reason: "shortcut" }),
+      ]),
+    ).toThrow(/work\.failed/);
+  });
+
+  test("refuses a status change whose from does not match the work", () => {
+    expect(() =>
+      reduceWork([
+        created,
+        started,
+        event(3, "work.status_changed", {
+          from: "waiting_approval",
+          to: "waiting_input",
+          reason: "lie",
+        }),
+      ]),
+    ).toThrow(/was waiting_approval but it was in_progress/);
+  });
+
+  test("refuses evidence recorded after the work ended", () => {
+    expect(() =>
+      reduceWork([
+        created,
+        started,
+        event(3, "work.completed", { summary: "done" }),
+        event(4, "evidence.recorded", { claim: "late", refs: [], artifacts: [] }),
+      ]),
+    ).toThrow(/after the work completed/);
+  });
+});

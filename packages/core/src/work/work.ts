@@ -82,10 +82,28 @@ export function reduceWork(events: readonly AnyEvent[]): Work {
         if (!to.success) {
           throw new OpenshainError("corrupt_log", `unknown work status "${payload.to}"`);
         }
+        if (to.data === "completed" || to.data === "failed") {
+          throw new OpenshainError(
+            "corrupt_log",
+            `work.status_changed may not move a work to ${to.data}; use work.${to.data}`,
+          );
+        }
+        if (payload.from !== work.status) {
+          throw new OpenshainError(
+            "corrupt_log",
+            `work.status_changed says the work was ${payload.from} but it was ${work.status}`,
+          );
+        }
         move(work, to.data, event.occurredAt);
         break;
       }
       case "evidence.recorded":
+        if (isTerminal(work.status)) {
+          throw new OpenshainError(
+            "corrupt_log",
+            `evidence recorded after the work ${work.status}`,
+          );
+        }
         artifacts = (event as Event<"evidence.recorded">).payload.artifacts;
         break;
       case "work.completed":
@@ -105,11 +123,15 @@ export function reduceWork(events: readonly AnyEvent[]): Work {
   return work;
 }
 
+export function isTerminal(status: WorkStatus): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
 function move(work: Work, to: WorkStatus, at: string): void {
   transition(work.status, to);
   work.status = to;
   if (to === "in_progress" && work.startedAt === undefined) work.startedAt = at;
-  if (to === "completed" || to === "failed" || to === "cancelled") work.completedAt = at;
+  if (isTerminal(to)) work.completedAt = at;
 }
 
 const artifactFile = z.strictObject({ path: z.string(), sha256: z.string() });
