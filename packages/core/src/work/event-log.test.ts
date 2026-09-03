@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { appendFile, mkdtemp, readFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
 import { newWorkId, parseEventId } from "../ids.ts";
 import { EventLog } from "./event-log.ts";
+import { eventToFile } from "./events.ts";
 
 async function freshLog() {
   const dir = await mkdtemp(join(tmpdir(), "openshain-events-"));
@@ -46,7 +47,10 @@ describe("EventLog", () => {
 
   test("writes one snake_case JSON object per line", async () => {
     const { dir, workId, log } = await freshLog();
-    await log.append({ type: "human.input_requested", payload: { question: "which month?" } });
+    await log.append({
+      type: "human.input_requested",
+      payload: { callId: "c1", question: "which month?" },
+    });
 
     const [line] = (await readFile(join(dir, "work", workId, "events.jsonl"), "utf8")).split("\n");
     const parsed = JSON.parse(line ?? "");
@@ -71,7 +75,7 @@ describe("EventLog", () => {
   test("refuses to read or reopen a log with a corrupt last line", async () => {
     const { dir, workId, log } = await freshLog();
     await log.append({ type: "work.completed", payload: { summary: "a" } });
-    await appendFile(join(dir, "work", workId, "events.jsonl"), '{"v":1,"id":"evt_', "utf8");
+    await appendFile(join(dir, "work", workId, "events.jsonl"), '{"v":1,"id":"evt_\n', "utf8");
 
     await expect(log.read()).rejects.toBeInstanceOf(OpenshainError);
     await log.read().catch((err: OpenshainError) => {
@@ -100,5 +104,49 @@ describe("EventLog", () => {
     await appendFile(join(dir, "work", workId, "events.jsonl"), `${line}\n`, "utf8");
 
     await expect(log.read()).rejects.toBeInstanceOf(OpenshainError);
+  });
+});
+
+describe("EventLog hardening", () => {
+  test("refuses a log whose last write did not finish (no trailing newline)", async () => {
+    const { dir, workId, log } = await freshLog();
+    const first = await log.append({ type: "work.completed", payload: { summary: "a" } });
+    const path = join(dir, "work", workId, "events.jsonl");
+    await writeFile(path, JSON.stringify(eventToFile(first)), "utf8");
+
+    await expect(EventLog.open(join(dir, "work", workId), workId)).rejects.toBeInstanceOf(
+      OpenshainError,
+    );
+    await log.read().catch((err: OpenshainError) => {
+      expect(err.code).toBe("corrupt_log");
+      expect(err.message).toContain("newline");
+    });
+  });
+
+  test("refuses to append when another writer changed the file", async () => {
+    const { dir, workId, log } = await freshLog();
+    await log.append({ type: "work.completed", payload: { summary: "a" } });
+    const other = await EventLog.open(join(dir, "work", workId), workId);
+    await other.append({ type: "work.failed", payload: { reason: "x", detail: "y" } });
+
+    const promise = log.append({ type: "work.failed", payload: { reason: "z", detail: "w" } });
+
+    await expect(promise).rejects.toBeInstanceOf(OpenshainError);
+    await promise.catch((err: OpenshainError) => expect(err.code).toBe("concurrent_write"));
+    expect((await other.read()).map((e) => e.seq)).toEqual([1, 2]);
+  });
+
+  test("refuses an event that could not be read back, before writing anything", async () => {
+    const { log } = await freshLog();
+    await log.append({ type: "work.completed", payload: { summary: "a" } });
+
+    const promise = log.append({
+      type: "tool.rejected",
+      payload: { callId: "c", name: "t", code: "nope" as "invalid_path", reason: "r" },
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(OpenshainError);
+    await promise.catch((err: OpenshainError) => expect(err.code).toBe("invalid_event"));
+    expect(await log.read()).toHaveLength(1);
   });
 });
