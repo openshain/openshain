@@ -53,6 +53,22 @@ openshain の最初の実装単位。Model、Tool、Agent の入口を交換で�
 
 `openshain.yaml` と `work/` は Runtime の予約パス。Tool からは読み書きとも拒否する。
 
+### openshain.yaml の責務
+
+Company Workspace の manifest。root の印であり、この会社に属するものを宣言する。会社の repo に入れて版管理し、self-host でも managed でも同じ中身を使う。会社の事実を置く別のファイル(company.yaml など)は作らず、必要になった事実はこのファイルに足す。
+
+持つもの:
+
+- 会社の事実(`company`)と、Agent が代理する人(`principal`)
+- 使う職能(`profession`)。いまは指示文を直接書く。Profession Pack が入ったら `pack:` で参照する
+- 社員が使ってよい Tool(`tools`)と、その許可リスト(`allow`)
+- 予算の上限(`limits`)
+- 使うベンダーと model(`model.provider`、`model.model`)
+
+環境の節。`model.api_key_env`、`model.base_url`、`model.options`、`debug` は Runtime を動かす環境に属する。当面は同じファイルに置くが、2 つ目の環境(managed)が現れた時点で、commit しない `openshain.local.yaml` による上書きを足す。それまでは作らない。
+
+持たないもの: 秘密の値(環境変数名だけを書く)、Work の状態(`work/`)、知識(`rules/`、`sources/`)、証跡、生成物(`build/`)。
+
 ### Principal
 
 Agent が代理する人。この段階では設定ファイルに 1 人書く。すべての Work は principal を持つ。
@@ -341,6 +357,7 @@ limits:
 - 設定の検証は起動時に行い、不備は行番号つきで報告する。
 - `model` を書き換えるだけで provider が切り替わる。コードは変えない。
 - `allow` に書かれていない Tool は model に定義を渡さない。呼ばれたら `tool.rejected`(reason: 許可リスト外)。
+- `api_key_env`、`base_url`、`options`、`debug` は環境の節。それ以外は会社の manifest(「openshain.yaml の責務」を参照)。
 
 ## 構成
 
