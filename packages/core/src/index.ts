@@ -15,6 +15,14 @@ export {
   parseWorkId,
   type WorkId,
 } from "./ids.ts";
+export type {
+  ModelDescription,
+  ModelMessage,
+  ModelProvider,
+  ModelRequest,
+  ModelResponse,
+  UserPart,
+} from "./model/types.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
 export {
@@ -47,6 +55,7 @@ export {
   type UnknownEvent,
 } from "./work/events.ts";
 export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
+export { buildProjection, type Projection, type ProjectionInput } from "./work/projection.ts";
 export { type CreateWorkInput, WORK_DIR_NAME, WORK_FILE_NAME, WorkStore } from "./work/store.ts";
 export {
   reduceWork,
