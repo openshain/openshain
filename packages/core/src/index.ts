@@ -23,6 +23,15 @@ export type {
   ModelResponse,
   UserPart,
 } from "./model/types.ts";
+export {
+  type CreateRuntimeOptions,
+  createRuntime,
+  MAX_TOOL_TEXT_CHARS,
+  type Runtime,
+  type RuntimeProviders,
+  type ToolSummary,
+} from "./runtime.ts";
+export { loadToolModule } from "./tool/load-module.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
 export {

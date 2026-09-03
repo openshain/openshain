@@ -237,6 +237,7 @@ export interface ToolResult {
 - Runtime は `inputSchema` で入力を検証してから `call` する。不一致は `tool.rejected` として記録し、model には `isError` の結果として返す。
 - `inputSchema` は `type: object` でなければならない。入力の値を渡すのは model なので、`pattern` と `patternProperties` に破局的な後退を起こす正規表現があれば登録を拒否する。
 - 1 つの応答に複数の tool_call が来たら、順に実行し、結果はまとめて 1 つの user message で返す。分けて返すと model が並列呼び出しをやめる。
+- Tool の結果の text は 50,000 文字で切り、切ったことを末尾に印す。Tool 1 つで model の context を溢れさせないため。
 - `effect: "mutate"` の Tool は、この段階では直接実行する。後の段階で ChangeSet を通す差し込み口になる。
 
 ### エラー
@@ -330,7 +331,7 @@ const work = await runtime.works.create({ objective: "…" });
 await runWork(runtime, work.id);
 ```
 
-`runtime.works`(create、get、list)、`runtime.tools`(list、call)、`runtime.events`(append、read)を公開する。CLI と MCP はこの SDK の上に載る。
+`runtime.works`(create、get、list、open)、`runtime.tools`(list、call)、`runtime.model`、`runtime.config` を公開する。イベントの読み取りは `works.events`、追記は `works.open` が返す handle を通す。CLI と MCP はこの SDK の上に載る。
 
 ## 設定ファイル `openshain.yaml`
 

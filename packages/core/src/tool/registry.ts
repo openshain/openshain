@@ -17,6 +17,7 @@ export interface RegisterOptions {
 /** Every tool the runtime can offer, across providers. Names are unique. */
 export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
+  private readonly hidden = new Set<string>();
 
   async register(provider: ToolProvider, options: RegisterOptions = {}): Promise<void> {
     const definitions = await provider.listTools();
@@ -63,6 +64,14 @@ export class ToolRegistry {
       prepared.set(name, { definition, providerId: provider.id, provider, validate });
     }
     for (const [name, tool] of prepared) this.tools.set(name, tool);
+    for (const definition of definitions) {
+      if (!prepared.has(definition.name)) this.hidden.add(definition.name);
+    }
+  }
+
+  /** True for a tool the provider offers but an allow list left out. */
+  isHidden(name: string): boolean {
+    return this.hidden.has(name) && !this.tools.has(name);
   }
 
   list(): RegisteredTool[] {
