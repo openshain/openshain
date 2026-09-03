@@ -83,3 +83,45 @@ describe("acquireLock", () => {
     await expect(lock.release()).resolves.toBeUndefined();
   });
 });
+
+describe("acquireLock hardening", () => {
+  test.each([0, -1, 1.5])("treats a lock recorded with pid %p as stale", async (pid) => {
+    const dir = await freshDir();
+    await writeFile(
+      join(dir, "lock"),
+      JSON.stringify({ pid, started_at: "2026-09-03T00:00:00.000Z" }),
+    );
+
+    const lock = await acquireLock(dir);
+
+    expect(JSON.parse(await readFile(join(dir, "lock"), "utf8")).pid).toBe(process.pid);
+    await lock.release();
+  });
+
+  test("release leaves a lock that another holder took over", async () => {
+    const dir = await freshDir();
+    const stale = await acquireLock(dir);
+    await writeFile(
+      join(dir, "lock"),
+      JSON.stringify({ pid: 999999, started_at: "2026-09-03T00:00:00.000Z" }),
+    );
+
+    await stale.release();
+
+    expect(JSON.parse(await readFile(join(dir, "lock"), "utf8")).pid).toBe(999999);
+  });
+
+  test("reports a work directory that is a file as an invalid path", async () => {
+    const root = await freshDir();
+    const fakeDir = join(root, "work_x");
+    await writeFile(fakeDir, "not a directory");
+
+    try {
+      await acquireLock(fakeDir);
+      throw new Error("expected a rejection");
+    } catch (err) {
+      expect(err).toBeInstanceOf(OpenshainError);
+      expect((err as OpenshainError).code).toBe("invalid_path");
+    }
+  });
+});
