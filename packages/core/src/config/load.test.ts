@@ -182,3 +182,43 @@ describe("loadConfig", () => {
     });
   });
 });
+
+describe("parseConfig hardening", () => {
+  test("reports an alias bomb as a config error with the file name", () => {
+    const bomb = `a: &a ["x","x","x","x","x","x","x","x","x"]
+b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]
+c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]
+d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]
+e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d]
+version: 1
+company: { name: *e }
+`;
+
+    const err = configError(bomb);
+
+    expect(err.code).toBe("config");
+    expect(err.message).toContain("openshain.yaml");
+  });
+
+  test("rejects a base_url that carries credentials", () => {
+    const text = example.replace(
+      "  api_key_env: ANTHROPIC_API_KEY\n",
+      "  api_key_env: ANTHROPIC_API_KEY\n  base_url: https://svc:hunter2@gateway.internal/v1\n",
+    );
+
+    const err = configError(text);
+
+    expect(err.message).toMatch(/model\.base_url: .*credentials/);
+  });
+
+  test("rejects instructions beyond the length limit", () => {
+    const text = example.replace(
+      "  instructions: |\n    あなたはこの会社の事務担当です。\n",
+      `  instructions: "${"あ".repeat(100_001)}"\n`,
+    );
+
+    const err = configError(text);
+
+    expect(err.message).toContain("profession.instructions");
+  });
+});
