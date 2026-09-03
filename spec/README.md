@@ -9,4 +9,4 @@
 
 | spec | 状態 | 内容 |
 |---|---|---|
-| [open-runtime.md](open-runtime.md) | draft v0.1 | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider の契約、Work とイベント、CLI と MCP |
+| [open-runtime.md](open-runtime.md) | draft v0.2 | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider の契約、Work とイベント、CLI と MCP |
