@@ -25,7 +25,7 @@ export interface Projection {
 /**
  * What the model sees. Built from the event log alone, in order, and therefore
  * the same bytes every time for the same events. Nothing is rewritten: the
- * budget line is appended to the last user message only.
+ * budget line is a user message of its own at the end.
  */
 export function buildProjection(input: ProjectionInput): Projection {
   const { config } = input;
@@ -81,9 +81,16 @@ export function buildProjection(input: ProjectionInput): Projection {
 
   checkToolPairs(messages);
 
-  pushUserPart({
-    type: "text",
-    text: `残り model 呼び出し ${input.budget.modelCallsLeft} 回、Tool 呼び出し ${input.budget.toolCallsLeft} 回`,
+  // The budget is a message of its own, so the messages before it keep their bytes from turn to
+  // turn and a provider's prompt cache can cover them.
+  messages.push({
+    role: "user",
+    content: [
+      {
+        type: "text",
+        text: `残り model 呼び出し ${input.budget.modelCallsLeft} 回、Tool 呼び出し ${input.budget.toolCallsLeft} 回`,
+      },
+    ],
   });
 
   return { system, messages, tools: input.tools, budget: { ...input.budget } };

@@ -101,7 +101,7 @@ describe("runWork", () => {
       "evidence.recorded",
       "work.completed",
     ]);
-    expect(model.requests[1]?.messages.at(-1)?.content[0]).toMatchObject({
+    expect(model.requests[1]?.messages.at(-2)?.content[0]).toMatchObject({
       type: "tool_result",
       callId: "c1",
     });
@@ -120,7 +120,7 @@ describe("runWork", () => {
 
     await runWork(runtime, work.id);
 
-    const last = model.requests[1]?.messages.at(-1);
+    const last = model.requests[1]?.messages.at(-2);
     expect(last?.role).toBe("user");
     expect(
       last?.content
@@ -212,7 +212,7 @@ describe("runWork", () => {
     const done = await runWork(runtime, work.id);
 
     expect(done.status).toBe("completed");
-    const result = model.requests[1]?.messages.at(-1)?.content[0] as {
+    const result = model.requests[1]?.messages.at(-2)?.content[0] as {
       isError?: boolean;
       content: string;
     };
@@ -312,7 +312,7 @@ describe("runWork with ask_user", () => {
       callId: "q1",
       question: "どの月ですか?",
     });
-    const answer = model.requests[1]?.messages.at(-1)?.content[0];
+    const answer = model.requests[1]?.messages.at(-2)?.content[0];
     expect(answer).toEqual({ type: "tool_result", callId: "q1", content: "7月", isError: false });
   });
 
@@ -390,7 +390,7 @@ describe("runWork with ask_user", () => {
     const done = await runWork(runtime, work.id, { onInput: async () => "7月" });
 
     expect(done.status).toBe("completed");
-    const results = (model.requests[1]?.messages.at(-1)?.content ?? []).flatMap((p) =>
+    const results = (model.requests[1]?.messages.at(-2)?.content ?? []).flatMap((p) =>
       p.type === "tool_result" ? [p.callId] : [],
     );
     expect(results.sort()).toEqual(["c2", "q1"]);
@@ -417,7 +417,7 @@ describe("runWork with ask_user", () => {
     expect(payloadOf<{ code: string }>(events.find((e) => e.type === "tool.rejected")).code).toBe(
       "schema_mismatch",
     );
-    expect(model.requests[1]?.messages.at(-1)?.content[0]).toMatchObject({
+    expect(model.requests[1]?.messages.at(-2)?.content[0]).toMatchObject({
       type: "tool_result",
       callId: "q1",
       isError: true,
@@ -487,7 +487,7 @@ describe("runWork after an interrupted run", () => {
     const done = await runWork(runtime, work.id);
 
     expect(done.status).toBe("completed");
-    const result = model.requests[0]?.messages.at(-1)?.content[0];
+    const result = model.requests[0]?.messages.at(-2)?.content[0];
     expect(result).toMatchObject({ type: "tool_result", callId: "c1", isError: true });
     const events = await runtime.works.events(work.id);
     const closed = events.find(

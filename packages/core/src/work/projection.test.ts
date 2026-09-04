@@ -76,16 +76,15 @@ describe("buildProjection", () => {
     expect(buildProjection(input([created])).tools).toEqual([fsRead]);
   });
 
-  test("appends the remaining budget to the last user message only", () => {
+  test("puts the remaining budget in a user message of its own at the end", () => {
     const projection = buildProjection(input([created]));
 
-    const last = projection.messages.at(-1);
-    expect(last?.role).toBe("user");
-    expect(last?.content.at(-1)).toEqual({
-      type: "text",
-      text: "残り model 呼び出し 29 回、Tool 呼び出し 100 回",
+    expect(projection.messages).toHaveLength(2);
+    expect(projection.messages[0]?.content).toHaveLength(1);
+    expect(projection.messages.at(-1)).toEqual({
+      role: "user",
+      content: [{ type: "text", text: "残り model 呼び出し 29 回、Tool 呼び出し 100 回" }],
     });
-    expect(projection.messages).toHaveLength(1);
   });
 
   test("replays assistant output and groups the tool results into one user message", () => {
@@ -120,7 +119,7 @@ describe("buildProjection", () => {
 
     const projection = buildProjection(input(events));
 
-    expect(projection.messages.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+    expect(projection.messages.map((m) => m.role)).toEqual(["user", "assistant", "user", "user"]);
     expect(projection.messages[1]?.content).toEqual([
       { type: "text", text: "2 つ読みます" },
       { type: "tool_call", id: "c1", name: "fs_read", input: { path: "a.csv" } },
@@ -129,6 +128,8 @@ describe("buildProjection", () => {
     expect(projection.messages[2]?.content).toEqual([
       { type: "tool_result", callId: "c1", content: "a,b\n1,2", isError: false },
       { type: "tool_result", callId: "c2", content: "path escapes the workspace", isError: true },
+    ]);
+    expect(projection.messages[3]?.content).toEqual([
       { type: "text", text: "残り model 呼び出し 29 回、Tool 呼び出し 100 回" },
     ]);
     expect(projection.messages[0]?.content).toHaveLength(1);
@@ -208,7 +209,7 @@ describe("buildProjection", () => {
       { ...event("work.completed", { summary: "x" }), type: "plugin.custom", payload: {} },
     ];
 
-    expect(buildProjection(input(events)).messages).toHaveLength(1);
+    expect(buildProjection(input(events)).messages).toHaveLength(2);
   });
 
   test("builds byte-identical output from the same events", () => {
