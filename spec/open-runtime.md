@@ -138,7 +138,7 @@ outcome:
 
 model に渡す内容は events.jsonl から組み立てる。会話履歴を別に保存しない。
 
-- system: profession の指示文、会社名、principal
+- system: profession の指示文、会社名、principal、Runtime の通知の説明(末尾の残量の 1 行は通知で返事は要らない、依頼が終わったら要約して終える)
 - messages: objective、model の出力、Tool の結果を発生順に並べたもの
 - tools: 許可リストを通った Tool 定義
 

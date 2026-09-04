@@ -33,6 +33,7 @@ export function buildProjection(input: ProjectionInput): Projection {
     config.profession.instructions.trim(),
     `この会社は ${config.company.name}。`,
     `あなたが代理する人は ${config.principal.name}(${config.principal.id})。`,
+    "各ターンの最後に Runtime が「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行を user message として足す。これは残量の通知で、返事は要らない。依頼が終わったら、何をしたかを要約して終える。",
   ].join("\n\n");
 
   const messages: ModelMessage[] = [];

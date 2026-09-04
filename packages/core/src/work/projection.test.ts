@@ -60,6 +60,7 @@ describe("buildProjection", () => {
     expect(projection.system).toContain("サンプル株式会社");
     expect(projection.system).toContain("Alice");
     expect(projection.system).toContain("alice");
+    expect(projection.system).toContain("返事は要らない");
   });
 
   test("starts the conversation with the objective as a user message", () => {
