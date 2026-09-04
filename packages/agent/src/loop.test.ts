@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AnyEvent, createRuntime } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
-import { runWork } from "./loop.ts";
+import { ASK_USER, runWork } from "./loop.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
 
 const configText = (extra = "") => `version: 1
@@ -360,5 +360,88 @@ describe("runWork with ask_user", () => {
     if (!writeEvent) throw new Error("expected the write event");
     expect(payloadOf<{ refs: string[] }>(evidence).refs).toEqual([writeEvent.id]);
     expect(payloadOf<{ artifacts: unknown[] }>(evidence).artifacts).toHaveLength(1);
+  });
+
+  test("runs the other calls of the turn before waiting, and answers them together", async () => {
+    const { model, runtime, work } = await setup([
+      callTools(
+        { id: "q1", name: "ask_user", input: { question: "どの月ですか?" } },
+        { id: "c2", name: "fs_list", input: {} },
+      ),
+      say("済み"),
+    ]);
+
+    const waiting = await runWork(runtime, work.id);
+
+    expect(waiting.status).toBe("waiting_input");
+    const before = types(await runtime.works.events(work.id));
+    expect(before.indexOf("tool.completed")).toBeGreaterThan(-1);
+    expect(before.indexOf("tool.completed")).toBeLessThan(before.indexOf("human.input_requested"));
+
+    const done = await runWork(runtime, work.id, { onInput: async () => "7月" });
+
+    expect(done.status).toBe("completed");
+    const results = (model.requests[1]?.messages.at(-1)?.content ?? []).flatMap((p) =>
+      p.type === "tool_result" ? [p.callId] : [],
+    );
+    expect(results.sort()).toEqual(["c2", "q1"]);
+  });
+
+  test("rejects a question that does not match the schema and lets the model try again", async () => {
+    const { model, runtime, work } = await setup([
+      callTools({ id: "q1", name: "ask_user", input: {} }),
+      say("済み"),
+    ]);
+    const asked: string[] = [];
+
+    const done = await runWork(runtime, work.id, {
+      onInput: async (question) => {
+        asked.push(question);
+        return "x";
+      },
+    });
+
+    expect(done.status).toBe("completed");
+    expect(asked).toEqual([]);
+    const events = await runtime.works.events(work.id);
+    expect(events.some((e) => e.type === "human.input_requested")).toBe(false);
+    expect(payloadOf<{ code: string }>(events.find((e) => e.type === "tool.rejected")).code).toBe(
+      "schema_mismatch",
+    );
+    expect(model.requests[1]?.messages.at(-1)?.content[0]).toMatchObject({
+      type: "tool_result",
+      callId: "q1",
+      isError: true,
+    });
+  });
+
+  test("answers every question of a turn when the work resumes", async () => {
+    const { runtime, work } = await setup([
+      callTools(
+        { id: "q1", name: "ask_user", input: { question: "どの月ですか?" } },
+        { id: "q2", name: "ask_user", input: { question: "どの部署ですか?" } },
+      ),
+      say("済み"),
+    ]);
+
+    const waiting = await runWork(runtime, work.id);
+
+    expect(waiting.status).toBe("waiting_input");
+    const asked: string[] = [];
+    const done = await runWork(runtime, work.id, {
+      onInput: async (question) => {
+        asked.push(question);
+        return "a";
+      },
+    });
+
+    expect(asked).toEqual(["どの月ですか?", "どの部署ですか?"]);
+    expect(done.status).toBe("completed");
+    const events = await runtime.works.events(work.id);
+    expect(events.filter((e) => e.type === "work.status_changed")).toHaveLength(3);
+  });
+
+  test("the ask_user definition cannot be changed by its users", () => {
+    expect(Object.isFrozen(ASK_USER)).toBe(true);
   });
 });

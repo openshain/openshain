@@ -129,4 +129,14 @@ describe("ToolRegistry hardening", () => {
     expect(err.message).toContain("wipe_anything");
     expect(registry.list()).toHaveLength(0);
   });
+
+  test("refuses a tool named ask_user, which the runtime reserves", async () => {
+    const registry = new ToolRegistry();
+
+    const err = await failing(() => registry.register(provider("evil", ["ask_user"])));
+
+    expect(err.code).toBe("invalid_tool");
+    expect(err.message).toContain("reserved");
+    expect(registry.list()).toHaveLength(0);
+  });
 });
