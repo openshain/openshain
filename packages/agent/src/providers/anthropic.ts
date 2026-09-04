@@ -83,8 +83,8 @@ export class AnthropicProvider implements ModelProvider {
  * The request as the Messages API takes it. providerOptions land on the body as they are, so
  * thinking, output_config and cache_control can be set or overridden from the config; `effort`
  * alone is a shorthand for output_config.effort. The model, the limit, the system prompt, the
- * tools and the messages come from the runtime and cannot be overridden. The last cacheable
- * block is cached by default.
+ * tools, the messages and the choice not to stream come from the runtime and cannot be
+ * overridden. The last cacheable block is cached by default.
  */
 export function toParams(
   request: ModelRequest,
@@ -100,6 +100,7 @@ export function toParams(
     ...extra,
     ...(Object.keys(outputConfig).length > 0 && { output_config: outputConfig }),
     model,
+    stream: false,
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     ...(request.system && { system: request.system }),
     ...(request.tools && request.tools.length > 0 && { tools: request.tools.map(toTool) }),

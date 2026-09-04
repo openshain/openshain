@@ -242,6 +242,15 @@ describe("AnthropicProvider", () => {
     expect(body.output_config).toEqual({ effort: 3 });
   });
 
+  test("never streams, even when the options ask for it", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    const response = await provider.generate({ ...request, providerOptions: { stream: true } });
+
+    expect(response.stopReason).toBe("end_turn");
+    expect(calls[0]?.body.stream).toBe(false);
+  });
+
   test("sends requests under a base URL, with or without its /v1", async () => {
     const withV1 = recorded(200, await fixture("text-only"), {
       baseUrl: "http://localhost:9999/v1",

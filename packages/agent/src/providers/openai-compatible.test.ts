@@ -133,6 +133,30 @@ describe("OpenAICompatibleProvider", () => {
     expect((body.tools as unknown[]).length).toBe(1);
   });
 
+  test("never streams, even when the options ask for it", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    const response = await provider.generate({ ...request, providerOptions: { stream: true } });
+
+    expect(response.stopReason).toBe("end_turn");
+    expect(calls[0]?.body.stream).toBe(false);
+  });
+
+  test("joins content that a server returns as text parts", async () => {
+    const parts = (await fixture("text-only")) as { choices: { message: { content: unknown } }[] };
+    if (parts.choices[0]) {
+      parts.choices[0].message.content = [
+        { type: "text", text: "7月の経費は " },
+        { type: "text", text: "350 円です。" },
+      ];
+    }
+    const { provider } = recorded(200, parts);
+
+    const response = await provider.generate(request);
+
+    expect(response.message.content).toEqual([{ type: "text", text: "7月の経費は 350 円です。" }]);
+  });
+
   test("sends requests to the base URL from the config", async () => {
     const { calls, provider } = recorded(200, await fixture("text-only"), {
       baseUrl: "http://localhost:11434/v1",

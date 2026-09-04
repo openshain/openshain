@@ -102,8 +102,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
 /**
  * The request as chat completions take it. providerOptions land on the body as they are
- * (reasoning_effort, temperature, and so on); the model, the limit, the messages and the tools
- * come from the runtime. The limit is sent as max_completion_tokens unless the options carry the
+ * (reasoning_effort, temperature, and so on); the model, the limit, the messages, the tools and
+ * the choice not to stream come from the runtime. The limit is sent as max_completion_tokens unless the options carry the
  * older max_tokens, which some servers still expect. A `tools` flag in the options is the
  * provider's, not the request's.
  */
@@ -119,6 +119,7 @@ export function toParams(
   return {
     ...extra,
     model,
+    stream: false,
     ...(!legacyLimit && { max_completion_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS }),
     messages,
     ...(request.tools && request.tools.length > 0 && { tools: request.tools.map(toTool) }),
@@ -184,8 +185,15 @@ export function fromCompletion(completion: ChatCompletion): ModelResponse {
   if (!choice) {
     throw new OpenshainError("invalid_response", "the completion has no choices");
   }
-  const { role: _role, content: text, tool_calls, refusal: _refusal, ...rest } = choice.message;
+  const {
+    role: _role,
+    content: rawContent,
+    tool_calls,
+    refusal: _refusal,
+    ...rest
+  } = choice.message;
   const content: AssistantPart[] = [];
+  const text = joinContent(rawContent);
   if (text) content.push({ type: "text", text });
   const calls = (tool_calls ?? []).filter((call) => call.type === "function");
   for (const call of calls) {
@@ -208,6 +216,18 @@ export function fromCompletion(completion: ChatCompletion): ModelResponse {
     usage: toUsage(completion.usage),
     raw: completion,
   };
+}
+
+/** Content is a string, but some servers return text parts; those are joined. */
+function joinContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      part && typeof part === "object" ? (part as { text?: unknown }).text : undefined,
+    )
+    .filter((text): text is string => typeof text === "string")
+    .join("");
 }
 
 /** Tool arguments arrive as a JSON string. One that does not parse is passed on as it is, so the schema check reports it. */
