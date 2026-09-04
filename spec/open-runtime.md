@@ -249,6 +249,17 @@ export interface ToolResult {
 - `code` の一覧: `auth`、`network`、`rate_limit`、`invalid_response`、`config`、`corrupt_log`、`invalid_transition`、`duplicate_tool`、`invalid_id`、`invalid_tool`、`invalid_path`、`lock_held`、`not_found`、`reserved_path`、`outside_workspace`、`concurrent_write`、`invalid_event`。第三者の provider が独自の理由を持つときは `message` に書く。
 - `raw` は既定で保存しない。`debug.persist_raw: true` のときだけイベントに含める。
 
+### Anthropic provider(`packages/agent`)
+
+`@anthropic-ai/sdk` の Messages API を使う。対応は次のとおり。
+
+- stop_reason: `end_turn` と `stop_sequence` は `end_turn`、`tool_use` は `tool_call`、`max_tokens` と `refusal` はそのまま。それ以外(`pause_turn`、`model_context_window_exceeded`)は `other`
+- content: text と tool_use はそのまま。thinking と redacted_thinking、その他のブロックは `opaque`(provider: anthropic)として保存し、次の request の assistant message に無変更で戻す
+- usage: input_tokens、output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)
+- エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と 5xx は `network`、それ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
+- request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける
+- API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー
+
 ### 標準 Tool(`packages/tools`)
 
 | name | effect | 内容 |
