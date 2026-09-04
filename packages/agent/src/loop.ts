@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import {
   type AnyEvent,
   type Artifact,
@@ -14,8 +12,8 @@ import {
   type ModelResponse,
   OpenshainError,
   type Runtime,
-  resolveWorkspacePath,
   type ToolDefinition,
+  verifyArtifact,
   type Work,
   type WorkHandle,
   type WorkId,
@@ -343,28 +341,11 @@ async function complete(
   }
   const artifacts: Artifact[] = [];
   for (const [path, recorded] of byPath) {
-    artifacts.push(await currentArtifact(runtime.workspaceRoot, path, recorded));
+    artifacts.push(await verifyArtifact(runtime.workspaceRoot, path, recorded));
   }
   await handle.append({ type: "evidence.recorded", payload: { claim: summary, refs, artifacts } });
   await handle.append({ type: "work.completed", payload: { summary } });
   return handle.current();
-}
-
-/**
- * The artifact as it is now. The runtime computes the hash rather than taking the tool's word.
- * When the file cannot be read, because a later call moved or deleted it or because the tool
- * never wrote it, the artifact keeps the hash the tool reported and is marked missing.
- */
-async function currentArtifact(root: string, path: string, recorded: string): Promise<Artifact> {
-  try {
-    const resolved = await resolveWorkspacePath(root, path);
-    const sha256 = createHash("sha256")
-      .update(await readFile(resolved))
-      .digest("hex");
-    return { path, sha256 };
-  } catch {
-    return { path, sha256: recorded, missing: true };
-  }
 }
 
 /** A handle that reports every event it records. */
