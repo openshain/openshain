@@ -173,3 +173,69 @@ describe("openshain over MCP", () => {
     expect(unknown.text).toContain("unknown tool");
   });
 });
+
+describe("openshain over MCP, under pressure", () => {
+  test("runs parallel calls one after another instead of fighting over the lock", async () => {
+    const { call } = await connected();
+    await call("work_create", { objective: "x" });
+
+    const results = await Promise.all([
+      call("fs_list", {}),
+      call("fs_list", {}),
+      call("fs_list", {}),
+    ]);
+
+    expect(results.map((r) => r.isError)).toEqual([false, false, false]);
+  });
+
+  test("refuses tool calls on a work that ended elsewhere, and forgets it", async () => {
+    const { call, store } = await connected();
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
+    const handle = await store.open(id as never);
+    await handle.append({ type: "work.completed", payload: { summary: "done elsewhere" } });
+    await handle.close();
+
+    const listed = await call("fs_list", {});
+    const then = await call("work_get", {});
+
+    expect(listed.isError).toBe(true);
+    expect(listed.text).toContain("already completed");
+    expect(then.isError).toBe(true);
+    expect((await store.events(id as never)).at(-1)?.type).toBe("work.completed");
+  });
+
+  test("reports inputs that do not match a work tool's schema in the same words as any tool", async () => {
+    const { call } = await connected();
+
+    const created = await call("work_create", {});
+    const finished = await call("work_complete", { summary: "s", artifacts: [{ path: 3 }] });
+
+    expect(created.isError).toBe(true);
+    expect(created.text).toContain("schema_mismatch");
+    expect(finished.text).toContain("schema_mismatch");
+  });
+
+  test("refuses artifacts outside the workspace and records nothing", async () => {
+    const { call } = await connected();
+    await call("work_create", { objective: "x" });
+
+    const done = await call("work_complete", {
+      summary: "s",
+      artifacts: [{ path: "../etc/passwd" }],
+    });
+
+    expect(done.isError).toBe(true);
+    expect(done.text).toContain("outside_workspace");
+    expect((await call("work_get", {})).json().status).toBe("in_progress");
+  });
+
+  test("refuses to start a new work while the current one is unfinished", async () => {
+    const { call } = await connected();
+    await call("work_create", { objective: "one" });
+
+    const second = await call("work_create", { objective: "two" });
+
+    expect(second.isError).toBe(true);
+    expect(second.text).toContain("work_complete or work_fail");
+  });
+});
