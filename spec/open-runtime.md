@@ -127,13 +127,13 @@ outcome:
 | `human.input_requested` | call_id(`ask_user` の呼び出し)、question |
 | `human.input_provided` | call_id、answer。答えは同じ call_id の `tool.completed` としても記録し、投影はそちらを使う |
 | `usage.recorded` | kind(`model_inference` か `tool_execution`)、provider、model、usage。`tool_execution` のときは `duration_ms` だけ |
-| `evidence.recorded` | claim、refs(event id)、artifacts(path と sha256) |
+| `evidence.recorded` | claim、refs(event id)、artifacts(path、sha256、完了時に読めなかったときは missing) |
 | `work.completed` | summary |
 | `work.failed` | reason、detail |
 
 `usage.recorded` が原典の CostEvent。model のときの `usage` は `input_tokens`、`output_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens` を持ち、Work ごとに合計できる。SpendEvent はこの段階では発生させない。
 
-`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。
+`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。ハッシュは Runtime がそのときのファイルから計算する。読めなかった成果物には `missing: true` を付け、sha256 は Tool の申告のまま残す。検証できた値ではない。
 
 ### 投影(Projection)
 
@@ -260,7 +260,7 @@ export interface ToolResult {
 | `csv_write` | mutate | 行の配列を CSV に書く。結果に `after` を含める |
 | `markdown_read` | observe | Markdown をテキストとして読む(見出し一覧つき) |
 
-- すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。
+- すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。予約パスの判定は大文字小文字を区別しない。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。
 - Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
 
 ## Runtime の振る舞い(`packages/agent`)
@@ -429,7 +429,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 6. workspace 外と予約パスへの読み書きは拒否され、`tool.rejected` として残る。
 7. schema に合わない Tool 入力と許可リスト外の Tool は実行前に止まり、`tool.rejected` として残る。
 8. 上限に達した Work は `failed`(reason: `limit_reached`)で止まり、途中までのイベントが残る。
-9. 完了した Work の `outcome.artifacts` は Runtime が計算したハッシュを持ち、model の申告と食い違っても Runtime の値が残る。
+9. 完了した Work の `outcome.artifacts` は Runtime が計算したハッシュを持ち、model の申告と食い違っても Runtime の値が残る。読めなかった成果物は `missing` で区別し、Runtime が検証した値としては扱わない。
 10. 同じ `events.jsonl` から投影を 2 回作ると byte 単位で一致する。
 
 ## 未決

@@ -26,6 +26,7 @@ export type {
 export {
   type CreateRuntimeOptions,
   createRuntime,
+  createToolRegistry,
   MAX_TOOL_TEXT_CHARS,
   type Runtime,
   type RuntimeProviders,

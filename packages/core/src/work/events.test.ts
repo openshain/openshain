@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { OpenshainError } from "../errors.ts";
 import { newEventId, newWorkId } from "../ids.ts";
-import { type Event, eventFromFile, eventToFile } from "./events.ts";
+import { canonical, type Event, eventFromFile, eventToFile } from "./events.ts";
 
 const base = {
   v: 1 as const,
@@ -256,5 +256,20 @@ describe("event file hardening", () => {
     if (!event) throw new Error("sample missing");
 
     expect(eventToFile(event).payload).not.toHaveProperty("raw");
+  });
+});
+
+describe("canonical form and cycles", () => {
+  test("refuses a value that refers to itself instead of recursing forever", () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    expect(() => canonical({ raw: circular })).toThrow(OpenshainError);
+  });
+
+  test("accepts the same object reached twice without a cycle", () => {
+    const shared = { a: 1 };
+
+    expect(canonical({ x: shared, y: shared })).toEqual({ x: { a: 1 }, y: { a: 1 } });
   });
 });

@@ -15,7 +15,8 @@ export type AssistantPart =
 
 export type ToolContent = { type: "text"; text: string } | { type: "json"; value: unknown };
 
-export type Artifact = { path: string; sha256: string };
+/** A file a work produced. `missing` means the runtime could not read it when the work ended; the hash is then the tool's report. */
+export type Artifact = { path: string; sha256: string; missing?: true };
 
 export interface ModelUsage {
   inputTokens: number;
@@ -100,7 +101,11 @@ const opaquePart = z.looseObject({
   data: z.unknown(),
 });
 const jsonPart = z.looseObject({ type: z.literal("json"), value: z.unknown() });
-const artifact = z.looseObject({ path: z.string(), sha256: z.string() });
+const artifact = z.looseObject({
+  path: z.string(),
+  sha256: z.string(),
+  missing: z.literal(true).optional(),
+});
 const modelUsageFile = z.looseObject({
   input_tokens: z.int().nonnegative(),
   output_tokens: z.int().nonnegative(),
@@ -214,18 +219,30 @@ const DATA_KEYS = new Set(["input", "data", "value", "raw"]);
  * `raw`) `undefined` becomes `null`, because JSON has no `undefined` and a
  * dropped key would make the line unreadable.
  */
-export function canonical(value: unknown, insideData = false): unknown {
+export function canonical(
+  value: unknown,
+  insideData = false,
+  seen: WeakSet<object> = new WeakSet(),
+): unknown {
   if (value === undefined) return insideData ? null : undefined;
-  if (Array.isArray(value)) return value.map((item) => canonical(item, insideData) ?? null);
   if (value === null || typeof value !== "object") return value;
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-    const inner = insideData || DATA_KEYS.has(key);
-    const item = canonical((value as Record<string, unknown>)[key], inner);
-    if (item !== undefined) out[key] = item;
-    else if (inner) out[key] = null;
+  if (seen.has(value)) {
+    throw new OpenshainError("invalid_event", "a value that refers to itself cannot be recorded");
   }
-  return out;
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) return value.map((item) => canonical(item, insideData, seen) ?? null);
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const inner = insideData || DATA_KEYS.has(key);
+      const item = canonical((value as Record<string, unknown>)[key], inner, seen);
+      if (item !== undefined) out[key] = item;
+      else if (inner) out[key] = null;
+    }
+    return out;
+  } finally {
+    seen.delete(value);
+  }
 }
 
 export function eventFromFile(input: unknown): AnyEvent {

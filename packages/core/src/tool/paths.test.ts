@@ -210,3 +210,14 @@ describe("resolveWorkspacePath", () => {
     expect(err.code).toBe("invalid_path");
   });
 });
+
+describe("reserved paths regardless of case", () => {
+  test("rejects OPENSHAIN.YAML and Work/ like their lowercase forms", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-paths-"));
+
+    for (const rel of ["OPENSHAIN.YAML", "Work/notes.md", "WORK"]) {
+      const err = await resolveWorkspacePath(root, rel).catch((e: unknown) => e);
+      expect((err as { code?: string }).code).toBe("reserved_path");
+    }
+  });
+});

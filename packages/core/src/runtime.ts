@@ -62,23 +62,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
     );
   }
 
-  const registry = new ToolRegistry();
-  for (const entry of config.tools) {
-    const registerOptions = entry.allow ? { allow: entry.allow } : {};
-    if ("provider" in entry) {
-      const factory = providers.tools[entry.provider];
-      if (!factory) {
-        throw new OpenshainError(
-          "config",
-          `unknown tool provider "${entry.provider}"; known providers: ${Object.keys(providers.tools).join(", ")}`,
-        );
-      }
-      await registry.register(factory(), registerOptions);
-    } else {
-      await registry.register(await loadToolModule(workspaceRoot, entry.module), registerOptions);
-    }
-  }
-
+  const registry = await createToolRegistry(workspaceRoot, config, providers.tools);
   const works = new WorkStore(workspaceRoot);
   return {
     workspaceRoot,
@@ -91,6 +75,31 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
       call: (work, call) => callTool({ registry, config, workspaceRoot, work, call }),
     },
   };
+}
+
+/** Registers the tool providers the config names: the caller's factories by id, and modules from the workspace. Needs no model. */
+export async function createToolRegistry(
+  workspaceRoot: string,
+  config: Config,
+  tools: RuntimeProviders["tools"],
+): Promise<ToolRegistry> {
+  const registry = new ToolRegistry();
+  for (const entry of config.tools) {
+    const registerOptions = entry.allow ? { allow: entry.allow } : {};
+    if ("provider" in entry) {
+      const factory = tools[entry.provider];
+      if (!factory) {
+        throw new OpenshainError(
+          "config",
+          `unknown tool provider "${entry.provider}"; known providers: ${Object.keys(tools).join(", ")}`,
+        );
+      }
+      await registry.register(factory(), registerOptions);
+    } else {
+      await registry.register(await loadToolModule(workspaceRoot, entry.module), registerOptions);
+    }
+  }
+  return registry;
 }
 
 async function callTool(input: {

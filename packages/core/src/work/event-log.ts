@@ -73,8 +73,9 @@ export class EventLog {
       payload: input.payload,
     } as Event<T>;
 
-    const line = `${JSON.stringify(eventToFile(event))}\n`;
+    let line: string;
     try {
+      line = `${JSON.stringify(eventToFile(event))}\n`;
       eventFromFile(JSON.parse(line));
     } catch (cause) {
       throw new OpenshainError(

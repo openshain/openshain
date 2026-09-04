@@ -43,7 +43,10 @@ async function walk(rootReal: string, rel: string, input: string, hops: number):
   }
   const segments = rel === "." ? [] : rel.split(sep);
   for (const segment of segments) {
-    if ((RESERVED_PATHS as readonly string[]).includes(segment) && segment === segments[0]) {
+    if (
+      segment === segments[0] &&
+      (RESERVED_PATHS as readonly string[]).includes(segment.toLowerCase())
+    ) {
       throw new OpenshainError("reserved_path", `reserved path: "${input}"`);
     }
     if (segment.startsWith(".")) {
