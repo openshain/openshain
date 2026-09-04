@@ -38,4 +38,12 @@ jobs:
         run: bun test
 
       - name: Audit dependencies
-        run: bun audit
+        # The registry sometimes drops the audit connection from a hosted runner and
+        # bun waits minutes before giving up. Cap each attempt and try three times.
+        run: |
+          for attempt in 1 2 3; do
+            timeout 60 bun audit && exit 0
+            echo "audit attempt ${attempt} did not complete"
+            sleep 20
+          done
+          exit 1
