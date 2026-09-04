@@ -43,7 +43,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Touch only what the task needs. Do not reformat, rename or clean up unrelated code.
 - If the spec, the code and this file disagree, stop and ask. Do not pick one silently.
 - A change is done when `bun run typecheck`, `bun run lint` and `bun test` pass and the new behavior has a test. Run them; do not claim completion from reading alone.
-- Changes land through pull requests into `main`. Work on a branch named `feat/...`, `fix/...`, `docs/...` or `chore/...`; never push to `main` directly. After a merge, update your local `main` before starting the next change.
+- Maintainers commit to `main` once the checks pass; contributions from outside come as pull requests. Use a branch only for an experiment that may not land. Pull before starting a change, and undo a change with `git revert` rather than by rewriting history.
 
 ## Boundaries
 
