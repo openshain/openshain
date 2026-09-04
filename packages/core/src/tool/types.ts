@@ -8,6 +8,10 @@ export type ToolEffect = "observe" | "mutate";
 
 export const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 
+/** The tool the runtime itself provides. No provider may define it. */
+export const ASK_USER_TOOL_NAME = "ask_user";
+export const RESERVED_TOOL_NAMES: readonly string[] = [ASK_USER_TOOL_NAME];
+
 export interface ToolDefinition {
   /** Unique across all providers. Matches TOOL_NAME_PATTERN. */
   name: string;
