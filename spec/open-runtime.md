@@ -260,6 +260,19 @@ export interface ToolResult {
 - request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages は Runtime のもので上書きできない
 - API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー。`base_url` は root を指す。末尾の `/v1` は SDK が自分で足すので外す
 
+### OpenAI 互換 provider(`packages/agent`)
+
+`openai` パッケージの chat completions を使う。OpenAI 本体、ローカルのサーバー、他社の互換 API のどれでも `base_url` で切り替える。対応は次のとおり。
+
+- finish_reason: `stop` は `end_turn`、`tool_calls` は `tool_call`、`length` は `max_tokens`、`content_filter` は `refusal`。それ以外は `other`。tool 呼び出しがあれば finish_reason が `stop` でも `tool_call` として扱う(そう返すサーバーがある)
+- content: assistant の content は text、tool_calls は `tool_call`。arguments は JSON として読み、読めなければ文字列のまま渡して schema の検証に報告させる。assistant message の content と tool_calls 以外の項目(reasoning_content など)は `opaque`(provider: openai-compatible)として保存し、次の request の assistant message に戻す
+- messages: system は先頭の system message。Tool の結果は 1 つずつ `tool` message(tool_call_id 付き)にする
+- usage: prompt_tokens、completion_tokens、prompt_tokens_details.cached_tokens(cachedInputTokens)、completion_tokens_details.reasoning_tokens(reasoningTokens)。usage を返さないサーバーでは 0
+- エラー: Anthropic provider と同じ対応(401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答は `invalid_response`)
+- request: 上限は `max_completion_tokens` で送る。`providerOptions` に `max_tokens` があればそちらだけを送る(古いサーバー向け)。`providerOptions` の残りは body にそのまま載る(`reasoning_effort`、`temperature` など)。model、messages、tools は Runtime のもので上書きできない
+- `options: { tools: false }` は tool 呼び出しに対応しないサーバーの宣言。`capabilities.tools` が false になり、起動時に `config` エラーで止まる
+- `base_url` は `/v1` までを含む root(例: `http://localhost:11434/v1`)。API キーは `api_key_env` の環境変数から読む
+
 ### 標準 Tool(`packages/tools`)
 
 | name | effect | 内容 |
