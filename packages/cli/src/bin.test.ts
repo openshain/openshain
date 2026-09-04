@@ -49,12 +49,20 @@ describe("openshain", () => {
     expect(stderr).toBe("");
   });
 
+  test("work without a subcommand prints the usage and exits with 2", async () => {
+    const { code, stdout } = await openshain("work");
+
+    expect(code).toBe(2);
+    expect(stdout).toContain("使い方");
+  });
+
   test("a directory without a config is a config error with exit 1", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
 
     const { code, stderr } = await openshain("tools", "list", "--workspace", root);
 
     expect(code).toBe(1);
+    expect(stderr).toContain("エラー(config) 設定に問題がある。");
     expect(stderr).toContain("openshain.yaml が見つかりません");
   });
 });
