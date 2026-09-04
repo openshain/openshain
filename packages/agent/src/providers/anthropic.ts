@@ -58,7 +58,7 @@ export class AnthropicProvider implements ModelProvider {
     this.model = options.model;
     this.client = new Anthropic({
       apiKey: options.apiKey,
-      ...(options.baseUrl && { baseURL: options.baseUrl }),
+      ...(options.baseUrl && { baseURL: baseUrlRoot(options.baseUrl) }),
       ...(options.fetch && { fetch: options.fetch }),
     });
   }
@@ -68,11 +68,10 @@ export class AnthropicProvider implements ModelProvider {
   }
 
   async generate(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse> {
+    const params = toParams(request, this.model);
     let message: Anthropic.Message;
     try {
-      message = await this.client.messages.create(toParams(request, this.model), {
-        ...(signal && { signal }),
-      });
+      message = await this.client.messages.create(params, { ...(signal && { signal }) });
     } catch (err) {
       throw toError(err);
     }
@@ -83,7 +82,9 @@ export class AnthropicProvider implements ModelProvider {
 /**
  * The request as the Messages API takes it. providerOptions land on the body as they are, so
  * thinking, output_config and cache_control can be set or overridden from the config; `effort`
- * alone is a shorthand for output_config.effort. The last cacheable block is cached by default.
+ * alone is a shorthand for output_config.effort. The model, the limit, the system prompt, the
+ * tools and the messages come from the runtime and cannot be overridden. The last cacheable
+ * block is cached by default.
  */
 export function toParams(
   request: ModelRequest,
@@ -92,18 +93,23 @@ export function toParams(
   const { effort, output_config, ...extra } = request.providerOptions ?? {};
   const outputConfig = {
     ...(output_config as Record<string, unknown> | undefined),
-    ...(typeof effort === "string" && { effort }),
+    ...(effort !== undefined && { effort }),
   };
   return {
+    cache_control: { type: "ephemeral" },
+    ...extra,
+    ...(Object.keys(outputConfig).length > 0 && { output_config: outputConfig }),
     model,
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
-    cache_control: { type: "ephemeral" },
     ...(request.system && { system: request.system }),
     ...(request.tools && request.tools.length > 0 && { tools: request.tools.map(toTool) }),
     messages: request.messages.map(toMessage),
-    ...(Object.keys(outputConfig).length > 0 && { output_config: outputConfig }),
-    ...extra,
   } as Anthropic.MessageCreateParamsNonStreaming;
+}
+
+/** The SDK appends /v1/messages itself, so a base URL that ends in /v1 loses that part. */
+export function baseUrlRoot(baseUrl: string): string {
+  return baseUrl.replace(/\/v1\/?$/, "");
 }
 
 function toTool(tool: ToolDefinition): Anthropic.Tool {
@@ -187,8 +193,10 @@ function toUsage(usage: Anthropic.Usage): ModelUsage {
   };
 }
 
-/** The SDK's typed errors as the codes the runtime records. Anything else passes through. */
-function toError(err: unknown): unknown {
+/** The SDK's typed errors as the codes the runtime records. Anything else means the response could not be read. */
+function toError(err: unknown): OpenshainError {
+  if (err instanceof OpenshainError) return err;
+  if (err instanceof Anthropic.APIUserAbortError) return wrap("network", err);
   if (err instanceof Anthropic.AuthenticationError) return wrap("auth", err);
   if (err instanceof Anthropic.PermissionDeniedError) return wrap("auth", err);
   if (err instanceof Anthropic.RateLimitError) return wrap("rate_limit", err);
@@ -197,7 +205,7 @@ function toError(err: unknown): unknown {
   if (err instanceof Anthropic.APIConnectionError) return wrap("network", err);
   if (err instanceof Anthropic.InternalServerError) return wrap("network", err);
   if (err instanceof Anthropic.APIError) return wrap("invalid_response", err);
-  return err;
+  return wrap("invalid_response", err instanceof Error ? err : new Error(String(err)));
 }
 
 function wrap(code: ErrorCode, err: Error): OpenshainError {

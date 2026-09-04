@@ -16,8 +16,11 @@ interface Recorded {
   body: Record<string, unknown>;
 }
 
-/** A provider whose HTTP calls are answered with one recorded response, and remembered. */
-function recorded(status: number, body: unknown) {
+/**
+ * A provider whose HTTP calls are answered with one recorded response, and remembered. The
+ * response asks the SDK to retry at once, so a test of a retried status stays fast.
+ */
+function recorded(status: number, body: unknown, options: { baseUrl?: string; raw?: string } = {}) {
   const calls: Recorded[] = [];
   const stub = async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({
@@ -25,15 +28,20 @@ function recorded(status: number, body: unknown) {
       headers: Object.fromEntries(new Headers(init?.headers).entries()),
       body: init?.body ? JSON.parse(String(init.body)) : {},
     });
-    return new Response(JSON.stringify(body), {
+    return new Response(options.raw ?? JSON.stringify(body), {
       status,
-      headers: { "content-type": "application/json", "request-id": "req_01" },
+      headers: {
+        "content-type": "application/json",
+        "request-id": "req_01",
+        "retry-after-ms": "1",
+      },
     });
   };
   const provider = new AnthropicProvider({
     model: "claude-opus-5",
     apiKey: "test-key",
     fetch: stub,
+    ...(options.baseUrl && { baseUrl: options.baseUrl }),
   });
   return { calls, provider };
 }
@@ -216,6 +224,64 @@ describe("AnthropicProvider", () => {
     const refusal = await refused.provider.generate(request);
     expect(refusal.stopReason).toBe("refusal");
     expect(refusal.message.content).toEqual([]);
+  });
+
+  test("keeps the runtime's model, limit, tools and messages even when providerOptions name them", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    await provider.generate({
+      ...request,
+      providerOptions: { model: "other", max_tokens: 1, messages: [], tools: [], effort: 3 },
+    });
+
+    const body = calls[0]?.body ?? {};
+    expect(body.model).toBe("claude-opus-5");
+    expect(body.max_tokens).toBe(4000);
+    expect((body.messages as unknown[]).length).toBe(1);
+    expect((body.tools as unknown[]).length).toBe(1);
+    expect(body.output_config).toEqual({ effort: 3 });
+  });
+
+  test("sends requests under a base URL, with or without its /v1", async () => {
+    const withV1 = recorded(200, await fixture("text-only"), {
+      baseUrl: "http://localhost:9999/v1",
+    });
+    const bare = recorded(200, await fixture("text-only"), { baseUrl: "http://localhost:9999" });
+
+    await withV1.provider.generate(request);
+    await bare.provider.generate(request);
+
+    expect(withV1.calls[0]?.url).toBe("http://localhost:9999/v1/messages");
+    expect(bare.calls[0]?.url).toBe("http://localhost:9999/v1/messages");
+  });
+
+  test("reports a rate limit after the SDK's retries, and a server error as a network error", async () => {
+    const limited = recorded(429, {
+      type: "error",
+      error: { type: "rate_limit_error", message: "slow down" },
+    });
+    const broken = recorded(500, { type: "error", error: { type: "api_error", message: "boom" } });
+
+    const limit = await limited.provider.generate(request).catch((e: unknown) => e);
+    const server = await broken.provider.generate(request).catch((e: unknown) => e);
+
+    expect((limit as OpenshainError).code).toBe("rate_limit");
+    expect(limited.calls.length).toBeGreaterThan(1);
+    expect((server as OpenshainError).code).toBe("network");
+  });
+
+  test("reports an aborted request as a network error and an unreadable body as an invalid response", async () => {
+    const { provider } = recorded(200, await fixture("text-only"));
+    const controller = new AbortController();
+    controller.abort();
+    const garbled = recorded(200, undefined, { raw: "<html>oops</html>" });
+
+    const aborted = await provider.generate(request, controller.signal).catch((e: unknown) => e);
+    const unreadable = await garbled.provider.generate(request).catch((e: unknown) => e);
+
+    expect((aborted as OpenshainError).code).toBe("network");
+    expect(unreadable).toBeInstanceOf(OpenshainError);
+    expect((unreadable as OpenshainError).code).toBe("invalid_response");
   });
 
   test("turns an authentication failure into an auth error", async () => {
