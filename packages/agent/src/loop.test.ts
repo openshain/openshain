@@ -3,7 +3,13 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AnyEvent, createRuntime, type WorkHandle } from "@openshain/core";
+import {
+  type AnyEvent,
+  createRuntime,
+  type ModelResponse,
+  type ToolProvider,
+  type WorkHandle,
+} from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { ASK_USER, runWork } from "./loop.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
@@ -547,5 +553,137 @@ describe("runWork after an interrupted run", () => {
 
     expect(asked).toEqual(["どの月?"]);
     expect(done.status).toBe("completed");
+  });
+});
+
+describe("runWork against a hostile model", () => {
+  test("fails the work when the model's answer cannot be recorded", async () => {
+    const broken = { ...say("x"), stopReason: "banana" } as unknown as ModelResponse;
+    const { runtime, work } = await setup([broken]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.reason).toBe("model_error");
+    const events = await runtime.works.events(work.id);
+    expect(payloadOf<{ code: string }>(events.find((e) => e.type === "model.failed")).code).toBe(
+      "invalid_response",
+    );
+  });
+
+  test("fails the work when the raw answer refers to itself", async () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    const { runtime, work } = await setup(
+      [{ ...say("x"), raw: circular }],
+      "debug:\n  persist_raw: true\n",
+    );
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.reason).toBe("model_error");
+  });
+
+  test("fails the work when the model uses one tool call id twice in a turn", async () => {
+    const { runtime, work } = await setup([
+      callTools(
+        { id: "dup", name: "fs_list", input: {} },
+        { id: "dup", name: "fs_list", input: {} },
+      ),
+      say("never"),
+    ]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.detail).toContain('"dup"');
+    const events = await runtime.works.events(work.id);
+    expect(events.filter((e) => e.type === "tool.called")).toHaveLength(0);
+  });
+
+  test("fails the work when a tool call id from an earlier turn comes back", async () => {
+    const { runtime, work } = await setup([
+      callTools({ id: "c1", name: "fs_list", input: {} }),
+      callTools({ id: "c1", name: "fs_list", input: {} }),
+      say("never"),
+    ]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    const events = await runtime.works.events(work.id);
+    expect(events.filter((e) => e.type === "tool.called")).toHaveLength(1);
+  });
+
+  test("refuses to answer a question the model's last turn did not ask", async () => {
+    const { runtime, work } = await setup([say("never")]);
+    const handle = await runtime.works.open(work.id);
+    await handle.transition("in_progress", "run");
+    await handle.append({
+      type: "tool.called",
+      payload: { callId: "ghost", provider: "runtime", name: "ask_user", input: { question: "?" } },
+    });
+    await handle.append({
+      type: "human.input_requested",
+      payload: { callId: "ghost", question: "?" },
+    });
+    await handle.transition("waiting_input", "asked");
+    await handle.close();
+    let asked = 0;
+
+    const err = await runWork(runtime, work.id, {
+      onInput: async () => {
+        asked += 1;
+        return "x";
+      },
+    }).catch((e: unknown) => e);
+
+    expect(asked).toBe(0);
+    expect((err as { code?: string }).code).toBe("corrupt_log");
+  });
+
+  test("marks an artifact the tool reported but never wrote as missing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-loop-"));
+    await writeFile(join(root, "openshain.yaml"), configText());
+    const model = new FakeModelProvider([
+      callTools({ id: "c1", name: "ghost_write", input: { path: "ghost.md" } }),
+      say("書きました"),
+    ]);
+    const liar: ToolProvider = {
+      id: "standard",
+      listTools: async () => [
+        {
+          name: "ghost_write",
+          description: "claims to write",
+          inputSchema: {
+            type: "object",
+            properties: { path: { type: "string" } },
+            required: ["path"],
+          },
+          effect: "mutate",
+        },
+      ],
+      call: async () => ({
+        content: [{ type: "text", text: "wrote ghost.md" }],
+        after: [{ path: "ghost.md", sha256: "0".repeat(64) }],
+      }),
+    };
+    const runtime = await createRuntime({
+      workspaceRoot: root,
+      providers: { models: { fake: () => model }, tools: { standard: () => liar } },
+    });
+    const work = await runtime.works.create({
+      objective: "x",
+      principal: "alice",
+      profession: "generic",
+    });
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("completed");
+    expect(done.outcome?.artifacts).toEqual([
+      { path: "ghost.md", sha256: "0".repeat(64), missing: true },
+    ]);
   });
 });

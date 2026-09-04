@@ -77,7 +77,16 @@ export async function runWork(
     if (work.status === "queued") await handle.transition("in_progress", "run");
     // A work still in progress was interrupted: close what the last turn left open.
     if (work.status === "in_progress") await closeInterruptedCalls(runtime, handle);
-    const pending = pendingQuestions(await handle.events());
+    const events = await handle.events();
+    const pending = pendingQuestions(events);
+    const asked = lastTurnCallIds(events);
+    const ghosts = pending.filter((q) => !asked.has(q.callId));
+    if (ghosts.length > 0) {
+      throw new OpenshainError(
+        "corrupt_log",
+        `questions that the model's last turn did not ask: ${ghosts.map((q) => q.callId).join(", ")}`,
+      );
+    }
     if (work.status === "waiting_input" && pending.length === 0) {
       throw new OpenshainError(
         "corrupt_log",
@@ -156,23 +165,32 @@ async function loop(
       return fail(handle, "model_error", message);
     }
 
-    await handle.append({
-      type: "model.completed",
-      payload: {
-        stopReason: response.stopReason,
-        content: response.message.content,
-        ...(runtime.config.debug.persistRaw && response.raw !== undefined && { raw: response.raw }),
-      },
-    });
-    await handle.append({
-      type: "usage.recorded",
-      payload: {
-        kind: "model_inference",
-        provider: model.id,
-        model: description.model,
-        usage: response.usage,
-      },
-    });
+    // The answer is third-party data. If it cannot be recorded, the work fails; the run does not.
+    try {
+      await handle.append({
+        type: "model.completed",
+        payload: {
+          stopReason: response.stopReason,
+          content: response.message.content,
+          ...(runtime.config.debug.persistRaw &&
+            response.raw !== undefined && { raw: response.raw }),
+        },
+      });
+      await handle.append({
+        type: "usage.recorded",
+        payload: {
+          kind: "model_inference",
+          provider: model.id,
+          model: description.model,
+          usage: response.usage,
+        },
+      });
+    } catch (err) {
+      if (!isOpenshainError(err) || err.code !== "invalid_event") throw err;
+      const message = `the model's answer cannot be recorded: ${err.message}`;
+      await handle.append({ type: "model.failed", payload: { code: "invalid_response", message } });
+      return fail(handle, "model_error", message);
+    }
 
     switch (response.stopReason) {
       case "end_turn":
@@ -181,6 +199,14 @@ async function loop(
         const calls = response.message.content.filter((p) => p.type === "tool_call");
         if (calls.length === 0) {
           return fail(handle, "model_error", "the model stopped for a tool call but made none");
+        }
+        const usedBefore = new Set(toolCallIds(events));
+        const seen = new Set<string>();
+        for (const call of calls) {
+          if (seen.has(call.id) || usedBefore.has(call.id)) {
+            return fail(handle, "model_error", `the model reused the tool call id "${call.id}"`);
+          }
+          seen.add(call.id);
         }
         // Questions go last: the other calls of the turn run before the work waits,
         // and the model gets their results together with the answers.
@@ -227,15 +253,38 @@ async function loop(
   }
 }
 
-/** Distinct tool calls the model made, whether they ran or were rejected. */
-function countToolCalls(events: AnyEvent[]): number {
-  const ids = new Set<string>();
+/** The ids of the tool calls the model made, whether they ran or were rejected, in log order. */
+function toolCallIds(events: AnyEvent[]): string[] {
+  const ids: string[] = [];
   for (const event of events) {
     if (event.type === "tool.called" || event.type === "tool.rejected") {
-      ids.add((event as Event<"tool.called" | "tool.rejected">).payload.callId);
+      ids.push((event as Event<"tool.called" | "tool.rejected">).payload.callId);
     }
   }
-  return ids.size;
+  return ids;
+}
+
+/** How many tool calls the model made. Ids cannot be reused, so distinct ids are calls. */
+export function countToolCalls(events: AnyEvent[]): number {
+  return new Set(toolCallIds(events)).size;
+}
+
+/** The model's most recent answer, if any. */
+function lastModelTurn(events: AnyEvent[]): Event<"model.completed"> | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type === "model.completed") return event as Event<"model.completed">;
+  }
+  return undefined;
+}
+
+/** The ids of the tool calls in the model's most recent answer. */
+function lastTurnCallIds(events: AnyEvent[]): Set<string> {
+  const ids = new Set<string>();
+  for (const part of lastModelTurn(events)?.payload.content ?? []) {
+    if (part.type === "tool_call") ids.add(part.id);
+  }
+  return ids;
 }
 
 /** Why a work failed, as recorded in `work.failed`. */
@@ -270,7 +319,7 @@ async function complete(
   }
   const artifacts: Artifact[] = [];
   for (const [path, recorded] of byPath) {
-    artifacts.push({ path, sha256: await currentHash(runtime.workspaceRoot, path, recorded) });
+    artifacts.push(await currentArtifact(runtime.workspaceRoot, path, recorded));
   }
   await handle.append({ type: "evidence.recorded", payload: { claim: summary, refs, artifacts } });
   await handle.append({ type: "work.completed", payload: { summary } });
@@ -278,18 +327,19 @@ async function complete(
 }
 
 /**
- * The hash of the file as it is now, computed by the runtime rather than taken from the tool.
- * When the file can no longer be read, because a later call moved or deleted it, the hash the
- * tool reported is recorded instead.
+ * The artifact as it is now. The runtime computes the hash rather than taking the tool's word.
+ * When the file cannot be read, because a later call moved or deleted it or because the tool
+ * never wrote it, the artifact keeps the hash the tool reported and is marked missing.
  */
-async function currentHash(root: string, path: string, recorded: string): Promise<string> {
+async function currentArtifact(root: string, path: string, recorded: string): Promise<Artifact> {
   try {
     const resolved = await resolveWorkspacePath(root, path);
-    return createHash("sha256")
+    const sha256 = createHash("sha256")
       .update(await readFile(resolved))
       .digest("hex");
+    return { path, sha256 };
   } catch {
-    return recorded;
+    return { path, sha256: recorded, missing: true };
   }
 }
 
@@ -320,14 +370,7 @@ const INTERRUPTED =
  */
 async function closeInterruptedCalls(runtime: Runtime, handle: WorkHandle): Promise<void> {
   const events = await handle.events();
-  let last: Event<"model.completed"> | undefined;
-  for (let i = events.length - 1; i >= 0; i--) {
-    const event = events[i];
-    if (event?.type === "model.completed") {
-      last = event as Event<"model.completed">;
-      break;
-    }
-  }
+  const last = lastModelTurn(events);
   if (!last) return;
   const answered = new Set<string>();
   const called = new Set<string>();
