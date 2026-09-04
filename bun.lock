@@ -13,6 +13,12 @@
     "packages/agent": {
       "name": "@openshain/agent",
       "version": "0.0.0",
+      "dependencies": {
+        "@openshain/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@openshain/tools": "workspace:*",
+      },
     },
     "packages/cli": {
       "name": "openshain",
