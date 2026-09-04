@@ -30,6 +30,8 @@ export interface RunWorkOptions {
    * unanswered, so a later run can resume from it.
    */
   onInput?: (question: string) => Promise<string>;
+  /** Called after every event is recorded, for progress reporting. */
+  onEvent?: (event: AnyEvent) => void;
   signal?: AbortSignal;
 }
 
@@ -65,7 +67,8 @@ export async function runWork(
   options: RunWorkOptions = {},
 ): Promise<Work> {
   const model = options.model ?? runtime.model;
-  const handle = await runtime.works.open(workId);
+  const opened = await runtime.works.open(workId);
+  const handle = options.onEvent ? observed(opened, options.onEvent) : opened;
   try {
     const work = await handle.current();
     if (isTerminal(work.status)) {
@@ -283,6 +286,23 @@ async function currentHash(root: string, path: string, recorded: string): Promis
   } catch {
     return recorded;
   }
+}
+
+/** A handle that reports every event it records. */
+function observed(handle: WorkHandle, onEvent: (event: AnyEvent) => void): WorkHandle {
+  return {
+    ...handle,
+    async append(event) {
+      const recorded = await handle.append(event);
+      onEvent(recorded);
+      return recorded;
+    },
+    async transition(to, reason) {
+      const recorded = await handle.transition(to, reason);
+      onEvent(recorded);
+      return recorded;
+    },
+  };
 }
 
 /** Records the model's question as a call that waits for the person, or rejects a malformed one. */
