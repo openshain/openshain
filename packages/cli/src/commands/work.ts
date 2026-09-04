@@ -1,6 +1,16 @@
-import { type AnyEvent, type Event, parseWorkId, type Work, WorkStore } from "@openshain/core";
+import {
+  type AnyEvent,
+  createRuntime,
+  type Event,
+  isTerminal,
+  parseWorkId,
+  type RuntimeProviders,
+  type Work,
+  WorkStore,
+} from "@openshain/core";
+import { failureLabel, statusLabel } from "../labels.ts";
 import { formatUsage, summarizeUsage } from "../usage.ts";
-import { nextActor } from "./run.ts";
+import { type DriveOptions, drive, nextActor, pendingQuestions } from "./run.ts";
 
 export interface WorkListOptions {
   workspaceRoot: string;
@@ -40,7 +50,7 @@ export async function workShow({ workspaceRoot, id, write }: WorkShowOptions): P
 export function describeWork(work: Work, events: AnyEvent[]): string[] {
   const lines = [
     `${work.id}`,
-    `状態      ${work.status}`,
+    `状態      ${statusLabel(work.status)}(${work.status})`,
     `依頼      ${work.objective}`,
     `作成      ${work.createdAt}`,
   ];
@@ -51,9 +61,12 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
     for (const artifact of work.outcome.artifacts)
       lines.push(`  書き込み ${artifact.path}  ${artifact.sha256.slice(0, 12)}`);
   }
-  if (work.failure) lines.push(`失敗      ${work.failure.reason}。${work.failure.detail}`);
-  const pending = pendingQuestion(events);
-  if (work.status === "waiting_input" && pending) lines.push(`質問      ${pending}`);
+  if (work.failure) {
+    lines.push(`失敗      ${failureLabel(work.failure.reason)}。${work.failure.detail}`);
+  }
+  if (work.status === "waiting_input") {
+    for (const question of pendingQuestions(events)) lines.push(`質問      ${question}`);
+  }
 
   const calls = events.filter((e): e is Event<"tool.called"> => e.type === "tool.called");
   if (calls.length > 0) {
@@ -66,16 +79,26 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   return lines;
 }
 
-function pendingQuestion(events: AnyEvent[]): string | undefined {
-  const answered = new Set(
-    events
-      .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
-      .map((e) => e.payload.callId),
-  );
-  return events
-    .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
-    .filter((e) => !answered.has(e.payload.callId))
-    .at(-1)?.payload.question;
+export interface WorkResumeOptions extends DriveOptions {
+  workspaceRoot: string;
+  providers: RuntimeProviders;
+  id: string;
+}
+
+/** Continues a work that stopped before its end, answering its questions when the caller can. */
+export async function workResume(options: WorkResumeOptions): Promise<number> {
+  const runtime = await createRuntime({
+    workspaceRoot: options.workspaceRoot,
+    providers: options.providers,
+  });
+  const workId = parseWorkId(options.id);
+  const work = await runtime.works.get(workId);
+  if (isTerminal(work.status)) {
+    options.write(`${work.id} は${statusLabel(work.status)}です。再開できません。`);
+    return 1;
+  }
+  options.write(`${work.id} を再開`);
+  return drive(runtime, workId, options);
 }
 
 function describeInput(input: unknown): string {

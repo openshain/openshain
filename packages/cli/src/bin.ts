@@ -6,7 +6,7 @@ import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
 import { run } from "./commands/run.ts";
 import { toolsList } from "./commands/tools.ts";
-import { workList, workShow } from "./commands/work.ts";
+import { workList, workResume, workShow } from "./commands/work.ts";
 import { findWorkspace } from "./workspace.ts";
 
 const USAGE = `使い方:
@@ -15,9 +15,10 @@ const USAGE = `使い方:
   openshain tools list           使える Tool の一覧
   openshain work list            Work の一覧
   openshain work show <id>       Work の詳細
+  openshain work resume <id>     途中で止まった Work を続ける
 
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
-                                 init はそこに書き、run と tools list はそこから上に openshain.yaml を探す`;
+                                 init はそこに書き、他のコマンドはそこから上に openshain.yaml を探す`;
 
 /** Model providers arrive with their own packages; until then only the standard tools are wired. */
 const providers: RuntimeProviders = {
@@ -59,22 +60,9 @@ async function main(argv: string[]): Promise<number> {
         return 2;
       }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
-      // Without a terminal there is no one to answer; the work waits instead.
-      if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
-        return run({ workspaceRoot, providers, objective, write });
-      }
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
-      try {
-        return await run({
-          workspaceRoot,
-          providers,
-          objective,
-          write,
-          ask: (question) => rl.question(`${question}\n> `),
-        });
-      } finally {
-        rl.close();
-      }
+      return withTerminal((ask) =>
+        run({ workspaceRoot, providers, objective, write, ...(ask && { ask }) }),
+      );
     }
     case "tools": {
       if (rest[0] !== "list") {
@@ -91,9 +79,15 @@ async function main(argv: string[]): Promise<number> {
         await workList({ workspaceRoot, write });
         return 0;
       }
-      if (rest[0] === "show" && rest[1]) {
-        await workShow({ workspaceRoot, id: rest[1], write });
+      const id = rest[1];
+      if (rest[0] === "show" && id) {
+        await workShow({ workspaceRoot, id, write });
         return 0;
+      }
+      if (rest[0] === "resume" && id) {
+        return withTerminal((ask) =>
+          workResume({ workspaceRoot, providers, id, write, ...(ask && { ask }) }),
+        );
       }
       write(USAGE);
       return 2;
@@ -102,6 +96,20 @@ async function main(argv: string[]): Promise<number> {
       write(`不明なコマンド ${command}`);
       write(USAGE);
       return 2;
+  }
+}
+
+/** Runs `fn` with a way to ask the person when a terminal is there to answer; otherwise without one. */
+async function withTerminal(
+  fn: (ask?: (question: string) => Promise<string>) => Promise<number>,
+): Promise<number> {
+  // Without a terminal there is no one to answer; the work waits instead.
+  if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) return fn();
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return await fn((question) => rl.question(`${question}\n> `));
+  } finally {
+    rl.close();
   }
 }
 
