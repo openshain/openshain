@@ -16,6 +16,9 @@ export async function mcp({ workspaceRoot, providers }: McpOptions): Promise<voi
   const transport = new StdioServerTransport();
   await new Promise<void>((resolve) => {
     server.onclose = () => resolve();
-    server.connect(transport).catch(() => resolve());
+    server.connect(transport).catch((err: unknown) => {
+      console.error(err instanceof Error ? err.message : String(err));
+      resolve();
+    });
   });
 }
