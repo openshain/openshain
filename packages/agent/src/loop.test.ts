@@ -687,3 +687,17 @@ describe("runWork against a hostile model", () => {
     ]);
   });
 });
+
+describe("runWork tells the model its budget", () => {
+  test("passes the remaining model and tool calls with every request", async () => {
+    const { model, runtime, work } = await setup(
+      [callTools({ id: "c1", name: "fs_list", input: {} }), say("済み")],
+      "limits:\n  max_model_calls: 5\n  max_tool_calls: 3\n",
+    );
+
+    await runWork(runtime, work.id);
+
+    expect(model.requests[0]?.budget).toEqual({ modelCallsLeft: 5, toolCallsLeft: 3 });
+    expect(model.requests[1]?.budget).toEqual({ modelCallsLeft: 4, toolCallsLeft: 2 });
+  });
+});
