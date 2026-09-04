@@ -235,3 +235,20 @@ describe("tools list without a model provider", () => {
     expect(out.lines.join("\n")).toMatch(/fs_read\s+standard\s+observe/);
   });
 });
+
+describe("run and rejected calls", () => {
+  test("prints a line for a call the workspace does not allow", async () => {
+    const model = new FakeModelProvider([
+      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
+      say("済み"),
+    ]);
+    const { root, providers } = await fakeWorkspace(model, "    allow: [fs_read]\n");
+    const out = io();
+
+    await run({ workspaceRoot: root, providers, objective: "x", write: out.write });
+
+    expect(out.lines.join("\n")).toContain(
+      "csv_read は拒否されました。この workspace では不許可。",
+    );
+  });
+});

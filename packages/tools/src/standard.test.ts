@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { newWorkId, OpenshainError, type ToolContext } from "@openshain/core";
-import { MAX_WRITE_BYTES, standardTools } from "./standard.ts";
+import { MAX_READ_BYTES, MAX_WRITE_BYTES, standardTools } from "./standard.ts";
 
 async function workspace() {
   const root = await mkdtemp(join(tmpdir(), "openshain-tools-"));
@@ -227,6 +227,18 @@ describe("standard tools", () => {
     await writeFile(join(root, "big.bin"), Buffer.alloc(2 * 1024 * 1024, 65));
 
     await expect(call("fs_read", { path: "big.bin" })).rejects.toThrow(/too large/);
+  });
+});
+
+describe("limits on reads at the boundary", () => {
+  test("reads a file of exactly the limit and refuses one byte more", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, "edge.txt"), Buffer.alloc(MAX_READ_BYTES, 65));
+    await writeFile(join(root, "over.txt"), Buffer.alloc(MAX_READ_BYTES + 1, 65));
+
+    const edge = await call("fs_read", { path: "edge.txt" });
+    expect(edge.content[0]).toMatchObject({ type: "text" });
+    await expect(call("fs_read", { path: "over.txt" })).rejects.toThrow(/too large/);
   });
 });
 

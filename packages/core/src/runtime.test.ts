@@ -163,6 +163,19 @@ describe("createRuntime", () => {
     });
   });
 
+  test("refuses a module that fails while loading", async () => {
+    const root = await workspace(`${config}  - module: ./tools/boom.ts\n`);
+    await Bun.write(join(root, "tools", "boom.ts"), "throw new Error('boom');\n");
+
+    const promise = createRuntime({ workspaceRoot: root, providers: providers() });
+
+    await expect(promise).rejects.toBeInstanceOf(OpenshainError);
+    await promise.catch((err: OpenshainError) => {
+      expect(err.code).toBe("config");
+      expect(err.message).toContain("tools/boom.ts");
+    });
+  });
+
   test("refuses a module path outside the workspace", async () => {
     const root = await workspace(`${config}  - module: ../outside.ts\n`);
 

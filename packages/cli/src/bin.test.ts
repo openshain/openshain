@@ -49,6 +49,13 @@ describe("openshain", () => {
     expect(stderr).toBe("");
   });
 
+  test("an option without its value exits with 2 and says the arguments could not be read", async () => {
+    const { code, stdout } = await openshain("run", "x", "--workspace");
+
+    expect(code).toBe(2);
+    expect(stdout).toContain("引数を解釈できません");
+  });
+
   test("work without a subcommand prints the usage and exits with 2", async () => {
     const { code, stdout } = await openshain("work");
 

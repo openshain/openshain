@@ -7,6 +7,7 @@ import {
   type AnyEvent,
   createRuntime,
   type ModelResponse,
+  OpenshainError,
   type ToolProvider,
   type WorkHandle,
 } from "@openshain/core";
@@ -161,6 +162,8 @@ describe("runWork", () => {
 
     expect(done.status).toBe("failed");
     expect(done.failure?.detail).toContain("tool");
+    const events = await runtime.works.events(work.id);
+    expect(events.filter((e) => e.type === "tool.called")).toHaveLength(1);
   });
 
   test("records a refusal as a failed work", async () => {
@@ -699,5 +702,80 @@ describe("runWork tells the model its budget", () => {
 
     expect(model.requests[0]?.budget).toEqual({ modelCallsLeft: 5, toolCallsLeft: 3 });
     expect(model.requests[1]?.budget).toEqual({ modelCallsLeft: 4, toolCallsLeft: 2 });
+  });
+});
+
+describe("runWork and the model's stop reasons", () => {
+  test("fails with model_error when the model stops for an unexpected reason", async () => {
+    const { runtime, work } = await setup([{ ...say("x"), stopReason: "other" }]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.reason).toBe("model_error");
+    expect(done.failure?.detail).toContain("other");
+  });
+
+  test("fails with model_error when the model stops for a tool call but makes none", async () => {
+    const { runtime, work } = await setup([{ ...say("x"), stopReason: "tool_call" }]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    expect(done.failure?.detail).toContain("none");
+  });
+
+  test("keeps the provider's error code in model.failed", async () => {
+    const { runtime, work } = await setup([
+      () => {
+        throw new OpenshainError("rate_limit", "slow down");
+      },
+    ]);
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("failed");
+    const events = await runtime.works.events(work.id);
+    expect(payloadOf<{ code: string }>(events.find((e) => e.type === "model.failed")).code).toBe(
+      "rate_limit",
+    );
+  });
+});
+
+describe("runWork reports events", () => {
+  test("hands every recorded event to onEvent, in the order of the log", async () => {
+    const { runtime, work } = await setup([
+      callTools({ id: "c1", name: "fs_list", input: {} }),
+      say("済み"),
+    ]);
+    const reported: AnyEvent[] = [];
+
+    await runWork(runtime, work.id, { onEvent: (event) => void reported.push(event) });
+
+    const events = await runtime.works.events(work.id);
+    expect(reported.map((e) => e.id)).toEqual(events.slice(1).map((e) => e.id));
+    expect(types(reported)).toContain("tool.completed");
+  });
+
+  test("records an interrupted call under the runtime when no provider has the tool", async () => {
+    const { runtime, work } = await setup([say("済み")]);
+    const handle = await runtime.works.open(work.id);
+    await handle.transition("in_progress", "run");
+    await handle.append({
+      type: "model.completed",
+      payload: {
+        stopReason: "tool_call",
+        content: [{ type: "tool_call", id: "c1", name: "vanished_tool", input: {} }],
+      },
+    });
+    await handle.close();
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("completed");
+    const events = await runtime.works.events(work.id);
+    expect(
+      payloadOf<{ provider: string }>(events.find((e) => e.type === "tool.called")).provider,
+    ).toBe("runtime");
   });
 });
