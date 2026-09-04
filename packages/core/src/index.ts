@@ -35,7 +35,9 @@ export { loadToolModule } from "./tool/load-module.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
 export {
+  ASK_USER_TOOL_NAME,
   type JsonSchema,
+  RESERVED_TOOL_NAMES,
   TOOL_NAME_PATTERN,
   type ToolCall,
   type ToolContext,

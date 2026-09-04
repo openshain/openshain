@@ -261,7 +261,7 @@ export interface ToolResult {
 | `markdown_read` | observe | Markdown をテキストとして読む(見出し一覧つき) |
 
 - すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。
-- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。model がこれを呼ぶと Work は `waiting_input` になる。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
+- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
 
 ## Runtime の振る舞い(`packages/agent`)
 

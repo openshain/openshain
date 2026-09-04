@@ -1,5 +1,10 @@
 import { OpenshainError } from "../errors.ts";
-import { TOOL_NAME_PATTERN, type ToolDefinition, type ToolProvider } from "./types.ts";
+import {
+  RESERVED_TOOL_NAMES,
+  TOOL_NAME_PATTERN,
+  type ToolDefinition,
+  type ToolProvider,
+} from "./types.ts";
 import { compileInputValidator, type InputValidation } from "./validate.ts";
 
 export interface RegisteredTool {
@@ -42,6 +47,12 @@ export class ToolRegistry {
         throw new OpenshainError(
           "invalid_tool",
           `tool name "${name}" from provider "${provider.id}" must match ${TOOL_NAME_PATTERN}`,
+        );
+      }
+      if (RESERVED_TOOL_NAMES.includes(name)) {
+        throw new OpenshainError(
+          "invalid_tool",
+          `tool name "${name}" from provider "${provider.id}" is reserved for the runtime`,
         );
       }
       const existing = this.tools.get(name) ?? prepared.get(name);

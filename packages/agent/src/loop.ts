@@ -3,8 +3,10 @@ import { readFile } from "node:fs/promises";
 import {
   type AnyEvent,
   type Artifact,
+  ASK_USER_TOOL_NAME,
   type AssistantPart,
   buildProjection,
+  compileInputValidator,
   type Event,
   isOpenshainError,
   isTerminal,
@@ -22,14 +24,21 @@ import {
 export interface RunWorkOptions {
   /** Defaults to the runtime's model. */
   model?: ModelProvider;
-  /** Answers the model's questions to the person. Without it, a question leaves the work waiting for input. */
+  /**
+   * Answers the model's questions to the person. Without it, a question leaves
+   * the work waiting for input. If it throws, the question stays recorded and
+   * unanswered, so a later run can resume from it.
+   */
   onInput?: (question: string) => Promise<string>;
   signal?: AbortSignal;
 }
 
+/** The provider recorded for calls the runtime handles itself. */
+export const RUNTIME_PROVIDER_ID = "runtime";
+
 /** The one tool the runtime itself provides: stop and ask the person. */
-export const ASK_USER: ToolDefinition = {
-  name: "ask_user",
+export const ASK_USER: Readonly<ToolDefinition> = Object.freeze({
+  name: ASK_USER_TOOL_NAME,
   description:
     "Ask the person you work for a question when you cannot proceed without their answer. Use it sparingly; prefer the workspace over guessing.",
   inputSchema: {
@@ -41,7 +50,9 @@ export const ASK_USER: ToolDefinition = {
     additionalProperties: false,
   },
   effect: "observe",
-};
+});
+
+const validateQuestion = compileInputValidator(ASK_USER.inputSchema);
 
 /**
  * Drives one work from its current state to completion, failure or a wait:
@@ -62,15 +73,15 @@ export async function runWork(
     }
     if (work.status === "queued") await handle.transition("in_progress", "run");
     if (work.status === "waiting_input") {
-      const pending = pendingQuestion(await handle.events());
-      if (!pending) {
+      const pending = pendingQuestions(await handle.events());
+      if (pending.length === 0) {
         throw new OpenshainError(
           "corrupt_log",
           `work ${workId} waits for input but no question is pending`,
         );
       }
       if (!options.onInput) return work;
-      await answer(handle, pending.callId, await options.onInput(pending.question));
+      await answerAll(handle, pending, options.onInput);
     }
     return await loop(runtime, handle, model, options);
   } finally {
@@ -163,18 +174,34 @@ async function loop(
         if (calls.length === 0) {
           return fail(handle, "model_error", "the model stopped for a tool call but made none");
         }
+        // Questions go last: the other calls of the turn run before the work waits,
+        // and the model gets their results together with the answers.
+        const ordered = [
+          ...calls.filter((c) => c.name !== ASK_USER.name),
+          ...calls.filter((c) => c.name === ASK_USER.name),
+        ];
         let used = toolCalls;
-        for (const call of calls) {
+        for (const call of ordered) {
           if (used >= limits.maxToolCalls) {
             return fail(handle, "limit_reached", `tool calls exhausted (${limits.maxToolCalls})`);
           }
           used += 1;
           if (call.name === ASK_USER.name) {
-            const outcome = await askUser(handle, call.id, call.input, options);
-            if (outcome === "waiting") return handle.current();
-            continue;
+            await askQuestion(handle, call.id, call.input);
+          } else {
+            await runtime.tools.call(handle, { id: call.id, name: call.name, input: call.input });
           }
-          await runtime.tools.call(handle, { id: call.id, name: call.name, input: call.input });
+        }
+        const pending = pendingQuestions(await handle.events());
+        if (pending.length > 0) {
+          await handle.transition(
+            "waiting_input",
+            pending.length === 1
+              ? "the model asked the person a question"
+              : `the model asked the person ${pending.length} questions`,
+          );
+          if (!options.onInput) return handle.current();
+          await answerAll(handle, pending, options.onInput);
         }
         break;
       }
@@ -258,44 +285,60 @@ async function currentHash(root: string, path: string, recorded: string): Promis
   }
 }
 
-/** Records the question, parks the work, and answers it right away when the caller can. */
-async function askUser(
-  handle: WorkHandle,
-  callId: string,
-  input: unknown,
-  options: RunWorkOptions,
-): Promise<"answered" | "waiting"> {
-  const question = String((input as { question?: unknown } | null)?.question ?? "");
+/** Records the model's question as a call that waits for the person, or rejects a malformed one. */
+async function askQuestion(handle: WorkHandle, callId: string, input: unknown): Promise<void> {
+  const validation = validateQuestion(input);
+  if (!validation.ok) {
+    await handle.append({
+      type: "tool.rejected",
+      payload: {
+        callId,
+        name: ASK_USER.name,
+        code: "schema_mismatch",
+        reason: `input does not match the schema of ${ASK_USER.name}: ${validation.reason}`,
+      },
+    });
+    return;
+  }
+  const { question } = input as { question: string };
   await handle.append({
     type: "tool.called",
-    payload: { callId, provider: "runtime", name: ASK_USER.name, input },
+    payload: { callId, provider: RUNTIME_PROVIDER_ID, name: ASK_USER.name, input },
   });
   await handle.append({ type: "human.input_requested", payload: { callId, question } });
-  await handle.transition("waiting_input", "the model asked the person a question");
-  if (!options.onInput) return "waiting";
-  await answer(handle, callId, await options.onInput(question));
-  return "answered";
 }
 
-async function answer(handle: WorkHandle, callId: string, text: string): Promise<void> {
-  await handle.append({ type: "human.input_provided", payload: { callId, answer: text } });
-  await handle.append({
-    type: "tool.completed",
-    payload: { callId, content: [{ type: "text", text }], isError: false },
-  });
+/** Records each answer as the person's input and as the tool result, then continues the work. */
+async function answerAll(
+  handle: WorkHandle,
+  pending: PendingQuestion[],
+  onInput: (question: string) => Promise<string>,
+): Promise<void> {
+  for (const { callId, question } of pending) {
+    const text = await onInput(question);
+    await handle.append({ type: "human.input_provided", payload: { callId, answer: text } });
+    await handle.append({
+      type: "tool.completed",
+      payload: { callId, content: [{ type: "text", text }], isError: false },
+    });
+  }
   await handle.transition("in_progress", "the person answered");
 }
 
-/** The last question that has no answer yet. */
-function pendingQuestion(events: AnyEvent[]): { callId: string; question: string } | undefined {
+interface PendingQuestion {
+  callId: string;
+  question: string;
+}
+
+/** The questions that have no answer yet, oldest first. */
+function pendingQuestions(events: AnyEvent[]): PendingQuestion[] {
   const answered = new Set(
     events
       .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
       .map((e) => e.payload.callId),
   );
-  const open = events
+  return events
     .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
     .filter((e) => !answered.has(e.payload.callId))
-    .at(-1);
-  return open ? { callId: open.payload.callId, question: open.payload.question } : undefined;
+    .map((e) => ({ callId: e.payload.callId, question: e.payload.question }));
 }
