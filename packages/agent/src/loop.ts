@@ -289,7 +289,7 @@ function lastTurnCallIds(events: AnyEvent[]): Set<string> {
 }
 
 /** Why a work failed, as recorded in `work.failed`. */
-type FailureReason = "limit_reached" | "model_refusal" | "model_error";
+export type FailureReason = "limit_reached" | "model_refusal" | "model_error";
 
 async function fail(handle: WorkHandle, reason: FailureReason, detail: string): Promise<Work> {
   await handle.append({ type: "work.failed", payload: { reason, detail } });
@@ -440,13 +440,13 @@ async function answerAll(
   await handle.transition("in_progress", "the person answered");
 }
 
-interface PendingQuestion {
+export interface PendingQuestion {
   callId: string;
   question: string;
 }
 
 /** The questions that have no answer yet, oldest first. */
-function pendingQuestions(events: AnyEvent[]): PendingQuestion[] {
+export function pendingQuestions(events: AnyEvent[]): PendingQuestion[] {
   const answered = new Set(
     events
       .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
