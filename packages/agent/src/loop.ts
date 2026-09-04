@@ -75,15 +75,20 @@ export async function runWork(
       throw new OpenshainError("invalid_transition", `work ${workId} is already ${work.status}`);
     }
     if (work.status === "queued") await handle.transition("in_progress", "run");
-    if (work.status === "waiting_input") {
-      const pending = pendingQuestions(await handle.events());
-      if (pending.length === 0) {
-        throw new OpenshainError(
-          "corrupt_log",
-          `work ${workId} waits for input but no question is pending`,
-        );
+    // A work still in progress was interrupted: close what the last turn left open.
+    if (work.status === "in_progress") await closeInterruptedCalls(runtime, handle);
+    const pending = pendingQuestions(await handle.events());
+    if (work.status === "waiting_input" && pending.length === 0) {
+      throw new OpenshainError(
+        "corrupt_log",
+        `work ${workId} waits for input but no question is pending`,
+      );
+    }
+    if (pending.length > 0) {
+      if (work.status !== "waiting_input") {
+        await handle.transition("waiting_input", "the model asked the person a question");
       }
-      if (!options.onInput) return work;
+      if (!options.onInput) return handle.current();
       await answerAll(handle, pending, options.onInput);
     }
     return await loop(runtime, handle, model, options);
@@ -303,6 +308,52 @@ function observed(handle: WorkHandle, onEvent: (event: AnyEvent) => void): WorkH
       return recorded;
     },
   };
+}
+
+const INTERRUPTED =
+  "the run stopped before this tool call finished; call it again if it is still needed";
+
+/**
+ * Gives every tool call of the last turn that has no result an error result, so the
+ * conversation can continue after a run was interrupted mid-call. A recorded question
+ * that awaits its answer is left alone.
+ */
+async function closeInterruptedCalls(runtime: Runtime, handle: WorkHandle): Promise<void> {
+  const events = await handle.events();
+  let last: Event<"model.completed"> | undefined;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (event?.type === "model.completed") {
+      last = event as Event<"model.completed">;
+      break;
+    }
+  }
+  if (!last) return;
+  const answered = new Set<string>();
+  const called = new Set<string>();
+  for (const event of events) {
+    if (event.type === "tool.completed" || event.type === "tool.rejected") {
+      answered.add((event as Event<"tool.completed" | "tool.rejected">).payload.callId);
+    }
+    if (event.type === "tool.called") called.add((event as Event<"tool.called">).payload.callId);
+  }
+  const asked = new Set(pendingQuestions(events).map((q) => q.callId));
+  for (const part of last.payload.content) {
+    if (part.type !== "tool_call" || answered.has(part.id) || asked.has(part.id)) continue;
+    if (!called.has(part.id)) {
+      const provider =
+        runtime.tools.list().find((t) => t.definition.name === part.name)?.providerId ??
+        RUNTIME_PROVIDER_ID;
+      await handle.append({
+        type: "tool.called",
+        payload: { callId: part.id, provider, name: part.name, input: part.input },
+      });
+    }
+    await handle.append({
+      type: "tool.completed",
+      payload: { callId: part.id, content: [{ type: "text", text: INTERRUPTED }], isError: true },
+    });
+  }
 }
 
 /** Records the model's question as a call that waits for the person, or rejects a malformed one. */
