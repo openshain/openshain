@@ -201,11 +201,14 @@ async function loop(
         if (calls.length === 0) {
           return fail(handle, "model_error", "the model stopped for a tool call but made none");
         }
-        const usedBefore = new Set(toolCallIds(events));
         const seen = new Set<string>();
         for (const call of calls) {
-          if (seen.has(call.id) || usedBefore.has(call.id)) {
-            return fail(handle, "model_error", `the model reused the tool call id "${call.id}"`);
+          if (seen.has(call.id)) {
+            return fail(
+              handle,
+              "model_error",
+              `the model used the tool call id "${call.id}" twice in one turn`,
+            );
           }
           seen.add(call.id);
         }
@@ -254,20 +257,31 @@ async function loop(
   }
 }
 
-/** The ids of the tool calls the model made, whether they ran or were rejected, in log order. */
-function toolCallIds(events: AnyEvent[]): string[] {
-  const ids: string[] = [];
+/**
+ * How many tool calls the model made: every call that started, plus every rejection of a call
+ * that never started. Counted by event, since some servers reuse call ids from turn to turn.
+ */
+export function countToolCalls(events: AnyEvent[]): number {
+  let count = 0;
+  let started = new Set<string>();
   for (const event of events) {
-    if (event.type === "tool.called" || event.type === "tool.rejected") {
-      ids.push((event as Event<"tool.called" | "tool.rejected">).payload.callId);
+    if (event.type === "model.completed") started = new Set();
+    else if (event.type === "tool.called") {
+      started.add((event as Event<"tool.called">).payload.callId);
+      count += 1;
+    } else if (event.type === "tool.rejected") {
+      if (!started.has((event as Event<"tool.rejected">).payload.callId)) count += 1;
     }
   }
-  return ids;
+  return count;
 }
 
-/** How many tool calls the model made. Ids cannot be reused, so distinct ids are calls. */
-export function countToolCalls(events: AnyEvent[]): number {
-  return new Set(toolCallIds(events)).size;
+/** The events since the model's most recent answer. Call ids are only trusted within a turn. */
+function currentTurn(events: AnyEvent[]): AnyEvent[] {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i]?.type === "model.completed") return events.slice(i + 1);
+  }
+  return events;
 }
 
 /** The model's most recent answer, if any. */
@@ -375,7 +389,7 @@ async function closeInterruptedCalls(runtime: Runtime, handle: WorkHandle): Prom
   if (!last) return;
   const answered = new Set<string>();
   const called = new Set<string>();
-  for (const event of events) {
+  for (const event of currentTurn(events)) {
     if (event.type === "tool.completed" || event.type === "tool.rejected") {
       answered.add((event as Event<"tool.completed" | "tool.rejected">).payload.callId);
     }
@@ -445,14 +459,15 @@ export interface PendingQuestion {
   question: string;
 }
 
-/** The questions that have no answer yet, oldest first. */
+/** The questions of the model's most recent turn that have no answer yet, oldest first. */
 export function pendingQuestions(events: AnyEvent[]): PendingQuestion[] {
+  const turn = currentTurn(events);
   const answered = new Set(
-    events
+    turn
       .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
       .map((e) => e.payload.callId),
   );
-  return events
+  return turn
     .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
     .filter((e) => !answered.has(e.payload.callId))
     .map((e) => ({ callId: e.payload.callId, question: e.payload.question }));

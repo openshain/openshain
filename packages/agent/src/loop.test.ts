@@ -605,18 +605,23 @@ describe("runWork against a hostile model", () => {
     expect(events.filter((e) => e.type === "tool.called")).toHaveLength(0);
   });
 
-  test("fails the work when a tool call id from an earlier turn comes back", async () => {
-    const { runtime, work } = await setup([
-      callTools({ id: "c1", name: "fs_list", input: {} }),
-      callTools({ id: "c1", name: "fs_list", input: {} }),
-      say("never"),
-    ]);
+  test("keeps going when a server reuses a call id from an earlier turn, and still counts every call", async () => {
+    const { runtime, work } = await setup(
+      [
+        callTools({ id: "c1", name: "fs_list", input: {} }),
+        callTools({ id: "c1", name: "fs_list", input: {} }),
+        callTools({ id: "c1", name: "fs_list", input: {} }),
+        say("never"),
+      ],
+      "limits:\n  max_tool_calls: 2\n",
+    );
 
     const done = await runWork(runtime, work.id);
 
     expect(done.status).toBe("failed");
+    expect(done.failure?.reason).toBe("limit_reached");
     const events = await runtime.works.events(work.id);
-    expect(events.filter((e) => e.type === "tool.called")).toHaveLength(1);
+    expect(events.filter((e) => e.type === "tool.called")).toHaveLength(2);
   });
 
   test("refuses to answer a question the model's last turn did not ask", async () => {
