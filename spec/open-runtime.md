@@ -169,7 +169,7 @@ export interface ModelRequest {
   tools?: ToolDefinition[];
   maxOutputTokens?: number;
   providerOptions?: Record<string, unknown>; // provider にそのまま渡す。共通化しない
-  budget?: { modelCallsLeft: number; toolCallsLeft: number }; // 残りの回数。provider は無視してよい
+  budget?: { modelCallsLeft: number; toolCallsLeft: number }; // 残りの回数。provider は無視してよい。公式の 2 つの provider は送らない
 }
 
 export type ModelMessage =
@@ -192,6 +192,7 @@ export interface ModelResponse {
     inputTokens: number;
     outputTokens: number;
     cachedInputTokens?: number;
+    cacheWriteTokens?: number;
     reasoningTokens?: number;
   };
   raw?: unknown; // provider の生の応答。既定では保存しない
@@ -253,25 +254,27 @@ export interface ToolResult {
 
 `@anthropic-ai/sdk` の Messages API を使う。対応は次のとおり。
 
-- stop_reason: `end_turn` と `stop_sequence` は `end_turn`、`tool_use` は `tool_call`、`max_tokens` と `refusal` はそのまま。それ以外(`pause_turn`、`model_context_window_exceeded`)は `other`
+- stop_reason: `end_turn` と `stop_sequence` は `end_turn`、`tool_use` は `tool_call`、`max_tokens` と `refusal` はそのまま。それ以外(`pause_turn`、`model_context_window_exceeded`)は `other`。content に tool_use があれば stop_reason が `end_turn` でも `tool_call`(そう返すゲートウェイがある)。refusal の `stop_details.explanation` は text として残す
 - content: text と tool_use はそのまま。thinking と redacted_thinking、その他のブロックは `opaque`(provider: anthropic)として保存し、次の request の assistant message に無変更で戻す
 - usage: input_tokens、output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)
 - エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答とそれ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
 - request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages、stream(常に false)は Runtime のもので上書きできない
-- API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー。`base_url` は root を指す。末尾の `/v1` は SDK が自分で足すので外す
+- API キーは `api_key_env` の環境変数から読む(前後の空白は取り除く)。未設定なら起動時に `config` エラー。認証は `x-api-key` ヘッダ。`base_url` は root を指し、省略時は `https://api.anthropic.com`。末尾の `/v1` は SDK が自分で足すので外す
+- 応答が message の形でない(content や usage が欠けている、JSON でない)ときは `invalid_response`。usage の項目が欠けていれば 0。`maxOutputTokens` が省略された request では 16,000。system と tools が空なら送らない。相手 provider の opaque だけでできた assistant のターンは送る前に `invalid_response`
 
 ### OpenAI 互換 provider(`packages/agent`)
 
 `openai` パッケージの chat completions を使う。OpenAI 本体、ローカルのサーバー、他社の互換 API のどれでも `base_url` で切り替える。対応は次のとおり。
 
-- finish_reason: `stop` は `end_turn`、`tool_calls` は `tool_call`、`length` は `max_tokens`、`content_filter` は `refusal`。それ以外は `other`。tool 呼び出しがあれば finish_reason が `stop` でも `tool_call` として扱う(そう返すサーバーがある)
+- finish_reason: `stop` は `end_turn`、`tool_calls` は `tool_call`、`length` は `max_tokens`、`content_filter` は `refusal`。それ以外は `other`。function の tool 呼び出しがあれば finish_reason が `length` 以外なら `tool_call` として扱う(`stop` と返すサーバーがある)。function 以外の tool 呼び出し(custom など)は opaque に残して送り返さず、それしかなければ `other`。`refusal` の文は text として残す
 - content: assistant の content は text(text の parts の配列で返すサーバーはつなぐ)、tool_calls は `tool_call`。arguments は JSON として読み、読めなければ文字列のまま渡して schema の検証に報告させる。assistant message の content と tool_calls 以外の項目(reasoning_content など)は `opaque`(provider: openai-compatible)として保存し、次の request の assistant message に戻す
-- messages: system は先頭の system message。Tool の結果は 1 つずつ `tool` message(tool_call_id 付き)にする。chat completions の tool message にはエラーの印がないので、失敗した結果も本文だけで伝わる
+- messages: system は先頭の system message。Tool の結果は 1 つずつ `tool` message(tool_call_id 付き)にする。chat completions の tool message にはエラーの印がないので、失敗した結果も本文だけで伝わる。text がない assistant message は `content: null`。user のターン内の text は Tool の結果の後ろにまとめる(投影はその並びを作らない)。opaque は assistant message に浅く合流し、`annotations` は opaque に含めない
 - usage: prompt_tokens、completion_tokens、prompt_tokens_details.cached_tokens(cachedInputTokens)、completion_tokens_details.reasoning_tokens(reasoningTokens)。usage を返さないサーバーでは 0
 - エラー: Anthropic provider と同じ対応(401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答は `invalid_response`)
-- request: 上限は `max_completion_tokens` で送る。`providerOptions` に `max_tokens` があればそちらだけを送る(古いサーバー向け)。`providerOptions` の残りは body にそのまま載る(`reasoning_effort`、`temperature` など)。model、messages、tools、stream(常に false)は Runtime のもので上書きできない
+- request: 上限は `max_completion_tokens` で送る。`providerOptions` に `max_tokens` があれば古い名前で送るが、値は Runtime の上限のまま(古いサーバー向けの印)。`providerOptions` の残りは body にそのまま載る(`reasoning_effort`、`temperature` など)。`n` を増やしても最初の choice だけを使う。model、messages、tools、stream(常に false)、上限は Runtime のもので上書きできない
 - `options: { tools: false }` は tool 呼び出しに対応しないサーバーの宣言。`capabilities.tools` が false になり、起動時に `config` エラーで止まる
-- `base_url` は `/v1` までを含む root(例: `http://localhost:11434/v1`)。API キーは `api_key_env` の環境変数から読む
+- `base_url` は `/v1` までを含む root(例: `http://localhost:11434/v1`)。省略時は `https://api.openai.com/v1`。API キーは `api_key_env` の環境変数から読み(前後の空白は取り除く)、`Authorization: Bearer` で送る
+- 応答が completion の形でない(message がない、JSON でない)ときは `invalid_response`。相手 provider の opaque だけでできた assistant のターンは送る前に `invalid_response`。`retry-after` を秒で返すサーバーでは SDK がその秒数を実時間で待つ
 
 ### 標準 Tool(`packages/tools`)
 

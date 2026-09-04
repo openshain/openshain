@@ -16,7 +16,7 @@ profession:
 model:
   provider: anthropic      # anthropic | openai-compatible
   model: claude-opus-5
-  api_key_env: ANTHROPIC_API_KEY   # API キーを入れておく環境変数の名前
+  api_key_env: ANTHROPIC_API_KEY   # API キーを入れておく環境変数の名前。サーバーを替えるなら変数名も見直す
   # base_url: http://localhost:11434/v1   # openai-compatible のとき
   # options: { effort: high }             # provider にそのまま渡す
 tools:

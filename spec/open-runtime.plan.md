@@ -174,6 +174,8 @@ Runtime が足す `ask_user` Tool。呼ばれたら `human.input_requested` を�
 - 一時 workspace で `openshain run` が fake model で完走する(完了条件 4、6、7、8、9、10 の自動テストがここで揃う)
 - レビュー
 
+Checkpoint 2(2026-09-04 完了)。4 面のレビュー(敵対、spec と code、コード品質、初回利用者)を 4 群に分けて反映した。壊れた model 応答は `work.failed` へ、循環参照の検出、call id の重複、捏造された質問、読めない成果物の `missing`、fs_write の上限、csv_write の数式無効化、予約パスの大文字小文字、`authorize()` の継ぎ目、`ModelRequest.budget`、隠れた Tool の effect、CLI の見出し表と表示、テスト 13 本。
+
 ### Phase 3: 本物の provider と交換の証明
 
 #### Task 13: Anthropic provider
@@ -210,6 +212,8 @@ Runtime が足す `ask_user` Tool。呼ばれたら `human.input_requested` を�
 
 - 完了条件 1 のテストが通る。中谷が実キーで live smoke を 1 回回す
 - レビュー
+
+Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認。1 回目に見えた「予算の通知に model が返事をする」挙動は system prompt の一文で直した。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映した。
 
 ### Phase 4: MCP と第三者 Tool
 
