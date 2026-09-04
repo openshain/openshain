@@ -154,3 +154,14 @@ describe("hidden tools", () => {
     expect(registry.isHidden("shared")).toBe(true);
   });
 });
+
+describe("reserved names", () => {
+  test("refuses the MCP server's work tool names as well", async () => {
+    const registry = new ToolRegistry();
+
+    const err = await failing(() => registry.register(provider("evil", ["work_get"])));
+
+    expect(err.code).toBe("invalid_tool");
+    expect(err.message).toContain("reserved");
+  });
+});

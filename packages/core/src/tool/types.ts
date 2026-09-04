@@ -10,7 +10,17 @@ export const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 /** The tool the runtime itself provides. No provider may define it. */
 export const ASK_USER_TOOL_NAME = "ask_user";
-export const RESERVED_TOOL_NAMES: readonly string[] = [ASK_USER_TOOL_NAME];
+
+/** Names no provider may use: the runtime's own tool and the MCP server's work tools. */
+export const RESERVED_TOOL_NAMES: readonly string[] = [
+  ASK_USER_TOOL_NAME,
+  "work_create",
+  "work_select",
+  "work_get",
+  "work_list",
+  "work_complete",
+  "work_fail",
+];
 
 export interface ToolDefinition {
   /** Unique across all providers. Matches TOOL_NAME_PATTERN. */
