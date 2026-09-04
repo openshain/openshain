@@ -15,6 +15,8 @@ import { stringify } from "csv-stringify/sync";
 
 /** Files larger than this are not read into the model's context. */
 export const MAX_READ_BYTES = 1024 * 1024;
+/** The same limit on writes, so that nothing a tool writes is too large for a tool to read back. */
+export const MAX_WRITE_BYTES = MAX_READ_BYTES;
 
 const pathProperty = {
   type: "string",
@@ -48,7 +50,7 @@ const definitions: ToolDefinition[] = [
   {
     name: "fs_write",
     description:
-      "Write a text file inside the workspace, creating or replacing it. Returns the file's path and the hash of its contents.",
+      "Write a text file inside the workspace, creating or replacing it. Up to 1 MiB. Returns the file's path and the hash of its contents.",
     inputSchema: {
       type: "object",
       properties: { path: pathProperty, content: { type: "string" } },
@@ -71,7 +73,7 @@ const definitions: ToolDefinition[] = [
   {
     name: "csv_write",
     description:
-      "Write rows to a CSV file with a header row, creating or replacing it. Returns the file's path and the hash of its contents.",
+      "Write rows to a CSV file with a header row, creating or replacing it. Up to 1 MiB. A cell that starts with =, + or @ gets a leading apostrophe so that a spreadsheet does not run it as a formula. Returns the file's path and the hash of its contents.",
     inputSchema: {
       type: "object",
       properties: {
@@ -173,7 +175,10 @@ async function csvWrite(
   columns: unknown,
 ): Promise<ToolResult> {
   if (!Array.isArray(rows)) throw new Error("rows must be an array of objects");
-  const text = stringify(rows as Record<string, unknown>[], {
+  const safeRows = (rows as Record<string, unknown>[]).map((row) =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, neutralizeFormula(value)])),
+  );
+  const text = stringify(safeRows, {
     header: true,
     ...(Array.isArray(columns) && { columns: columns as string[] }),
   });
@@ -229,6 +234,10 @@ async function writeText(
   path: string,
   content: string,
 ): Promise<{ path: string; sha256: string }> {
+  const bytes = Buffer.byteLength(content, "utf8");
+  if (bytes > MAX_WRITE_BYTES) {
+    throw new Error(`"${path}" is too large to write (${bytes} bytes, limit ${MAX_WRITE_BYTES})`);
+  }
   const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
   const root = await resolveWorkspacePath(ctx.workspaceRoot, ".");
   await mkdir(dirname(resolved), { recursive: true });
@@ -244,6 +253,15 @@ async function writeText(
     path: relative(root, resolved),
     sha256: createHash("sha256").update(content).digest("hex"),
   };
+}
+
+/**
+ * Spreadsheets run a cell that starts with =, +, @ or - as a formula. A leading apostrophe keeps
+ * it text. Negative numbers are left alone.
+ */
+function neutralizeFormula(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  return /^[=+@\t\r]/.test(value) || /^-(?![0-9.])/.test(value) ? `'${value}` : value;
 }
 
 function observed(path: string): { source: string; retrievedAt: string } {

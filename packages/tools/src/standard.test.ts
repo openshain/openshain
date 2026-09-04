@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { newWorkId, OpenshainError, type ToolContext } from "@openshain/core";
-import { standardTools } from "./standard.ts";
+import { MAX_WRITE_BYTES, standardTools } from "./standard.ts";
 
 async function workspace() {
   const root = await mkdtemp(join(tmpdir(), "openshain-tools-"));
@@ -227,5 +227,34 @@ describe("standard tools", () => {
     await writeFile(join(root, "big.bin"), Buffer.alloc(2 * 1024 * 1024, 65));
 
     await expect(call("fs_read", { path: "big.bin" })).rejects.toThrow(/too large/);
+  });
+});
+
+describe("limits on writes", () => {
+  test("refuses to write a file that no tool could read back", async () => {
+    const { call } = await workspace();
+
+    const err = await call("fs_write", {
+      path: "huge.txt",
+      content: "x".repeat(MAX_WRITE_BYTES + 1),
+    }).catch((e: unknown) => e);
+
+    expect((err as Error).message).toContain("too large to write");
+  });
+
+  test("keeps formulas in CSV cells from running, and negative numbers as they are", async () => {
+    const { root, call } = await workspace();
+
+    await call("csv_write", {
+      path: "out.csv",
+      rows: [{ memo: "=cmd|' /C calc'!A1", amount: "-100", note: "+1", tag: "@x" }],
+    });
+
+    const text = await readFile(join(root, "out.csv"), "utf8");
+    expect(text).toContain("'=cmd");
+    expect(text).toContain("-100");
+    expect(text).not.toContain("'-100");
+    expect(text).toContain("'+1");
+    expect(text).toContain("'@x");
   });
 });
