@@ -25,7 +25,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - `spec/` human-readable specs and JSON Schemas generated from `packages/core`
 - `docs/` user-facing documentation in Japanese
 - `packs/` profession packs (none yet)
-- `examples/` fictional sample companies and sample extensions such as tool providers (none yet)
+- `examples/` fictional sample companies and sample extensions such as tool providers
 
 ## Conventions
 

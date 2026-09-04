@@ -16,7 +16,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["bun"]
+    "types": ["bun"],
+    "paths": {
+      "@openshain/*": ["./packages/*/src/index.ts"]
+    }
   },
-  "include": ["packages/*/src", "test"]
+  "include": ["packages/*/src", "examples", "test"]
 }
