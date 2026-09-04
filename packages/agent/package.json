@@ -9,6 +9,7 @@
     "./testing": "./src/testing/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.123.0",
     "@openshain/core": "workspace:*"
   },
   "devDependencies": {
