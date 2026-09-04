@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
-import { anthropicProvider } from "@openshain/agent";
+import { anthropicProvider, openaiCompatibleProvider } from "@openshain/agent";
 import { isOpenshainError, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
@@ -24,7 +24,10 @@ const USAGE = `使い方:
 
 /** The providers this CLI knows, by the ids used in openshain.yaml. */
 const providers: RuntimeProviders = {
-  models: { anthropic: (model) => anthropicProvider(model) },
+  models: {
+    anthropic: (model) => anthropicProvider(model),
+    "openai-compatible": (model) => openaiCompatibleProvider(model),
+  },
   tools: { standard: () => standardTools() },
 };
 
