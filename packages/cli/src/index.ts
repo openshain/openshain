@@ -1,5 +1,6 @@
 // openshain: Reference CLI agent for the openshain runtime
 export { CONFIG_TEMPLATE, type InitOptions, init } from "./commands/init.ts";
+export { type McpOptions, mcp } from "./commands/mcp.ts";
 export {
   type DriveOptions,
   drive,

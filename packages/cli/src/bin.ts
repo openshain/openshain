@@ -5,6 +5,7 @@ import { anthropicProvider, openaiCompatibleProvider } from "@openshain/agent";
 import { isOpenshainError, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
+import { mcp } from "./commands/mcp.ts";
 import { run } from "./commands/run.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workResume, workShow } from "./commands/work.ts";
@@ -18,6 +19,7 @@ const USAGE = `使い方:
   openshain work list            Work の一覧
   openshain work show <id>       Work の詳細
   openshain work resume <id>     途中で止まった Work を続ける
+  openshain mcp                  MCP Server を stdio で起動する
 
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
                                  init はそこに書き、他のコマンドはそこから上に openshain.yaml を探す`;
@@ -68,6 +70,11 @@ async function main(argv: string[]): Promise<number> {
       return withTerminal((ask) =>
         run({ workspaceRoot, providers, objective, write, ...(ask && { ask }) }),
       );
+    }
+    case "mcp": {
+      const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      await mcp({ workspaceRoot, providers });
+      return 0;
     }
     case "tools": {
       if (rest[0] !== "list") {

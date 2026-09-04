@@ -25,9 +25,14 @@
     "packages/cli": {
       "name": "openshain",
       "version": "0.0.0",
+      "bin": {
+        "openshain": "./src/bin.ts",
+      },
       "dependencies": {
+        "@modelcontextprotocol/sdk": "1.30.0",
         "@openshain/agent": "workspace:*",
         "@openshain/core": "workspace:*",
+        "@openshain/mcp": "workspace:*",
         "@openshain/tools": "workspace:*",
       },
     },
