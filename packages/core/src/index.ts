@@ -34,7 +34,12 @@ export {
 } from "./runtime.ts";
 export { loadToolModule } from "./tool/load-module.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
-export { type RegisteredTool, type RegisterOptions, ToolRegistry } from "./tool/registry.ts";
+export {
+  type HiddenTool,
+  type RegisteredTool,
+  type RegisterOptions,
+  ToolRegistry,
+} from "./tool/registry.ts";
 export {
   ASK_USER_TOOL_NAME,
   type JsonSchema,

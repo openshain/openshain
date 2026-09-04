@@ -3,7 +3,8 @@ import type { Config } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
 import type { ModelProvider } from "./model/types.ts";
 import { loadToolModule } from "./tool/load-module.ts";
-import { ToolRegistry } from "./tool/registry.ts";
+import type { HiddenTool } from "./tool/registry.ts";
+import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
 import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
 import type { ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
@@ -38,7 +39,7 @@ export interface Runtime {
   readonly tools: {
     list(): ToolSummary[];
     /** Tools the providers offer but the allow lists in the config left out. */
-    hidden(): { name: string; providerId: string }[];
+    hidden(): HiddenTool[];
     /** Validates, runs and records one tool call for the given work. Never throws for a tool's own failure. */
     call(work: WorkHandle, call: ToolCall): Promise<ToolResult>;
   };
@@ -102,6 +103,25 @@ export async function createToolRegistry(
   return registry;
 }
 
+/**
+ * The one place that allows or refuses a call before it runs. At this stage it knows only
+ * the allow lists; a later authority engine plugs in here.
+ */
+function authorize(
+  registry: ToolRegistry,
+  call: ToolCall,
+): { ok: true; tool: RegisteredTool } | { ok: false; code: ToolRejectionCode; reason: string } {
+  const tool = registry.get(call.name);
+  if (tool) return { ok: true, tool };
+  return registry.isHidden(call.name)
+    ? {
+        ok: false,
+        code: "not_allowed",
+        reason: `tool "${call.name}" is not allowed in this workspace`,
+      }
+    : { ok: false, code: "unknown_tool", reason: `unknown tool "${call.name}"` };
+}
+
 async function callTool(input: {
   registry: ToolRegistry;
   config: Config;
@@ -118,12 +138,9 @@ async function callTool(input: {
     return { content: [{ type: "text", text: reason }], isError: true };
   };
 
-  const tool = registry.get(call.name);
-  if (!tool) {
-    return registry.isHidden(call.name)
-      ? reject("not_allowed", `tool "${call.name}" is not allowed in this workspace`)
-      : reject("unknown_tool", `unknown tool "${call.name}"`);
-  }
+  const decision = authorize(registry, call);
+  if (!decision.ok) return reject(decision.code, decision.reason);
+  const { tool } = decision;
   const validation = tool.validate(call.input);
   if (!validation.ok) {
     return reject(

@@ -3,6 +3,7 @@ import {
   RESERVED_TOOL_NAMES,
   TOOL_NAME_PATTERN,
   type ToolDefinition,
+  type ToolEffect,
   type ToolProvider,
 } from "./types.ts";
 import { compileInputValidator, type InputValidation } from "./validate.ts";
@@ -14,6 +15,13 @@ export interface RegisteredTool {
   validate: (input: unknown) => InputValidation;
 }
 
+/** A tool a provider offers that an allow list left out. Not callable; shown so the person knows it exists. */
+export interface HiddenTool {
+  name: string;
+  providerId: string;
+  effect: ToolEffect;
+}
+
 export interface RegisterOptions {
   /** Only these tools of the provider are registered. Every name must exist. */
   allow?: readonly string[];
@@ -22,7 +30,7 @@ export interface RegisterOptions {
 /** Every tool the runtime can offer, across providers. Names are unique. */
 export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
-  private readonly hidden = new Map<string, string>();
+  private readonly hidden: HiddenTool[] = [];
 
   async register(provider: ToolProvider, options: RegisterOptions = {}): Promise<void> {
     const definitions = await provider.listTools();
@@ -76,20 +84,24 @@ export class ToolRegistry {
     }
     for (const [name, tool] of prepared) this.tools.set(name, tool);
     for (const definition of definitions) {
-      if (!prepared.has(definition.name)) this.hidden.set(definition.name, provider.id);
+      if (!prepared.has(definition.name)) {
+        this.hidden.push({
+          name: definition.name,
+          providerId: provider.id,
+          effect: definition.effect,
+        });
+      }
     }
   }
 
   /** True for a tool the provider offers but an allow list left out. */
   isHidden(name: string): boolean {
-    return this.hidden.has(name) && !this.tools.has(name);
+    return !this.tools.has(name) && this.hidden.some((h) => h.name === name);
   }
 
   /** Tools that providers offer but allow lists left out. */
-  hiddenTools(): { name: string; providerId: string }[] {
-    return [...this.hidden]
-      .filter(([name]) => !this.tools.has(name))
-      .map(([name, providerId]) => ({ name, providerId }));
+  hiddenTools(): HiddenTool[] {
+    return this.hidden.filter((h) => !this.tools.has(h.name)).map((h) => ({ ...h }));
   }
 
   list(): RegisteredTool[] {

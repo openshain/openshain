@@ -16,6 +16,8 @@ export interface ModelRequest {
   maxOutputTokens?: number;
   /** Passed to the provider as is. The contract does not interpret it. */
   providerOptions?: Record<string, unknown>;
+  /** How many model and tool calls the work may still make. Providers may ignore it. */
+  budget?: { modelCallsLeft: number; toolCallsLeft: number };
 }
 
 export interface ModelResponse {

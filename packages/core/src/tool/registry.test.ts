@@ -140,3 +140,17 @@ describe("ToolRegistry hardening", () => {
     expect(registry.list()).toHaveLength(0);
   });
 });
+
+describe("hidden tools", () => {
+  test("keeps the effect, and both providers when two hide the same name", async () => {
+    const registry = new ToolRegistry();
+    await registry.register(provider("a", ["ping", "shared"]), { allow: ["ping"] });
+    await registry.register(provider("b", ["pong", "shared"]), { allow: ["pong"] });
+
+    expect(registry.hiddenTools()).toEqual([
+      { name: "shared", providerId: "a", effect: "observe" },
+      { name: "shared", providerId: "b", effect: "observe" },
+    ]);
+    expect(registry.isHidden("shared")).toBe(true);
+  });
+});
