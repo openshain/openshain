@@ -215,10 +215,10 @@ describe("tools list", () => {
     await toolsList({ workspaceRoot: root, providers, write: out.write });
 
     const text = out.lines.join("\n");
-    expect(text).toMatch(/fs_read\s+standard\s+observe/);
-    expect(text).toMatch(/fs_write\s+standard\s+mutate/);
-    expect(text).toContain("ask_user");
-    expect(text).toMatch(/csv_read.*許可されていない/);
+    expect(text).toMatch(/fs_read\s+standard\s+observe\s+許可/);
+    expect(text).toMatch(/fs_write\s+standard\s+mutate\s+許可/);
+    expect(text).toMatch(/ask_user\s+runtime\s+observe\s+許可/);
+    expect(text).toMatch(/csv_read\s+standard\s+observe\s+不許可/);
   });
 });
 

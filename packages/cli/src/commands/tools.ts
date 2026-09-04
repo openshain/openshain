@@ -15,16 +15,18 @@ export async function toolsList({
 }: ToolsListOptions): Promise<void> {
   const config = await loadConfig(workspaceRoot);
   const registry = await createToolRegistry(workspaceRoot, config, providers.tools);
-  const rows: [string, string, string][] = registry
+  const rows: [string, string, string, string][] = registry
     .list()
-    .map((t) => [t.definition.name, t.providerId, t.definition.effect]);
-  rows.push([ASK_USER.name, RUNTIME_PROVIDER_ID, ASK_USER.effect]);
+    .map((t) => [t.definition.name, t.providerId, t.definition.effect, "許可"]);
+  rows.push([ASK_USER.name, RUNTIME_PROVIDER_ID, ASK_USER.effect, "許可"]);
   for (const hidden of registry.hiddenTools()) {
-    rows.push([hidden.name, hidden.providerId, "許可されていない"]);
+    rows.push([hidden.name, hidden.providerId, hidden.effect, "不許可"]);
   }
   const width = Math.max(...rows.map(([name]) => name.length));
   const providerWidth = Math.max(...rows.map(([, provider]) => provider.length));
-  for (const [name, provider, effect] of rows) {
-    write(`${name.padEnd(width)}  ${provider.padEnd(providerWidth)}  ${effect}`);
+  for (const [name, provider, effect, allowed] of rows) {
+    write(
+      `${name.padEnd(width)}  ${provider.padEnd(providerWidth)}  ${effect.padEnd(7)}  ${allowed}`,
+    );
   }
 }
