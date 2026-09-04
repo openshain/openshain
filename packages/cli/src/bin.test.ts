@@ -6,10 +6,15 @@ import { join } from "node:path";
 const bin = join(import.meta.dir, "bin.ts");
 
 async function openshain(...args: string[]) {
+  return openshainWith({}, ...args);
+}
+
+async function openshainWith(env: Record<string, string | undefined>, ...args: string[]) {
   const proc = Bun.spawn(["bun", bin, ...args], {
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
+    env: { ...process.env, ...env },
   });
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -61,6 +66,22 @@ describe("openshain", () => {
 
     expect(code).toBe(2);
     expect(stdout).toContain("使い方");
+  });
+
+  test("run without the API key in the environment is a config error that names the variable", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
+    await openshain("init", "--workspace", root);
+
+    const { code, stderr } = await openshainWith(
+      { ANTHROPIC_API_KEY: undefined },
+      "run",
+      "x",
+      "--workspace",
+      root,
+    );
+
+    expect(code).toBe(1);
+    expect(stderr).toContain("ANTHROPIC_API_KEY");
   });
 
   test("a directory without a config is a config error with exit 1", async () => {

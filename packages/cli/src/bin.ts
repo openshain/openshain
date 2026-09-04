@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { anthropicProvider } from "@openshain/agent";
 import { isOpenshainError, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
@@ -21,9 +22,9 @@ const USAGE = `使い方:
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
                                  init はそこに書き、他のコマンドはそこから上に openshain.yaml を探す`;
 
-/** Model providers arrive with their own packages; until then only the standard tools are wired. */
+/** The providers this CLI knows, by the ids used in openshain.yaml. */
 const providers: RuntimeProviders = {
-  models: {},
+  models: { anthropic: (model) => anthropicProvider(model) },
   tools: { standard: () => standardTools() },
 };
 
