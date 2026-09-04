@@ -257,7 +257,7 @@ export interface ToolResult {
 - content: text と tool_use はそのまま。thinking と redacted_thinking、その他のブロックは `opaque`(provider: anthropic)として保存し、次の request の assistant message に無変更で戻す
 - usage: input_tokens、output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)
 - エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答とそれ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
-- request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages は Runtime のもので上書きできない
+- request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages、stream(常に false)は Runtime のもので上書きできない
 - API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー。`base_url` は root を指す。末尾の `/v1` は SDK が自分で足すので外す
 
 ### OpenAI 互換 provider(`packages/agent`)
@@ -265,11 +265,11 @@ export interface ToolResult {
 `openai` パッケージの chat completions を使う。OpenAI 本体、ローカルのサーバー、他社の互換 API のどれでも `base_url` で切り替える。対応は次のとおり。
 
 - finish_reason: `stop` は `end_turn`、`tool_calls` は `tool_call`、`length` は `max_tokens`、`content_filter` は `refusal`。それ以外は `other`。tool 呼び出しがあれば finish_reason が `stop` でも `tool_call` として扱う(そう返すサーバーがある)
-- content: assistant の content は text、tool_calls は `tool_call`。arguments は JSON として読み、読めなければ文字列のまま渡して schema の検証に報告させる。assistant message の content と tool_calls 以外の項目(reasoning_content など)は `opaque`(provider: openai-compatible)として保存し、次の request の assistant message に戻す
-- messages: system は先頭の system message。Tool の結果は 1 つずつ `tool` message(tool_call_id 付き)にする
+- content: assistant の content は text(text の parts の配列で返すサーバーはつなぐ)、tool_calls は `tool_call`。arguments は JSON として読み、読めなければ文字列のまま渡して schema の検証に報告させる。assistant message の content と tool_calls 以外の項目(reasoning_content など)は `opaque`(provider: openai-compatible)として保存し、次の request の assistant message に戻す
+- messages: system は先頭の system message。Tool の結果は 1 つずつ `tool` message(tool_call_id 付き)にする。chat completions の tool message にはエラーの印がないので、失敗した結果も本文だけで伝わる
 - usage: prompt_tokens、completion_tokens、prompt_tokens_details.cached_tokens(cachedInputTokens)、completion_tokens_details.reasoning_tokens(reasoningTokens)。usage を返さないサーバーでは 0
 - エラー: Anthropic provider と同じ対応(401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答は `invalid_response`)
-- request: 上限は `max_completion_tokens` で送る。`providerOptions` に `max_tokens` があればそちらだけを送る(古いサーバー向け)。`providerOptions` の残りは body にそのまま載る(`reasoning_effort`、`temperature` など)。model、messages、tools は Runtime のもので上書きできない
+- request: 上限は `max_completion_tokens` で送る。`providerOptions` に `max_tokens` があればそちらだけを送る(古いサーバー向け)。`providerOptions` の残りは body にそのまま載る(`reasoning_effort`、`temperature` など)。model、messages、tools、stream(常に false)は Runtime のもので上書きできない
 - `options: { tools: false }` は tool 呼び出しに対応しないサーバーの宣言。`capabilities.tools` が false になり、起動時に `config` エラーで止まる
 - `base_url` は `/v1` までを含む root(例: `http://localhost:11434/v1`)。API キーは `api_key_env` の環境変数から読む
 
@@ -310,7 +310,7 @@ provider が throw → model.failed → work.failed(model_error)
 - Tool の失敗は model に `isError` で返し、Work は続く。Tool 呼び出しの回数には数える。
 - model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を残して `work.failed`(reason: `model_error`)。
 - 判定の差し込み口: Tool を実行する直前に Runtime の `authorize(call)` を通す。この段階の判定は許可リストだけで、それ以外は常に許可。将来の Authority engine はここに差し込む。
-- Tool 呼び出しの回数は `tool.called` と `tool.rejected` の相異なる call id で数える。拒否された呼び出しも数える。model が call id を使い回したターン(同じターン内でも、前のターンの id でも)は `work.failed`(model_error)にする。
+- Tool 呼び出しの回数はイベントで数える。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和。拒否された呼び出しも数える。同じターン内で call id が重複したら `work.failed`(model_error)。前のターンの id を使い回すサーバーはあるので、ターンをまたぐ重複は許す。中断の後始末と質問の突き合わせは直前の model のターン以降のイベントだけを見る。
 - 中断された呼び出しには `the run stopped before this tool call finished; call it again if it is still needed` という文言で `isError: true` の `tool.completed` を残す。
 - 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残る。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に直してから切り、text として返す。
