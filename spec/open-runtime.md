@@ -281,6 +281,7 @@ provider が throw → model.failed → work.failed(model_error)
 ```
 
 - 停止条件: 完了、`ask_user`、上限到達、model の refusal、回復できないエラー。
+- 再開: `in_progress` のまま止まった Work(Tool 実行中の中断など)を再び動かすときは、直前のターンで結果のない Tool 呼び出しに「途中で止まった」という失敗の結果を記録してから続ける。答えのない質問が残っていれば `waiting_input` として扱う。
 - 上限は設定ファイルで持つ。初期値は `max_model_calls: 30`、`max_tool_calls: 100`、`max_output_tokens: 16000`。計測して直す。超えたら `work.failed`(reason: `limit_reached`)。
 - Tool の失敗は model に `isError` で返し、Work は続く。Tool 呼び出しの回数には数える。
 - model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を残して `work.failed`(reason: `model_error`)。

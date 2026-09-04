@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AnyEvent, createRuntime } from "@openshain/core";
+import { type AnyEvent, createRuntime, type WorkHandle } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { ASK_USER, runWork } from "./loop.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
@@ -443,5 +443,109 @@ describe("runWork with ask_user", () => {
 
   test("the ask_user definition cannot be changed by its users", () => {
     expect(Object.isFrozen(ASK_USER)).toBe(true);
+  });
+});
+
+describe("runWork after an interrupted run", () => {
+  async function interruptedAt(steps: FakeStep[], record: (h: WorkHandle) => Promise<void>) {
+    const ctx = await setup(steps);
+    const handle = await ctx.runtime.works.open(ctx.work.id);
+    await handle.transition("in_progress", "run");
+    await handle.append({
+      type: "model.requested",
+      payload: { provider: "fake", model: "fake-1", messageCount: 1, toolNames: ["fs_list"] },
+    });
+    await record(handle);
+    await handle.close();
+    return ctx;
+  }
+
+  test("tells the model that a tool call never finished, then goes on", async () => {
+    const { model, runtime, work } = await interruptedAt([say("済み")], async (h) => {
+      await h.append({
+        type: "model.completed",
+        payload: {
+          stopReason: "tool_call",
+          content: [{ type: "tool_call", id: "c1", name: "fs_list", input: {} }],
+        },
+      });
+      await h.append({
+        type: "tool.called",
+        payload: { callId: "c1", provider: "standard", name: "fs_list", input: {} },
+      });
+    });
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("completed");
+    const result = model.requests[0]?.messages.at(-1)?.content[0];
+    expect(result).toMatchObject({ type: "tool_result", callId: "c1", isError: true });
+    const events = await runtime.works.events(work.id);
+    const closed = events.find(
+      (e) => e.type === "tool.completed" && (e.payload as { callId: string }).callId === "c1",
+    );
+    expect(payloadOf<{ isError: boolean }>(closed).isError).toBe(true);
+  });
+
+  test("records the call itself when the run stopped before recording it", async () => {
+    const { runtime, work } = await interruptedAt([say("済み")], async (h) => {
+      await h.append({
+        type: "model.completed",
+        payload: {
+          stopReason: "tool_call",
+          content: [{ type: "tool_call", id: "c1", name: "fs_list", input: {} }],
+        },
+      });
+    });
+
+    const done = await runWork(runtime, work.id);
+
+    expect(done.status).toBe("completed");
+    const events = await runtime.works.events(work.id);
+    const called = events.find((e) => e.type === "tool.called");
+    expect(payloadOf<{ callId: string; provider: string }>(called)).toMatchObject({
+      callId: "c1",
+      provider: "standard",
+    });
+  });
+
+  test("treats a question recorded before the work could wait as pending", async () => {
+    const { runtime, work } = await interruptedAt([say("7月分を集計しました")], async (h) => {
+      await h.append({
+        type: "model.completed",
+        payload: {
+          stopReason: "tool_call",
+          content: [
+            { type: "tool_call", id: "q1", name: "ask_user", input: { question: "どの月?" } },
+          ],
+        },
+      });
+      await h.append({
+        type: "tool.called",
+        payload: {
+          callId: "q1",
+          provider: "runtime",
+          name: "ask_user",
+          input: { question: "どの月?" },
+        },
+      });
+      await h.append({
+        type: "human.input_requested",
+        payload: { callId: "q1", question: "どの月?" },
+      });
+    });
+    const asked: string[] = [];
+
+    const waiting = await runWork(runtime, work.id);
+    expect(waiting.status).toBe("waiting_input");
+    const done = await runWork(runtime, work.id, {
+      onInput: async (question) => {
+        asked.push(question);
+        return "7月";
+      },
+    });
+
+    expect(asked).toEqual(["どの月?"]);
+    expect(done.status).toBe("completed");
   });
 });
