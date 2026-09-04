@@ -73,9 +73,18 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
     tools: {
       list: () => registry.list().map(({ definition, providerId }) => ({ definition, providerId })),
       hidden: () => registry.hiddenTools(),
-      call: (work, call) => callTool({ registry, config, workspaceRoot, work, call }),
+      call: createToolCaller({ registry, config, workspaceRoot }),
     },
   };
+}
+
+/** The tool call pipeline on its own: authorize, validate, run, record. For callers that need no model, such as the MCP server. */
+export function createToolCaller(input: {
+  registry: ToolRegistry;
+  config: Config;
+  workspaceRoot: string;
+}): (work: WorkHandle, call: ToolCall) => Promise<ToolResult> {
+  return (work, call) => callTool({ ...input, work, call });
 }
 
 /** Registers the tool providers the config names: the caller's factories by id, and modules from the workspace. Needs no model. */
