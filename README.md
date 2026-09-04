@@ -17,7 +17,7 @@ Claude や Codex、Gemini のような汎用 Agent は、そのままでは会�
 
 ## 状態
 
-開発初期。まだ動きません。最初の職種は Accounting Employee(経理)です。
+開発初期。Anthropic か OpenAI 互換の API キーがあれば `openshain run` が動く段階で、職種はまだ generic だけです。最初の職種は Accounting Employee(経理)の予定です。
 
 ## 入口
 
