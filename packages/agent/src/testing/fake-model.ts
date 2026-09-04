@@ -1,5 +1,6 @@
 import type { AssistantPart, ModelProvider, ModelRequest, ModelResponse } from "@openshain/core";
 
+/** One scripted answer: a response, or a function that builds one from the request. */
 export type FakeStep = ModelResponse | ((request: ModelRequest) => ModelResponse);
 
 /**
