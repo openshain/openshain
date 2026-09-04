@@ -201,8 +201,7 @@ describe("work resume", () => {
     });
 
     expect(code).toBe(0);
-    expect(out.lines[0]).toBe(`${id} を再開`);
-    expect(out.text()).toContain("完了。7月分を集計しました");
+    expect(out.lines[0]).toBe("完了。7月分を集計しました");
     expect(out.text()).toContain("次に動く人はいません");
   });
 
@@ -217,6 +216,25 @@ describe("work resume", () => {
     const code = await workResume({ workspaceRoot: root, providers, id, write: out.write });
 
     expect(code).toBe(1);
-    expect(out.text()).toContain("再開できません");
+    expect(out.text()).toContain("のため、再開できません");
+  });
+
+  test("without a way to ask, shows the pending question and stops", async () => {
+    const model = new FakeModelProvider([
+      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
+      say("never"),
+    ]);
+    const { root, providers } = await fakeWorkspace(model);
+    const first = io();
+    await run({ workspaceRoot: root, providers, objective: "集計して", write: first.write });
+    const id = first.lines[0]?.split(" ")[0] ?? "";
+    const out = io();
+
+    const code = await workResume({ workspaceRoot: root, providers, id, write: out.write });
+
+    expect(code).toBe(1);
+    expect(out.text()).toContain("利用者の入力を待っています。");
+    expect(out.text()).toContain("  質問 どの月?");
+    expect(out.text()).toContain(`openshain work resume ${id}`);
   });
 });

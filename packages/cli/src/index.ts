@@ -20,6 +20,8 @@ export {
   workShow,
 } from "./commands/work.ts";
 export {
+  ERROR_LABELS,
+  errorLabel,
   FAILURE_LABELS,
   failureLabel,
   REJECTION_LABELS,

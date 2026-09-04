@@ -7,6 +7,7 @@ import { init } from "./commands/init.ts";
 import { run } from "./commands/run.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workResume, workShow } from "./commands/work.ts";
+import { errorLabel } from "./labels.ts";
 import { findWorkspace } from "./workspace.ts";
 
 const USAGE = `使い方:
@@ -74,23 +75,24 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "work": {
+      const sub = rest[0];
+      const id = rest[1] ?? "";
+      if (!(sub === "list" || ((sub === "show" || sub === "resume") && id))) {
+        write(USAGE);
+        return 2;
+      }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
-      if (rest[0] === "list") {
+      if (sub === "list") {
         await workList({ workspaceRoot, write });
         return 0;
       }
-      const id = rest[1];
-      if (rest[0] === "show" && id) {
+      if (sub === "show") {
         await workShow({ workspaceRoot, id, write });
         return 0;
       }
-      if (rest[0] === "resume" && id) {
-        return withTerminal((ask) =>
-          workResume({ workspaceRoot, providers, id, write, ...(ask && { ask }) }),
-        );
-      }
-      write(USAGE);
-      return 2;
+      return withTerminal((ask) =>
+        workResume({ workspaceRoot, providers, id, write, ...(ask && { ask }) }),
+      );
     }
     default:
       write(`不明なコマンド ${command}`);
@@ -116,8 +118,12 @@ async function withTerminal(
 main(process.argv.slice(2)).then(
   (code) => process.exit(code),
   (err: unknown) => {
-    if (isOpenshainError(err)) console.error(`エラー(${err.code}) ${err.message}`);
-    else console.error(err);
+    if (isOpenshainError(err)) {
+      const heading = errorLabel(err.code);
+      console.error(`エラー(${err.code}) ${heading ? `${heading}。` : ""}${err.message}`);
+    } else {
+      console.error(err);
+    }
     process.exit(1);
   },
 );

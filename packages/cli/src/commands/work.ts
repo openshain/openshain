@@ -94,10 +94,9 @@ export async function workResume(options: WorkResumeOptions): Promise<number> {
   const workId = parseWorkId(options.id);
   const work = await runtime.works.get(workId);
   if (isTerminal(work.status)) {
-    options.write(`${work.id} は${statusLabel(work.status)}です。再開できません。`);
+    options.write(`${work.id} は${statusLabel(work.status)}のため、再開できません。`);
     return 1;
   }
-  options.write(`${work.id} を再開`);
   return drive(runtime, workId, options);
 }
 

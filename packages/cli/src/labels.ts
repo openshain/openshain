@@ -38,3 +38,28 @@ export function failureLabel(reason: string | undefined): string {
 export function rejectionLabel(code: string): string {
   return REJECTION_LABELS[code] ?? code;
 }
+
+/** A heading for a runtime error, in the person's words. The original message follows it. */
+export const ERROR_LABELS: Record<string, string> = {
+  auth: "認証に失敗した",
+  network: "接続できなかった",
+  rate_limit: "呼び出しの上限に当たった",
+  invalid_response: "model の応答を解釈できない",
+  config: "設定に問題がある",
+  corrupt_log: "Work の記録が壊れている",
+  invalid_transition: "この状態からは進められない",
+  duplicate_tool: "同じ名前の Tool が 2 つある",
+  invalid_id: "id の形が正しくない",
+  invalid_tool: "Tool の定義に問題がある",
+  invalid_path: "パスが正しくない",
+  lock_held: "別のプロセスがこの Work を使っている",
+  not_found: "見つからない",
+  reserved_path: "予約されたパス",
+  outside_workspace: "workspace の外",
+  concurrent_write: "同時に書き込まれた",
+  invalid_event: "記録できないイベント",
+};
+
+export function errorLabel(code: string): string | undefined {
+  return ERROR_LABELS[code];
+}
