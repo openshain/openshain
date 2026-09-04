@@ -9,6 +9,7 @@ import {
   isOpenshainError,
   isTerminal,
   type ModelProvider,
+  type ModelResponse,
   OpenshainError,
   type Runtime,
   resolveWorkspacePath,
@@ -24,7 +25,7 @@ export interface RunWorkOptions {
 }
 
 /**
- * Drives one work from its current state to completion, failure or a wait:
+ * Drives one work from its current state to completion or failure:
  * build the projection, ask the model, run the tool calls it made, repeat.
  * Every step is recorded in the work's event log before the next one starts.
  */
@@ -85,7 +86,7 @@ async function loop(
       },
     });
 
-    let response: Awaited<ReturnType<ModelProvider["generate"]>>;
+    let response: ModelResponse;
     try {
       response = await model.generate(
         {
@@ -167,7 +168,10 @@ function countToolCalls(events: AnyEvent[]): number {
   return ids.size;
 }
 
-async function fail(handle: WorkHandle, reason: string, detail: string): Promise<Work> {
+/** Why a work failed, as recorded in `work.failed`. */
+type FailureReason = "limit_reached" | "model_refusal" | "model_error";
+
+async function fail(handle: WorkHandle, reason: FailureReason, detail: string): Promise<Work> {
   await handle.append({ type: "work.failed", payload: { reason, detail } });
   return handle.current();
 }
@@ -203,7 +207,11 @@ async function complete(
   return handle.current();
 }
 
-/** The hash of the file as it is now. The runtime computes it; the tool's report is only a fallback. */
+/**
+ * The hash of the file as it is now, computed by the runtime rather than taken from the tool.
+ * When the file can no longer be read, because a later call moved or deleted it, the hash the
+ * tool reported is recorded instead.
+ */
 async function currentHash(root: string, path: string, recorded: string): Promise<string> {
   try {
     const resolved = await resolveWorkspacePath(root, path);
