@@ -147,7 +147,7 @@ model に渡す内容は events.jsonl から組み立てる。会話履歴を別
 - 過去の message は書き換えない。追記だけ。
 - 同じイベント列からは byte 単位で同じ messages を作る。provider の thinking を返せる条件であり、prompt cache の前提でもある。
 - provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider には無変更で返し、別の provider には渡さない。
-- 直近の user message の末尾に Runtime の 1 行を足す。「残り model 呼び出し N 回、Tool 呼び出し M 回」。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。追記なので過去の message は変わらない。
+- 末尾に Runtime の user message を 1 つ足す。「残り model 呼び出し N 回、Tool 呼び出し M 回」の 1 行だけを持つ。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。独立した message なので、前の message の byte はターンをまたいで変わらず、provider の prompt cache が前のターンまで当たる。provider は連続する user message を 1 ターンとして送る。
 - tool_result は直前の assistant message の tool_call に対応していなければならず、tool_call は次の message までに結果を持たなければならない。どちらかが欠けたログは壊れたものとして扱う。
 
 ## Contract
@@ -256,9 +256,9 @@ export interface ToolResult {
 - stop_reason: `end_turn` と `stop_sequence` は `end_turn`、`tool_use` は `tool_call`、`max_tokens` と `refusal` はそのまま。それ以外(`pause_turn`、`model_context_window_exceeded`)は `other`
 - content: text と tool_use はそのまま。thinking と redacted_thinking、その他のブロックは `opaque`(provider: anthropic)として保存し、次の request の assistant message に無変更で戻す
 - usage: input_tokens、output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)
-- エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と 5xx は `network`、それ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
-- request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける
-- API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー
+- エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答とそれ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
+- request: `cache_control: { type: ephemeral }` を既定で付け、直近のキャッシュ可能ブロックまでを自動でキャッシュする。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages は Runtime のもので上書きできない
+- API キーは `api_key_env` の環境変数から読む。未設定なら起動時に `config` エラー。`base_url` は root を指す。末尾の `/v1` は SDK が自分で足すので外す
 
 ### 標準 Tool(`packages/tools`)
 
