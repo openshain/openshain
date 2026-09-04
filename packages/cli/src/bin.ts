@@ -13,7 +13,8 @@ const USAGE = `使い方:
   openshain run "<依頼>"          依頼を Work として進める
   openshain tools list           使える Tool の一覧
 
-  --workspace <dir>              workspace を指定する。省略時はカレントディレクトリから上に探す`;
+  --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
+                                 init はそこに書き、run と tools list はそこから上に openshain.yaml を探す`;
 
 /** Model providers arrive with their own packages; until then only the standard tools are wired. */
 const providers: RuntimeProviders = {
@@ -22,16 +23,27 @@ const providers: RuntimeProviders = {
 };
 
 async function main(argv: string[]): Promise<number> {
-  const { values, positionals } = parseArgs({
-    args: argv,
-    options: { workspace: { type: "string" }, help: { type: "boolean", short: "h" } },
-    allowPositionals: true,
-  });
   const write = (line: string) => console.log(line);
+  let values: { workspace?: string; help?: boolean };
+  let positionals: string[];
+  try {
+    ({ values, positionals } = parseArgs({
+      args: argv,
+      options: { workspace: { type: "string" }, help: { type: "boolean", short: "h" } },
+      allowPositionals: true,
+    }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const option = /'(-[^']*)'/.exec(message)?.[1];
+    const unknown = (err as { code?: string }).code === "ERR_PARSE_ARGS_UNKNOWN_OPTION" && option;
+    write(unknown ? `不明なオプション ${option}` : `引数を解釈できません。${message}`);
+    write(USAGE);
+    return 2;
+  }
   const [command, ...rest] = positionals;
   if (values.help || !command) {
     write(USAGE);
-    return command ? 0 : 2;
+    return values.help ? 0 : 2;
   }
   switch (command) {
     case "init":
@@ -40,10 +52,14 @@ async function main(argv: string[]): Promise<number> {
     case "run": {
       const objective = rest.join(" ").trim();
       if (!objective) {
-        write('依頼の文を指定してください。例: openshain run "今月の経理を進めて"');
+        write('依頼の文を指定してください。openshain run "今月の経理を進めて" のように。');
         return 2;
       }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      // Without a terminal there is no one to answer; the work waits instead.
+      if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
+        return run({ workspaceRoot, providers, objective, write });
+      }
       const rl = createInterface({ input: process.stdin, output: process.stdout });
       try {
         return await run({

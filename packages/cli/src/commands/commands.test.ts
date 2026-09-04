@@ -64,6 +64,17 @@ describe("init", () => {
       OpenshainError,
     );
   });
+
+  test("names the directory when it does not exist", async () => {
+    const root = await tmp();
+    const missing = join(root, "missing");
+
+    const err = await init({ workspaceRoot: missing, write: () => {} }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(OpenshainError);
+    expect((err as OpenshainError).code).toBe("config");
+    expect((err as OpenshainError).message).toContain(missing);
+  });
 });
 
 describe("findWorkspace", () => {
@@ -150,7 +161,48 @@ describe("run", () => {
     });
 
     expect(code).toBe(1);
-    expect(out.lines.join("\n")).toContain("model_refusal");
+    expect(out.lines.join("\n")).toContain("model が拒否した");
+  });
+
+  test("prints a line for a tool call that failed", async () => {
+    const model = new FakeModelProvider([
+      callTools({ id: "c1", name: "fs_read", input: { path: "missing.csv" } }),
+      say("見つかりませんでした"),
+    ]);
+    const { root, providers } = await fakeWorkspace(model);
+    const out = io();
+
+    await run({
+      workspaceRoot: root,
+      providers,
+      objective: "x",
+      write: out.write,
+      ask: async () => "",
+    });
+
+    expect(out.lines.join("\n")).toMatch(/^fs_read は失敗しました。.+$/m);
+  });
+
+  test("without a way to ask, leaves the work waiting and shows the question", async () => {
+    const model = new FakeModelProvider([
+      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
+      say("never"),
+    ]);
+    const { root, providers } = await fakeWorkspace(model);
+    const out = io();
+
+    const code = await run({
+      workspaceRoot: root,
+      providers,
+      objective: "集計して",
+      write: out.write,
+    });
+
+    expect(code).toBe(1);
+    const text = out.lines.join("\n");
+    expect(text).toContain("利用者の入力を待っています。");
+    expect(text).toContain("  質問 どの月?");
+    expect(text).toContain("次は利用者の番です");
   });
 });
 
@@ -166,6 +218,6 @@ describe("tools list", () => {
     expect(text).toMatch(/fs_read\s+standard\s+observe/);
     expect(text).toMatch(/fs_write\s+standard\s+mutate/);
     expect(text).toContain("ask_user");
-    expect(text).toMatch(/csv_read.*(許可されていない|not allowed)/);
+    expect(text).toMatch(/csv_read.*許可されていない/);
   });
 });
