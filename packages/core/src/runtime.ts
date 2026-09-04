@@ -37,6 +37,8 @@ export interface Runtime {
   readonly works: WorkStore;
   readonly tools: {
     list(): ToolSummary[];
+    /** Tools the providers offer but the allow lists in the config left out. */
+    hidden(): { name: string; providerId: string }[];
     /** Validates, runs and records one tool call for the given work. Never throws for a tool's own failure. */
     call(work: WorkHandle, call: ToolCall): Promise<ToolResult>;
   };
@@ -85,6 +87,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
     works,
     tools: {
       list: () => registry.list().map(({ definition, providerId }) => ({ definition, providerId })),
+      hidden: () => registry.hiddenTools(),
       call: (work, call) => callTool({ registry, config, workspaceRoot, work, call }),
     },
   };
