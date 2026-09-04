@@ -166,13 +166,14 @@ describe("runWork", () => {
     expect(events.filter((e) => e.type === "tool.called")).toHaveLength(1);
   });
 
-  test("records a refusal as a failed work", async () => {
+  test("records a refusal as a failed work, with the model's words as the detail", async () => {
     const { runtime, work } = await setup([{ ...say("no"), stopReason: "refusal" }]);
 
     const done = await runWork(runtime, work.id);
 
     expect(done.status).toBe("failed");
     expect(done.failure?.reason).toBe("model_refusal");
+    expect(done.failure?.detail).toBe("no");
   });
 
   test("records a truncated answer and fails with limit_reached", async () => {

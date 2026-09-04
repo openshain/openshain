@@ -57,7 +57,7 @@ export class AnthropicProvider implements ModelProvider {
   constructor(options: AnthropicProviderOptions) {
     this.model = options.model;
     this.client = new Anthropic({
-      apiKey: options.apiKey,
+      apiKey: options.apiKey.trim(),
       ...(options.baseUrl && { baseURL: baseUrlRoot(options.baseUrl) }),
       ...(options.fetch && { fetch: options.fetch }),
     });
@@ -69,13 +69,12 @@ export class AnthropicProvider implements ModelProvider {
 
   async generate(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse> {
     const params = toParams(request, this.model);
-    let message: Anthropic.Message;
     try {
-      message = await this.client.messages.create(params, { ...(signal && { signal }) });
+      const message = await this.client.messages.create(params, { ...(signal && { signal }) });
+      return fromMessage(message);
     } catch (err) {
       throw toError(err);
     }
-    return fromMessage(message);
   }
 }
 
@@ -90,7 +89,17 @@ export function toParams(
   request: ModelRequest,
   model: string,
 ): Anthropic.MessageCreateParamsNonStreaming {
-  const { effort, output_config, ...extra } = request.providerOptions ?? {};
+  const {
+    effort,
+    output_config,
+    model: _model,
+    max_tokens: _maxTokens,
+    system: _system,
+    tools: _tools,
+    messages: _messages,
+    stream: _stream,
+    ...extra
+  } = request.providerOptions ?? {};
   const outputConfig = {
     ...(output_config as Record<string, unknown> | undefined),
     ...(effort !== undefined && { effort }),
@@ -147,11 +156,24 @@ function toMessage(message: ModelMessage): Anthropic.MessageParam {
       content.push(part.data as Anthropic.ContentBlockParam);
     }
   }
+  if (content.length === 0) {
+    throw new OpenshainError(
+      "invalid_response",
+      "an assistant message has nothing this provider can send; it may belong to another provider",
+    );
+  }
   return { role: "assistant", content };
 }
 
-/** The response in the contract's terms. Every block that is not text or a tool call is kept opaque. */
+/**
+ * The response in the contract's terms. Every block that is not text or a tool call is kept
+ * opaque. A refusal's explanation becomes text, so the log says why. A response whose shape is
+ * not a message is an invalid response.
+ */
 export function fromMessage(message: Anthropic.Message): ModelResponse {
+  if (!message || !Array.isArray(message.content)) {
+    throw new OpenshainError("invalid_response", "the response is not a message");
+  }
   const content: AssistantPart[] = [];
   for (const block of message.content) {
     if (block.type === "text") content.push({ type: "text", text: block.text });
@@ -159,9 +181,16 @@ export function fromMessage(message: Anthropic.Message): ModelResponse {
       content.push({ type: "tool_call", id: block.id, name: block.name, input: block.input });
     } else content.push({ type: "opaque", provider: ANTHROPIC_PROVIDER_ID, data: block });
   }
+  const explanation = message.stop_details?.explanation;
+  if (message.stop_reason === "refusal" && explanation) {
+    content.push({ type: "text", text: explanation });
+  }
   return {
     message: { role: "assistant", content },
-    stopReason: toStopReason(message.stop_reason),
+    stopReason: toStopReason(
+      message.stop_reason,
+      content.some((part) => part.type === "tool_call"),
+    ),
     usage: toUsage(message.usage),
     raw: message,
   };
@@ -175,19 +204,21 @@ const STOP_REASONS: Record<string, StopReason> = {
   refusal: "refusal",
 };
 
-function toStopReason(reason: string | null): StopReason {
+/** Some gateways say end_turn with tool_use blocks present; the blocks decide. */
+function toStopReason(reason: string | null, hasToolUse: boolean): StopReason {
+  if (hasToolUse && reason !== "max_tokens") return "tool_call";
   return (reason && STOP_REASONS[reason]) || "other";
 }
 
-function toUsage(usage: Anthropic.Usage): ModelUsage {
-  const thinking = usage.output_tokens_details?.thinking_tokens;
+function toUsage(usage: Anthropic.Usage | undefined): ModelUsage {
+  const thinking = usage?.output_tokens_details?.thinking_tokens;
   return {
-    inputTokens: usage.input_tokens,
-    outputTokens: usage.output_tokens,
-    ...(usage.cache_read_input_tokens != null && {
+    inputTokens: usage?.input_tokens ?? 0,
+    outputTokens: usage?.output_tokens ?? 0,
+    ...(usage?.cache_read_input_tokens != null && {
       cachedInputTokens: usage.cache_read_input_tokens,
     }),
-    ...(usage.cache_creation_input_tokens != null && {
+    ...(usage?.cache_creation_input_tokens != null && {
       cacheWriteTokens: usage.cache_creation_input_tokens,
     }),
     ...(thinking != null && { reasoningTokens: thinking }),

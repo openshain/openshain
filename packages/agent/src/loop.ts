@@ -250,7 +250,11 @@ async function loop(
           `the answer was cut off at max_output_tokens (${limits.maxOutputTokens})`,
         );
       case "refusal":
-        return fail(handle, "model_refusal", "the model refused to continue");
+        return fail(
+          handle,
+          "model_refusal",
+          textOf(response.message.content) || "the model refused to continue",
+        );
       default:
         return fail(handle, "model_error", `unexpected stop reason "${response.stopReason}"`);
     }
@@ -302,6 +306,15 @@ function lastTurnCallIds(events: AnyEvent[]): Set<string> {
   return ids;
 }
 
+/** The text parts of an answer, joined. */
+function textOf(content: AssistantPart[]): string {
+  return content
+    .filter((p) => p.type === "text")
+    .map((p) => p.text)
+    .join("\n")
+    .trim();
+}
+
 /** Why a work failed, as recorded in `work.failed`. */
 export type FailureReason = "limit_reached" | "model_refusal" | "model_error";
 
@@ -315,11 +328,7 @@ async function complete(
   handle: WorkHandle,
   content: AssistantPart[],
 ): Promise<Work> {
-  const summary = content
-    .filter((p) => p.type === "text")
-    .map((p) => p.text)
-    .join("\n")
-    .trim();
+  const summary = textOf(content);
   const events = await handle.events();
   const writes = events.filter(
     (e): e is Event<"tool.completed"> =>

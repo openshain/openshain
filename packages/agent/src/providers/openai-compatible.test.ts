@@ -23,7 +23,13 @@ interface Recorded {
 function recorded(
   status: number,
   body: unknown,
-  options: { baseUrl?: string; raw?: string; tools?: boolean } = {},
+  options: {
+    baseUrl?: string;
+    raw?: string;
+    tools?: boolean;
+    contentType?: string;
+    apiKey?: string;
+  } = {},
 ) {
   const calls: Recorded[] = [];
   const stub = async (input: string | URL | Request, init?: RequestInit) => {
@@ -34,12 +40,12 @@ function recorded(
     });
     return new Response(options.raw ?? JSON.stringify(body), {
       status,
-      headers: { "content-type": "application/json", "retry-after-ms": "1" },
+      headers: { "content-type": options.contentType ?? "application/json", "retry-after-ms": "1" },
     });
   };
   const provider = new OpenAICompatibleProvider({
     model: "gpt-5",
-    apiKey: "test-key",
+    apiKey: options.apiKey ?? "test-key",
     fetch: stub,
     ...(options.baseUrl && { baseUrl: options.baseUrl }),
     ...(options.tools === false && { tools: false }),
@@ -117,7 +123,7 @@ describe("OpenAICompatibleProvider", () => {
     ]);
   });
 
-  test("puts providerOptions on the request and lets max_tokens replace max_completion_tokens", async () => {
+  test("puts providerOptions on the request; max_tokens in them only renames the runtime's limit", async () => {
     const { calls, provider } = recorded(200, await fixture("text-only"));
 
     await provider.generate({
@@ -127,7 +133,7 @@ describe("OpenAICompatibleProvider", () => {
 
     const body = calls[0]?.body ?? {};
     expect(body.reasoning_effort).toBe("high");
-    expect(body.max_tokens).toBe(500);
+    expect(body.max_tokens).toBe(4000);
     expect(body.max_completion_tokens).toBeUndefined();
     expect(body.model).toBe("gpt-5");
     expect((body.tools as unknown[]).length).toBe(1);
@@ -205,6 +211,7 @@ describe("OpenAICompatibleProvider", () => {
     const messages = (calls[1]?.body.messages ?? []) as Record<string, unknown>[];
     expect(messages[2]).toEqual({
       role: "assistant",
+      content: null,
       reasoning_content: "まず CSV を読む。",
       tool_calls: [
         {
@@ -245,7 +252,7 @@ describe("OpenAICompatibleProvider", () => {
     expect((await cut.provider.generate(request)).stopReason).toBe("max_tokens");
     const refusal = await filtered.provider.generate(request);
     expect(refusal.stopReason).toBe("refusal");
-    expect(refusal.message.content).toEqual([]);
+    expect(refusal.message.content).toEqual([{ type: "text", text: "I can't help with that." }]);
   });
 
   test("turns an authentication failure into an auth error, and a rate limit into rate_limit after retries", async () => {
@@ -259,6 +266,94 @@ describe("OpenAICompatibleProvider", () => {
     expect((auth as OpenshainError).code).toBe("auth");
     expect((limit as OpenshainError).code).toBe("rate_limit");
     expect(limited.calls.length).toBeGreaterThan(1);
+  });
+
+  test("keeps the runtime's limit even when the options name both limit parameters", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    await provider.generate({
+      ...request,
+      providerOptions: { max_tokens: 500, max_completion_tokens: 999999 },
+    });
+
+    const body = calls[0]?.body ?? {};
+    expect(body.max_tokens).toBe(4000);
+    expect(body.max_completion_tokens).toBeUndefined();
+  });
+
+  test("keeps tool calls it cannot run opaque and does not pretend the model asked for nothing", async () => {
+    const custom = (await fixture("tool-calls")) as {
+      choices: { message: { tool_calls: unknown[] } }[];
+    };
+    if (custom.choices[0]) {
+      custom.choices[0].message.tool_calls = [
+        { id: "call_c", type: "custom", custom: { name: "run", input: "ls" } },
+      ];
+    }
+    const { calls, provider } = recorded(200, custom);
+
+    const response = await provider.generate(request);
+
+    expect(response.stopReason).toBe("other");
+    expect(response.message.content).toEqual([
+      {
+        type: "opaque",
+        provider: "openai-compatible",
+        data: {
+          reasoning_content: "まず CSV を読む。",
+          unsupported_tool_calls: [
+            { id: "call_c", type: "custom", custom: { name: "run", input: "ls" } },
+          ],
+        },
+      },
+    ]);
+
+    await provider.generate({ ...request, messages: [...request.messages, response.message] });
+
+    const sent = (calls[1]?.body.messages ?? []) as Record<string, unknown>[];
+    expect(sent[2]).toEqual({
+      role: "assistant",
+      content: null,
+      reasoning_content: "まず CSV を読む。",
+    });
+  });
+
+  test("reports a 200 that is not a completion as an invalid response", async () => {
+    const noMessage = recorded(200, { object: "chat.completion", choices: [{ index: 0 }] });
+    const plain = recorded(200, undefined, { raw: "ok", contentType: "text/plain" });
+
+    const a = await noMessage.provider.generate(request).catch((e: unknown) => e);
+    const b = await plain.provider.generate(request).catch((e: unknown) => e);
+
+    expect((a as OpenshainError).code).toBe("invalid_response");
+    expect((b as OpenshainError).code).toBe("invalid_response");
+  });
+
+  test("trims the key before sending it", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"), {
+      apiKey: "  test-key\n",
+    });
+
+    await provider.generate(request);
+
+    expect(calls[0]?.headers.authorization).toBe("Bearer test-key");
+  });
+
+  test("refuses an assistant turn that has nothing this provider can send", async () => {
+    const { provider } = recorded(200, await fixture("text-only"));
+
+    const err = await provider
+      .generate({
+        ...request,
+        messages: [
+          ...request.messages,
+          { role: "assistant", content: [{ type: "opaque", provider: "anthropic", data: {} }] },
+          { role: "user", content: [{ type: "text", text: "続けて" }] },
+        ],
+      })
+      .catch((e: unknown) => e);
+
+    expect((err as OpenshainError).code).toBe("invalid_response");
   });
 
   test("reports a completion without choices as an invalid response", async () => {

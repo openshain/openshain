@@ -20,7 +20,11 @@ interface Recorded {
  * A provider whose HTTP calls are answered with one recorded response, and remembered. The
  * response asks the SDK to retry at once, so a test of a retried status stays fast.
  */
-function recorded(status: number, body: unknown, options: { baseUrl?: string; raw?: string } = {}) {
+function recorded(
+  status: number,
+  body: unknown,
+  options: { baseUrl?: string; raw?: string; contentType?: string; apiKey?: string } = {},
+) {
   const calls: Recorded[] = [];
   const stub = async (input: string | URL | Request, init?: RequestInit) => {
     calls.push({
@@ -31,7 +35,7 @@ function recorded(status: number, body: unknown, options: { baseUrl?: string; ra
     return new Response(options.raw ?? JSON.stringify(body), {
       status,
       headers: {
-        "content-type": "application/json",
+        "content-type": options.contentType ?? "application/json",
         "request-id": "req_01",
         "retry-after-ms": "1",
       },
@@ -39,7 +43,7 @@ function recorded(status: number, body: unknown, options: { baseUrl?: string; ra
   };
   const provider = new AnthropicProvider({
     model: "claude-opus-5",
-    apiKey: "test-key",
+    apiKey: options.apiKey ?? "test-key",
     fetch: stub,
     ...(options.baseUrl && { baseUrl: options.baseUrl }),
   });
@@ -223,7 +227,7 @@ describe("AnthropicProvider", () => {
     expect((await cut.provider.generate(request)).stopReason).toBe("max_tokens");
     const refusal = await refused.provider.generate(request);
     expect(refusal.stopReason).toBe("refusal");
-    expect(refusal.message.content).toEqual([]);
+    expect(refusal.message.content).toEqual([{ type: "text", text: "The request was declined." }]);
   });
 
   test("keeps the runtime's model, limit, tools and messages even when providerOptions name them", async () => {
@@ -291,6 +295,66 @@ describe("AnthropicProvider", () => {
     expect((aborted as OpenshainError).code).toBe("network");
     expect(unreadable).toBeInstanceOf(OpenshainError);
     expect((unreadable as OpenshainError).code).toBe("invalid_response");
+  });
+
+  test("treats tool_use blocks as a tool call even when the server says end_turn", async () => {
+    const mixed = (await fixture("tool-use")) as { stop_reason: string };
+    mixed.stop_reason = "end_turn";
+    const { provider } = recorded(200, mixed);
+
+    expect((await provider.generate(request)).stopReason).toBe("tool_call");
+  });
+
+  test("keeps the runtime's system prompt and tools out of the options' reach even when the request has none", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    await provider.generate({
+      messages: request.messages,
+      providerOptions: { system: "injected", tools: [{ name: "evil" }], messages: [] },
+    });
+
+    const body = calls[0]?.body ?? {};
+    expect(body.system).toBeUndefined();
+    expect(body.tools).toBeUndefined();
+    expect((body.messages as unknown[]).length).toBe(1);
+  });
+
+  test("reports a 200 that is not a message as an invalid response", async () => {
+    const noContent = recorded(200, { type: "message", stop_reason: "end_turn" });
+    const plain = recorded(200, undefined, { raw: "ok", contentType: "text/plain" });
+
+    const a = await noContent.provider.generate(request).catch((e: unknown) => e);
+    const b = await plain.provider.generate(request).catch((e: unknown) => e);
+
+    expect((a as OpenshainError).code).toBe("invalid_response");
+    expect((b as OpenshainError).code).toBe("invalid_response");
+  });
+
+  test("trims the key before sending it", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"), {
+      apiKey: "  test-key\n",
+    });
+
+    await provider.generate(request);
+
+    expect(calls[0]?.headers["x-api-key"]).toBe("test-key");
+  });
+
+  test("refuses an assistant turn that has nothing this provider can send", async () => {
+    const { provider } = recorded(200, await fixture("text-only"));
+
+    const err = await provider
+      .generate({
+        ...request,
+        messages: [
+          ...request.messages,
+          { role: "assistant", content: [{ type: "opaque", provider: "other", data: {} }] },
+          { role: "user", content: [{ type: "text", text: "続けて" }] },
+        ],
+      })
+      .catch((e: unknown) => e);
+
+    expect((err as OpenshainError).code).toBe("invalid_response");
   });
 
   test("turns an authentication failure into an auth error", async () => {

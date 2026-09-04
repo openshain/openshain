@@ -72,7 +72,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
     this.model = options.model;
     this.tools = options.tools ?? true;
     this.client = new OpenAI({
-      apiKey: options.apiKey,
+      apiKey: options.apiKey.trim(),
       ...(options.baseUrl && { baseURL: options.baseUrl }),
       ...(options.fetch && { fetch: options.fetch }),
     });
@@ -88,31 +88,38 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   async generate(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse> {
     const params = toParams(request, this.model);
-    let completion: ChatCompletion;
     try {
-      completion = await this.client.chat.completions.create(params, {
+      const completion = await this.client.chat.completions.create(params, {
         ...(signal && { signal }),
       });
+      return fromCompletion(completion);
     } catch (err) {
       throw toError(err);
     }
-    return fromCompletion(completion);
   }
 }
 
 /**
  * The request as chat completions take it. providerOptions land on the body as they are
  * (reasoning_effort, temperature, and so on); the model, the limit, the messages, the tools and
- * the choice not to stream come from the runtime. The limit is sent as max_completion_tokens unless the options carry the
- * older max_tokens, which some servers still expect. A `tools` flag in the options is the
- * provider's, not the request's.
+ * the choice not to stream come from the runtime. The limit is sent as max_completion_tokens; a
+ * max_tokens in the options only asks for that older name, which some servers still expect,
+ * and its value is ignored. A `tools` flag in the options is the provider's, not the request's.
  */
 export function toParams(
   request: ModelRequest,
   model: string,
 ): ChatCompletionCreateParamsNonStreaming {
-  const { tools: _flag, ...extra } = request.providerOptions ?? {};
-  const legacyLimit = "max_tokens" in extra;
+  const {
+    tools: _flag,
+    model: _model,
+    messages: _messages,
+    stream: _stream,
+    max_completion_tokens: _limit,
+    max_tokens: legacy,
+    ...extra
+  } = request.providerOptions ?? {};
+  const limit = request.maxOutputTokens ?? DEFAULT_MAX_TOKENS;
   const messages: ChatCompletionMessageParam[] = [];
   if (request.system) messages.push({ role: "system", content: request.system });
   for (const message of request.messages) messages.push(...toMessages(message));
@@ -120,7 +127,7 @@ export function toParams(
     ...extra,
     model,
     stream: false,
-    ...(!legacyLimit && { max_completion_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS }),
+    ...(legacy !== undefined ? { max_tokens: limit } : { max_completion_tokens: limit }),
     messages,
     ...(request.tools && request.tools.length > 0 && { tools: request.tools.map(toTool) }),
   } as ChatCompletionCreateParamsNonStreaming;
@@ -166,11 +173,18 @@ function toMessages(message: ModelMessage): ChatCompletionMessageParam[] {
       opaque = { ...opaque, ...(part.data as Record<string, unknown>) };
     }
   }
+  const { unsupported_tool_calls: _unsupported, ...sent } = opaque;
+  if (texts.length === 0 && toolCalls.length === 0 && Object.keys(sent).length === 0) {
+    throw new OpenshainError(
+      "invalid_response",
+      "an assistant message has nothing this provider can send; it may belong to another provider",
+    );
+  }
   return [
     {
-      ...opaque,
+      ...sent,
       role: "assistant",
-      ...(texts.length > 0 && { content: texts.join("\n") }),
+      content: texts.length > 0 ? texts.join("\n") : null,
       ...(toolCalls.length > 0 && { tool_calls: toolCalls }),
     },
   ];
@@ -178,23 +192,21 @@ function toMessages(message: ModelMessage): ChatCompletionMessageParam[] {
 
 /**
  * The completion in the contract's terms. Fields of the assistant message beyond content and
- * tool calls, such as a server's reasoning, are kept opaque and go back with the message.
+ * tool calls, such as a server's reasoning, are kept opaque and go back with the message. Tool
+ * calls that are not function calls are kept opaque too, but never sent back. A refusal's text
+ * becomes text, so the log says why. A response whose shape is not a completion is an invalid
+ * response.
  */
 export function fromCompletion(completion: ChatCompletion): ModelResponse {
-  const choice = completion.choices[0];
-  if (!choice) {
-    throw new OpenshainError("invalid_response", "the completion has no choices");
+  const choice = completion?.choices?.[0];
+  if (!choice?.message) {
+    throw new OpenshainError("invalid_response", "the completion has no message");
   }
-  const {
-    role: _role,
-    content: rawContent,
-    tool_calls,
-    refusal: _refusal,
-    ...rest
-  } = choice.message;
+  const { role: _role, content: rawContent, tool_calls, refusal, ...rest } = choice.message;
   const content: AssistantPart[] = [];
   const text = joinContent(rawContent);
   if (text) content.push({ type: "text", text });
+  if (refusal) content.push({ type: "text", text: refusal });
   const calls = (tool_calls ?? []).filter((call) => call.type === "function");
   for (const call of calls) {
     content.push({
@@ -204,9 +216,11 @@ export function fromCompletion(completion: ChatCompletion): ModelResponse {
       input: parseArguments(call.function.arguments),
     });
   }
-  const opaque = Object.fromEntries(
+  const unsupported = (tool_calls ?? []).filter((call) => call.type !== "function");
+  const opaque: Record<string, unknown> = Object.fromEntries(
     Object.entries(rest).filter(([key, value]) => key !== "annotations" && value != null),
   );
+  if (unsupported.length > 0) opaque.unsupported_tool_calls = unsupported;
   if (Object.keys(opaque).length > 0) {
     content.push({ type: "opaque", provider: OPENAI_COMPATIBLE_PROVIDER_ID, data: opaque });
   }
@@ -247,9 +261,10 @@ const STOP_REASONS: Record<string, StopReason> = {
   content_filter: "refusal",
 };
 
-/** Some servers say `stop` even when they made tool calls; the calls decide. */
+/** Some servers say `stop` even when they made tool calls; the function calls decide either way. */
 function toStopReason(reason: string | null, hasToolCalls: boolean): StopReason {
   if (hasToolCalls && reason !== "length") return "tool_call";
+  if (reason === "tool_calls" && !hasToolCalls) return "other";
   return (reason && STOP_REASONS[reason]) || "other";
 }
 
