@@ -238,3 +238,20 @@ describe("work resume", () => {
     expect(out.text()).toContain(`openshain work resume ${id}`);
   });
 });
+
+describe("work resume checks the id first", () => {
+  test("rejects a bad id before it needs a model provider", async () => {
+    const model = new FakeModelProvider([]);
+    const { root } = await fakeWorkspace(model);
+    const providers: RuntimeProviders = { models: {}, tools: { standard: () => standardTools() } };
+
+    const err = await workResume({
+      workspaceRoot: root,
+      providers,
+      id: "wk_bad",
+      write: () => {},
+    }).catch((e: unknown) => e);
+
+    expect((err as { code?: string }).code).toBe("invalid_id");
+  });
+});

@@ -221,3 +221,16 @@ describe("tools list", () => {
     expect(text).toMatch(/csv_read.*許可されていない/);
   });
 });
+
+describe("tools list without a model provider", () => {
+  test("lists the tools even when no model provider is wired", async () => {
+    const model = new FakeModelProvider([]);
+    const { root } = await fakeWorkspace(model);
+    const providers: RuntimeProviders = { models: {}, tools: { standard: () => standardTools() } };
+    const out = io();
+
+    await toolsList({ workspaceRoot: root, providers, write: out.write });
+
+    expect(out.lines.join("\n")).toMatch(/fs_read\s+standard\s+observe/);
+  });
+});

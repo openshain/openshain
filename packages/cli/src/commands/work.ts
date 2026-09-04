@@ -59,7 +59,9 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   if (work.outcome) {
     lines.push(`結果      ${work.outcome.summary}`);
     for (const artifact of work.outcome.artifacts)
-      lines.push(`  書き込み ${artifact.path}  ${artifact.sha256.slice(0, 12)}`);
+      lines.push(
+        `  書き込み ${artifact.path}  ${artifact.sha256.slice(0, 12)}${artifact.missing ? "  完了時には読めなかった" : ""}`,
+      );
   }
   if (work.failure) {
     lines.push(`失敗      ${failureLabel(work.failure.reason)}。${work.failure.detail}`);
@@ -87,16 +89,16 @@ export interface WorkResumeOptions extends DriveOptions {
 
 /** Continues a work that stopped before its end, answering its questions when the caller can. */
 export async function workResume(options: WorkResumeOptions): Promise<number> {
-  const runtime = await createRuntime({
-    workspaceRoot: options.workspaceRoot,
-    providers: options.providers,
-  });
   const workId = parseWorkId(options.id);
-  const work = await runtime.works.get(workId);
+  const work = await new WorkStore(options.workspaceRoot).get(workId);
   if (isTerminal(work.status)) {
     options.write(`${work.id} は${statusLabel(work.status)}のため、再開できません。`);
     return 1;
   }
+  const runtime = await createRuntime({
+    workspaceRoot: options.workspaceRoot,
+    providers: options.providers,
+  });
   return drive(runtime, workId, options);
 }
 

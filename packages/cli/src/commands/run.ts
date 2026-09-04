@@ -105,8 +105,11 @@ export function report(work: Work, events: AnyEvent[]): string[] {
   switch (work.status) {
     case "completed":
       lines.push(`完了。${work.outcome?.summary ?? ""}`.trimEnd());
-      for (const artifact of work.outcome?.artifacts ?? [])
-        lines.push(`  書き込み ${artifact.path}`);
+      for (const artifact of work.outcome?.artifacts ?? []) {
+        lines.push(
+          `  書き込み ${artifact.path}${artifact.missing ? "  完了時には読めなかった" : ""}`,
+        );
+      }
       break;
     case "failed":
       lines.push(
