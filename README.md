@@ -22,7 +22,7 @@ Claude や Codex、Gemini のような汎用 Agent は、そのままでは会�
 ## 入口
 
 - `openshain` CLI。参照実装のクライアント。モデルは自分の API キーで使う(BYOK)
-- MCP Server。`openshain mcp` で起動し、Claude Code や Codex から同じ Runtime を使う
+- MCP Server(予定)。`openshain mcp` で起動し、Claude Code や Codex から同じ Runtime を使う
 - SDK。`@openshain/core` をプログラムから使う
 
 ## 設計原則
