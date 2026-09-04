@@ -29,5 +29,5 @@ export function summarizeUsage(events: AnyEvent[]): UsageSummary {
 }
 
 export function formatUsage(summary: UsageSummary): string {
-  return `model 呼び出し ${summary.modelCalls} 回、Tool 呼び出し ${summary.toolCalls} 回、入力 ${summary.inputTokens} tokens、出力 ${summary.outputTokens} tokens`;
+  return `model 呼び出し ${summary.modelCalls} 回、Tool 呼び出し ${summary.toolCalls} 回、入力 ${summary.inputTokens} トークン、出力 ${summary.outputTokens} トークン`;
 }

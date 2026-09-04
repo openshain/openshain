@@ -35,8 +35,15 @@ export async function init({ workspaceRoot, write }: InitOptions): Promise<void>
   try {
     await writeFile(path, CONFIG_TEMPLATE, { flag: "wx" });
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "EEXIST") {
       throw new OpenshainError("config", `${path} はすでにあります。上書きはしません。`);
+    }
+    if (code === "ENOENT") {
+      throw new OpenshainError(
+        "config",
+        `${workspaceRoot} がありません。先にディレクトリを作ってください。`,
+      );
     }
     throw err;
   }
