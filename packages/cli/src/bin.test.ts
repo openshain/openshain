@@ -62,7 +62,7 @@ describe("openshain", () => {
     const { code, stderr } = await openshain("tools", "list", "--workspace", root);
 
     expect(code).toBe(1);
-    expect(stderr).toContain("エラー(config) 設定に問題がある。");
+    expect(stderr).toContain("エラー(config) 設定の問題。");
     expect(stderr).toContain("openshain.yaml が見つかりません");
   });
 });

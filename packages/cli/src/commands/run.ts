@@ -1,4 +1,4 @@
-import { runWork } from "@openshain/agent";
+import { pendingQuestions, runWork } from "@openshain/agent";
 import {
   type AnyEvent,
   createRuntime,
@@ -9,6 +9,7 @@ import {
   type Work,
   type WorkId,
 } from "@openshain/core";
+import { describeInput, truncate } from "../format.ts";
 import { failureLabel, rejectionLabel, statusLabel } from "../labels.ts";
 import { formatUsage, summarizeUsage } from "../usage.ts";
 
@@ -80,23 +81,11 @@ function describe(event: AnyEvent, names: Map<string, string>): string | undefin
   }
 }
 
-function describeInput(input: unknown): string {
-  if (input && typeof input === "object") {
-    if ("path" in input) return String((input as { path: unknown }).path);
-    if ("question" in input) return "";
-  }
-  return truncate(JSON.stringify(input) ?? "");
-}
-
 function firstLine(content: ToolContent[]): string {
   for (const part of content) {
     if (part.type === "text") return part.text.split("\n")[0] ?? "";
   }
   return "";
-}
-
-function truncate(text: string): string {
-  return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
 
 /** The closing lines: what happened, what it cost, and who acts next. */
@@ -118,7 +107,7 @@ export function report(work: Work, events: AnyEvent[]): string[] {
       break;
     case "waiting_input":
       lines.push("利用者の入力を待っています。");
-      for (const question of pendingQuestions(events)) lines.push(`  質問 ${question}`);
+      for (const { question } of pendingQuestions(events)) lines.push(`  質問 ${question}`);
       break;
     default:
       lines.push(`状態は ${statusLabel(work.status)} です。`);
@@ -126,19 +115,6 @@ export function report(work: Work, events: AnyEvent[]): string[] {
   lines.push(formatUsage(summarizeUsage(events)));
   lines.push(nextActor(work));
   return lines;
-}
-
-/** The questions the model asked that have no answer yet, oldest first. */
-export function pendingQuestions(events: AnyEvent[]): string[] {
-  const answered = new Set(
-    events
-      .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
-      .map((e) => e.payload.callId),
-  );
-  return events
-    .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
-    .filter((e) => !answered.has(e.payload.callId))
-    .map((e) => e.payload.question);
 }
 
 export function nextActor(work: Work): string {

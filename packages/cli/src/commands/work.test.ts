@@ -61,9 +61,9 @@ describe("work list", () => {
 
     expect(out.lines).toHaveLength(2);
     expect(out.lines[0]).toContain(first.id);
-    expect(out.lines[0]).toContain("queued");
+    expect(out.lines[0]).toContain("未着手");
     expect(out.lines[0]).toContain("7月の証憑を照合して");
-    expect(out.lines[1]).toContain("in_progress");
+    expect(out.lines[1]).toContain("進行中");
   });
 
   test("says so when there is no work yet", async () => {
@@ -86,7 +86,7 @@ describe("work list", () => {
     await workList({ workspaceRoot: root, write: out.write });
 
     expect(out.text()).toContain(healthy.id);
-    expect(out.text()).toMatch(/読めない.*corrupt_log/);
+    expect(out.text()).toMatch(/読めない\(壊れた Work の記録\)/);
   });
 });
 
@@ -253,5 +253,34 @@ describe("work resume checks the id first", () => {
     }).catch((e: unknown) => e);
 
     expect((err as { code?: string }).code).toBe("invalid_id");
+  });
+});
+
+describe("work show and tool outcomes", () => {
+  test("marks calls that were rejected or failed, in the order they happened", async () => {
+    const { root, store } = await workspace();
+    const work = await store.create({ ...request, objective: "x" });
+    const handle = await store.open(work.id);
+    await handle.transition("in_progress", "run");
+    await handle.append({
+      type: "tool.rejected",
+      payload: { callId: "c1", name: "csv_read", code: "not_allowed", reason: "no" },
+    });
+    await handle.append({
+      type: "tool.called",
+      payload: { callId: "c2", provider: "standard", name: "fs_read", input: { path: "a.md" } },
+    });
+    await handle.append({
+      type: "tool.completed",
+      payload: { callId: "c2", content: [{ type: "text", text: "cannot read" }], isError: true },
+    });
+    await handle.close();
+    const out = io();
+
+    await workShow({ workspaceRoot: root, id: work.id, write: out.write });
+
+    const tool = out.lines.indexOf("Tool");
+    expect(out.lines[tool + 1]).toBe("  csv_read  拒否(この workspace では不許可)");
+    expect(out.lines[tool + 2]).toBe("  fs_read a.md  失敗");
   });
 });

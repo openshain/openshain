@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { callTools, FakeModelProvider, say } from "@openshain/agent/testing";
-import { OpenshainError, type RuntimeProviders } from "@openshain/core";
+import { OpenshainError, parseConfig, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { findWorkspace } from "../workspace.ts";
 import { init } from "./init.ts";
@@ -57,8 +57,9 @@ describe("init", () => {
     await init({ workspaceRoot: root, write: out.write });
 
     const text = await readFile(join(root, "openshain.yaml"), "utf8");
-    expect(text).toContain("version: 1");
-    expect(text).toContain("api_key_env: ANTHROPIC_API_KEY");
+    const config = parseConfig(text, { modelProviders: ["anthropic"] });
+    expect(config.model.apiKeyEnv).toBe("ANTHROPIC_API_KEY");
+    expect(config.limits.maxModelCalls).toBe(30);
     expect(out.lines.join("\n")).toContain("openshain.yaml");
     await expect(init({ workspaceRoot: root, write: out.write })).rejects.toBeInstanceOf(
       OpenshainError,
@@ -161,7 +162,7 @@ describe("run", () => {
     });
 
     expect(code).toBe(1);
-    expect(out.lines.join("\n")).toContain("model が拒否した");
+    expect(out.lines.join("\n")).toContain("失敗。model の拒否。");
   });
 
   test("prints a line for a tool call that failed", async () => {

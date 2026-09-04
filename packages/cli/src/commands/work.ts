@@ -1,3 +1,4 @@
+import { pendingQuestions } from "@openshain/agent";
 import {
   type AnyEvent,
   createRuntime,
@@ -8,9 +9,10 @@ import {
   type Work,
   WorkStore,
 } from "@openshain/core";
-import { failureLabel, statusLabel } from "../labels.ts";
+import { describeInput, padDisplay } from "../format.ts";
+import { errorLabel, failureLabel, rejectionLabel, statusLabel } from "../labels.ts";
 import { formatUsage, summarizeUsage } from "../usage.ts";
-import { type DriveOptions, drive, nextActor, pendingQuestions } from "./run.ts";
+import { type DriveOptions, drive, nextActor } from "./run.ts";
 
 export interface WorkListOptions {
   workspaceRoot: string;
@@ -26,10 +28,12 @@ export async function workList({ workspaceRoot, write }: WorkListOptions): Promi
   }
   for (const work of works) {
     write(
-      `${work.id}  ${work.status.padEnd(16)}  ${work.createdAt.slice(0, 16)}  ${shorten(work.objective)}`,
+      `${work.id}  ${padDisplay(statusLabel(work.status), 16)}  ${work.createdAt.slice(0, 16)}  ${shorten(work.objective)}`,
     );
   }
-  for (const { id, error } of problems) write(`${id}  読めない(${error.code})  ${error.message}`);
+  for (const { id, error } of problems) {
+    write(`${id}  読めない(${errorLabel(error.code) ?? error.code})  ${error.message}`);
+  }
 }
 
 export interface WorkShowOptions {
@@ -67,14 +71,13 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
     lines.push(`失敗      ${failureLabel(work.failure.reason)}。${work.failure.detail}`);
   }
   if (work.status === "waiting_input") {
-    for (const question of pendingQuestions(events)) lines.push(`質問      ${question}`);
+    for (const { question } of pendingQuestions(events)) lines.push(`質問      ${question}`);
   }
 
-  const calls = events.filter((e): e is Event<"tool.called"> => e.type === "tool.called");
+  const calls = toolLines(events);
   if (calls.length > 0) {
     lines.push("Tool");
-    for (const call of calls)
-      lines.push(`  ${call.payload.name} ${describeInput(call.payload.input)}`.trimEnd());
+    for (const line of calls) lines.push(line);
   }
   lines.push(formatUsage(summarizeUsage(events)));
   lines.push(nextActor(work));
@@ -102,10 +105,22 @@ export async function workResume(options: WorkResumeOptions): Promise<number> {
   return drive(runtime, workId, options);
 }
 
-function describeInput(input: unknown): string {
-  if (input && typeof input === "object" && "path" in input)
-    return String((input as { path: unknown }).path);
-  return "";
+/** One line per tool call, in log order, with its outcome when it was rejected or failed. */
+function toolLines(events: AnyEvent[]): string[] {
+  const lines = new Map<string, string>();
+  for (const event of events) {
+    if (event.type === "tool.called") {
+      const { callId, name, input } = (event as Event<"tool.called">).payload;
+      lines.set(callId, `  ${name} ${describeInput(input)}`.trimEnd());
+    } else if (event.type === "tool.rejected") {
+      const { callId, name, code } = (event as Event<"tool.rejected">).payload;
+      lines.set(callId, `${lines.get(callId) ?? `  ${name}`}  拒否(${rejectionLabel(code)})`);
+    } else if (event.type === "tool.completed") {
+      const { callId, isError } = (event as Event<"tool.completed">).payload;
+      if (isError) lines.set(callId, `${lines.get(callId) ?? `  ${callId}`}  失敗`);
+    }
+  }
+  return [...lines.values()];
 }
 
 function shorten(text: string): string {

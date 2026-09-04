@@ -4,7 +4,6 @@ export {
   type DriveOptions,
   drive,
   nextActor,
-  pendingQuestions,
   type RunOptions,
   report,
   run,
