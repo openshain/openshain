@@ -75,7 +75,7 @@ export function parseConfig(text: string, options: ParseConfigOptions = {}): Con
       "config",
       problem(
         ["model", "provider"],
-        `unknown provider "${result.data.model.provider}"; known providers: ${known.join(", ")}`,
+        `unknown provider "${result.data.model.provider}"; known providers: ${known.length > 0 ? known.join(", ") : "none"}`,
       ),
     );
   }
