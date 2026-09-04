@@ -1,0 +1,33 @@
+{
+  "id": "chatcmpl-02",
+  "object": "chat.completion",
+  "created": 1780000001,
+  "model": "gpt-5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "refusal": null,
+        "reasoning_content": "まず CSV を読む。",
+        "tool_calls": [
+          {
+            "id": "call_01",
+            "type": "function",
+            "function": { "name": "csv_read", "arguments": "{\"path\":\"receipts/2026-07.csv\"}" }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 1300,
+    "completion_tokens": 180,
+    "total_tokens": 1480,
+    "prompt_tokens_details": { "cached_tokens": 0 },
+    "completion_tokens_details": { "reasoning_tokens": 120 }
+  }
+}

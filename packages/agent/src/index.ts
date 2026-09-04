@@ -16,3 +16,9 @@ export {
   type AnthropicProviderOptions,
   anthropicProvider,
 } from "./providers/anthropic.ts";
+export {
+  OPENAI_COMPATIBLE_PROVIDER_ID,
+  OpenAICompatibleProvider,
+  type OpenAICompatibleProviderOptions,
+  openaiCompatibleProvider,
+} from "./providers/openai-compatible.ts";

@@ -1,0 +1,19 @@
+{
+  "id": "chatcmpl-03",
+  "object": "chat.completion",
+  "created": 1780000002,
+  "model": "gpt-5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "7月の経費の内訳は、まず交通費が",
+        "refusal": null
+      },
+      "logprobs": null,
+      "finish_reason": "length"
+    }
+  ],
+  "usage": { "prompt_tokens": 1200, "completion_tokens": 64, "total_tokens": 1264 }
+}

@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.123.0",
-    "@openshain/core": "workspace:*"
+    "@openshain/core": "workspace:*",
+    "openai": "7.10.0"
   },
   "devDependencies": {
     "@openshain/tools": "workspace:*"
