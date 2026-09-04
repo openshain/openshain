@@ -123,7 +123,7 @@ Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証
 
 `fs_list`、`fs_read`、`fs_write`、`csv_read`、`csv_write`、`markdown_read`。path guard を通す。mutate は `after` に sha256。
 
-- 受け入れ: 各 Tool が spec の表どおりに動く。予約パスと root 外が `isError` ではなく registry 側の拒否になる(実行前)。`fs_write` 後の `after.sha256` が実ファイルと一致する。CSV の引用符とカンマを含むセルが往復で崩れない。
+- 受け入れ: 各 Tool が spec の表どおりに動く。予約パスと root 外は Tool が `reserved_path` などの OpenshainError を throw し、Runtime が `tool.rejected` として記録する(`isError` の結果ではない)。`fs_write` 後の `after.sha256` が実ファイルと一致する。CSV の引用符とカンマを含むセルが往復で崩れない。
 - 検証: `bun test packages/tools`
 - 依存: Task 5
 - ファイル: `packages/tools/src/index.ts`、`fs.ts`、`csv.ts`、`markdown.ts`、test、`package.json`(csv-parse、csv-stringify)
@@ -144,9 +144,9 @@ Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証
 Runtime が足す `ask_user` Tool。呼ばれたら `human.input_requested` を残して `waiting_input` にし、`onInput` の答えで `human.input_provided` から続行。完了時の `evidence.recorded`(claim、refs、artifacts)。
 
 - 受け入れ: 台本「ask_user → (答え) → end_turn」で状態が `waiting_input` を経て `completed` になる。`evidence.recorded.refs` が mutate Tool のイベント id を指す。
-- 検証: `bun test packages/agent/src/ask-user.test.ts packages/agent/src/loop.test.ts`
+- 検証: `bun test packages/agent/src/loop.test.ts`
 - 依存: Task 9
-- ファイル: `packages/agent/src/ask-user.ts`、`loop.ts`、test
+- ファイル: `packages/agent/src/loop.ts`(ask_user の処理は loop に同居)、test
 - サイズ: S
 
 #### Task 11: CLI の init、run、tools list
@@ -161,7 +161,7 @@ Runtime が足す `ask_user` Tool。呼ばれたら `human.input_requested` を�
 
 #### Task 12: CLI の work list と show
 
-`openshain work list`、`openshain work show <id>`(状態、イベントの要約、`usage.recorded` の合計、次に動く人)。
+`openshain work list`、`openshain work show <id>`(状態、イベントの要約、`usage.recorded` の合計、次に動く人)。実装時に `openshain work resume <id>` を足した。
 
 - 受け入れ: 2 つの Work を作った後に list が 2 行。show の合計が events.jsonl の `usage.recorded` を足した値と一致する。`waiting_input` の Work で「次に動くのは利用者」と出る。
 - 検証: `bun test packages/cli/src/commands/work.test.ts`

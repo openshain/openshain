@@ -17,7 +17,6 @@ openshain の最初の実装単位。Model、Tool、Agent の入口を交換で�
 - ChangeSet(propose → diff → approve → apply)。書き込みは workspace 内に限って直接行い、イベントに記録する
 - Approval、ExpertReviewer、Profession Pack
 - Office 文書(xlsx、docx、pdf)、Email
-- Work の再開(`work resume`)。ただし再開できる形でイベントを残す
 - 金額換算。使用量はトークン数で記録し、単価表は持たない
 - streaming。CLI は Tool 呼び出しの進捗行で代替する
 - 3 つ目以降の model provider
@@ -170,6 +169,7 @@ export interface ModelRequest {
   tools?: ToolDefinition[];
   maxOutputTokens?: number;
   providerOptions?: Record<string, unknown>; // provider にそのまま渡す。共通化しない
+  budget?: { modelCallsLeft: number; toolCallsLeft: number }; // 残りの回数。provider は無視してよい
 }
 
 export type ModelMessage =
@@ -243,9 +243,9 @@ export interface ToolResult {
 ### エラー
 
 - provider(Model、Tool)の失敗は `OpenshainError`(`code` と `message`)を throw する。`code` は `auth`、`network`、`rate_limit`、`invalid_response`、`config` のような機械が読める語。Runtime が捕まえて `model.failed` などのイベントにし、Work を `failed` にする。
-- Tool の業務上の失敗(ファイルがない、CSV が壊れている)は throw せず、`isError: true` の ToolResult で返す。model に見せて続行する。
+- Tool の業務上の失敗(ファイルがない、CSV が壊れている)は `isError: true` の ToolResult として model に見せ、Work は続く。Tool が素の Error を throw した場合も Runtime が同じ形に変換する。
 - provider の応答は第三者データとして扱い、イベントに入れる前に形を検証する。検証に落ちたら `invalid_response`。
-- Tool の `call` が `reserved_path`、`outside_workspace`、`invalid_path` の OpenshainError を throw したら、Runtime は実行前の拒否と同じ `tool.rejected` として記録する。
+- Tool の `call` が `tool.rejected` のコード(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`)を持つ OpenshainError を throw したら、Runtime は実行前の拒否と同じ `tool.rejected` として記録する。
 - `code` の一覧: `auth`、`network`、`rate_limit`、`invalid_response`、`config`、`corrupt_log`、`invalid_transition`、`duplicate_tool`、`invalid_id`、`invalid_tool`、`invalid_path`、`lock_held`、`not_found`、`reserved_path`、`outside_workspace`、`concurrent_write`、`invalid_event`。第三者の provider が独自の理由を持つときは `message` に書く。
 - `raw` は既定で保存しない。`debug.persist_raw: true` のときだけイベントに含める。
 
@@ -285,7 +285,12 @@ provider が throw → model.failed → work.failed(model_error)
 - 上限は設定ファイルで持つ。初期値は `max_model_calls: 30`、`max_tool_calls: 100`、`max_output_tokens: 16000`。計測して直す。超えたら `work.failed`(reason: `limit_reached`)。
 - Tool の失敗は model に `isError` で返し、Work は続く。Tool 呼び出しの回数には数える。
 - model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を残して `work.failed`(reason: `model_error`)。
-- 判定の差し込み口: Tool を実行する直前に `authorize(call, ctx)` を通す。この段階の実装は許可リストの判定だけで、それ以外は常に許可。
+- 判定の差し込み口: Tool を実行する直前に Runtime の `authorize(call)` を通す。この段階の判定は許可リストだけで、それ以外は常に許可。将来の Authority engine はここに差し込む。
+- Tool 呼び出しの回数は `tool.called` と `tool.rejected` の相異なる call id で数える。拒否された呼び出しも数える。model が call id を使い回したターン(同じターン内でも、前のターンの id でも)は `work.failed`(model_error)にする。
+- 中断された呼び出しには `the run stopped before this tool call finished; call it again if it is still needed` という文言で `isError: true` の `tool.completed` を残す。
+- 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残る。
+- Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に直してから切り、text として返す。
+- `ask_user` の入力が schema に合わないときは `tool.rejected`(schema_mismatch)を同じターンで返し、`waiting_input` にはならない。
 - lock: `work/<id>/lock` に pid と開始時刻を書く。すでにあり、その pid が生きていればエラー。死んでいれば引き継ぐ。
 - 書き込みは `WorkStore.open(id)` が返す handle を通す。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まる。読み取りに lock は要らない。
 
@@ -299,10 +304,14 @@ provider が throw → model.failed → work.failed(model_error)
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進める。Tool 呼び出しごとに 1 行出す。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を出す |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)。読めない Work は別枠で示す |
 | `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰か |
+| `openshain work resume <id>` | 途中で止まった Work を続ける。`waiting_input` なら端末で質問に答えて続け、`in_progress` なら中断した呼び出しを閉じてから続け、`queued` なら最初から進める。終わった Work は断る。端末がなければ質問せず、待機のまま質問文を出して終わる |
 | `openshain tools list` | 登録された Tool の一覧(name、provider、effect、許可の有無) |
 | `openshain mcp` | MCP Server を stdio で起動する |
 
-`--workspace <dir>` で workspace root を指定できる。省略時はカレントディレクトリから上に向かって `openshain.yaml` を探す。
+`--workspace <dir>` で起点を指定できる。`init` はそこに書き、他のコマンドはそこから上に向かって `openshain.yaml` を探す。省略時はカレントディレクトリ。
+
+- `run` と `work resume` の進捗行は `tool.called`(名前と、path があればその値)、`tool.rejected`(拒否の理由)、`isError` の `tool.completed`(失敗)だけ。model の呼び出しと質問の記録は出さず、最後の報告(結果、使用量の合計、次に動く人)にまとめる。
+- exit code は 0 が完了、1 が完了しなかった Work か実行時のエラー、2 が引数の誤り。
 
 ### MCP Server(`packages/mcp`)
 
@@ -327,12 +336,18 @@ MCP tool:
 import { createRuntime } from "@openshain/core";
 import { runWork } from "@openshain/agent";
 
-const runtime = await createRuntime({ workspaceRoot: "." });
-const work = await runtime.works.create({ objective: "…" });
-await runWork(runtime, work.id);
+const runtime = await createRuntime({
+  workspaceRoot: ".",
+  providers: {
+    models: { /* provider の id → ModelProvider を作る関数 */ },
+    tools: { standard: () => standardTools() },
+  },
+});
+const work = await runtime.works.create({ objective: "…", principal: "alice", profession: "generic" });
+await runWork(runtime, work.id, { onInput: async (question) => "…" });
 ```
 
-`runtime.works`(create、get、list、open)、`runtime.tools`(list、call)、`runtime.model`、`runtime.config` を公開する。イベントの読み取りは `works.events`、追記は `works.open` が返す handle を通す。CLI と MCP はこの SDK の上に載る。
+`runtime.works`(create、get、list、open、events)、`runtime.tools`(list、hidden、call)、`runtime.model`、`runtime.config` を公開する。`hidden` は allow list が外した Tool の name、provider、effect を返す。`createToolRegistry` は model なしで Tool の登録だけを行う。イベントの読み取りは `works.events`、追記は `works.open` が返す handle を通す。CLI と MCP はこの SDK の上に載る。
 
 ## 設定ファイル `openshain.yaml`
 
