@@ -193,10 +193,11 @@ function isRejectionCode(code: string): code is ToolRejectionCode {
 /** Cuts a content part down to MAX_TOOL_TEXT_CHARS and says so at the end. */
 function capContent(part: ToolContent): ToolContent {
   const text = part.type === "text" ? part.text : JSON.stringify(part.value);
-  if (text.length <= MAX_TOOL_TEXT_CHARS) return part;
-  const cut = text.length - MAX_TOOL_TEXT_CHARS;
+  const chars = [...text];
+  if (chars.length <= MAX_TOOL_TEXT_CHARS) return part;
+  const cut = chars.length - MAX_TOOL_TEXT_CHARS;
   return {
     type: "text",
-    text: `${text.slice(0, MAX_TOOL_TEXT_CHARS)}\n…[${cut} characters cut by the runtime]`,
+    text: `${chars.slice(0, MAX_TOOL_TEXT_CHARS).join("")}\n…[${cut} characters cut by the runtime]`,
   };
 }

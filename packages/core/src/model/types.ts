@@ -29,12 +29,14 @@ export interface ModelResponse {
 }
 
 export interface ModelDescription {
+  /** For display and error messages. The id the log records is ModelProvider.id. */
   provider: string;
   model: string;
   capabilities: { tools: boolean };
 }
 
 export interface ModelProvider {
+  /** Recorded in the log and used to route opaque parts back. Stable across the provider's models. */
   readonly id: string;
   describe(): ModelDescription;
   generate(request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse>;
