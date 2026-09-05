@@ -45,9 +45,12 @@ export function buildProjection(input: ProjectionInput): Projection {
 
   for (const event of input.events) {
     switch (event.type) {
-      case "work.created":
-        pushUserPart({ type: "text", text: (event as Event<"work.created">).payload.objective });
+      case "work.created": {
+        // A session's objective is a label; the conversation starts with what the person says.
+        const { objective, type } = (event as Event<"work.created">).payload;
+        if (type !== "session") pushUserPart({ type: "text", text: objective });
         break;
+      }
       case "human.message":
         pushUserPart({ type: "text", text: (event as Event<"human.message">).payload.text });
         break;

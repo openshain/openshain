@@ -115,6 +115,8 @@ async function loop(
   const description = model.describe();
 
   for (;;) {
+    // Stopped by the person: leave the work in progress, so a later run can resume it.
+    if (options.signal?.aborted) return handle.current();
     const events = await handle.events();
     const modelCalls = events.filter((e) => e.type === "model.requested").length;
     const toolCalls = countToolCalls(events);
@@ -162,6 +164,7 @@ async function loop(
         type: "model.failed",
         payload: { code: isOpenshainError(err) ? err.code : "model_error", message },
       });
+      if (options.signal?.aborted) return handle.current();
       return fail(handle, "model_error", message);
     }
 
@@ -219,6 +222,7 @@ async function loop(
         ];
         let used = toolCalls;
         for (const call of ordered) {
+          if (options.signal?.aborted) return handle.current();
           if (used >= limits.maxToolCalls) {
             return fail(handle, "limit_reached", `tool calls exhausted (${limits.maxToolCalls})`);
           }

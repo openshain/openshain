@@ -24,7 +24,7 @@ function event<T extends EventType>(type: T, payload: EventPayloads[T]): Event<T
 }
 
 describe("human messages", () => {
-  test("puts what the person said into a user message of its own after the assistant's reply", () => {
+  test("puts what the person said into user messages, and keeps a session's objective out", () => {
     const events: AnyEvent[] = [
       event("work.created", {
         objective: "会話",
@@ -32,6 +32,7 @@ describe("human messages", () => {
         profession: "generic",
         type: "session",
       }),
+      event("human.message", { text: "やあ" }),
       event("model.completed", {
         stopReason: "end_turn",
         content: [{ type: "text", text: "何をしましょう" }],
@@ -42,7 +43,7 @@ describe("human messages", () => {
     const { messages } = buildProjection(input(events));
 
     expect(messages.slice(0, 3)).toEqual([
-      { role: "user", content: [{ type: "text", text: "会話" }] },
+      { role: "user", content: [{ type: "text", text: "やあ" }] },
       { role: "assistant", content: [{ type: "text", text: "何をしましょう" }] },
       { role: "user", content: [{ type: "text", text: "領収書を集計して" }] },
     ]);

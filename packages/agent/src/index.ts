@@ -22,3 +22,12 @@ export {
   type OpenAICompatibleProviderOptions,
   openaiCompatibleProvider,
 } from "./providers/openai-compatible.ts";
+export {
+  createSession,
+  SESSION_TOOLS,
+  type Session,
+  type SessionOptions,
+  TURN_LIMITS,
+  type TurnResult,
+  type TurnStop,
+} from "./session.ts";
