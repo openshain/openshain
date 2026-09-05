@@ -50,7 +50,9 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
   const { workspaceRoot, providers } = options;
   const config = await loadConfig(workspaceRoot, { modelProviders: Object.keys(providers.models) });
 
-  const modelFactory = providers.models[config.model.provider];
+  const modelFactory = Object.hasOwn(providers.models, config.model.provider)
+    ? providers.models[config.model.provider]
+    : undefined;
   if (!modelFactory) {
     throw new OpenshainError("config", `unknown model provider "${config.model.provider}"`);
   }
@@ -97,7 +99,7 @@ export async function createToolRegistry(
   for (const entry of config.tools) {
     const registerOptions = entry.allow ? { allow: entry.allow } : {};
     if ("provider" in entry) {
-      const factory = tools[entry.provider];
+      const factory = Object.hasOwn(tools, entry.provider) ? tools[entry.provider] : undefined;
       if (!factory) {
         throw new OpenshainError(
           "config",

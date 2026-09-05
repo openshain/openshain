@@ -130,6 +130,19 @@ describe("createRuntime", () => {
     await promise.catch((err: OpenshainError) => expect(err.message).toContain('"other"'));
   });
 
+  test("does not mistake an Object property for a registered tool provider", async () => {
+    const root = await workspace(
+      config.replace("  - provider: fake\n    allow", "  - provider: constructor\n    allow"),
+    );
+
+    const promise = createRuntime({ workspaceRoot: root, providers: providers() });
+
+    await expect(promise).rejects.toBeInstanceOf(OpenshainError);
+    await promise.catch((err: OpenshainError) =>
+      expect(err.message).toContain('unknown tool provider "constructor"'),
+    );
+  });
+
   test("loads a third-party tool provider from a module path in the config", async () => {
     const root = await workspace(`${config}  - module: ./tools/shout.ts\n`);
     await Bun.write(

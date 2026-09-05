@@ -4,8 +4,12 @@
 
 openshain は利用者の API キーを環境変数からだけ読み、設定ファイルにも記録にも書きません。Tool は workspace の外のファイルに触れません。この前提が破れる報告を特に歓迎します。
 
+`openshain.yaml` の `tools[].module` は workspace の中のコードを読み込んで実行します。Claude Code がフォルダの信頼を聞くのと同じ理由で、信用できないフォルダで openshain を動かさないでください。
+
 ## Reporting (English)
 
 Please do not open a public issue for a vulnerability. Use "Report a vulnerability" under the Security tab of this repository. You will hear back within 7 days. The latest release is the supported version.
 
 openshain reads API keys from environment variables only and never writes them to configuration or records, and its tools cannot reach files outside the workspace. Reports that break either assumption are especially welcome.
+
+`tools[].module` in `openshain.yaml` loads and runs code from inside the workspace. Do not run openshain in a folder you would not trust, for the same reason Claude Code asks before trusting one.

@@ -22,6 +22,17 @@ const toolProviderRef = z
     message: "name exactly one of provider or module",
   });
 
+/** Hosts that stay on this machine, where an API key may travel without TLS. */
+function isLoopback(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+    hostname === "[::1]" ||
+    hostname === "::1"
+  );
+}
+
 /** Shape of openshain.yaml as written on disk (snake_case). */
 export const ConfigFileSchema = z.strictObject({
   version: z.literal(1),
@@ -38,6 +49,10 @@ export const ConfigFileSchema = z.strictObject({
         const url = new URL(value);
         return url.username === "" && url.password === "";
       }, "base_url must not carry credentials; use api_key_env")
+      .refine((value) => {
+        const url = new URL(value);
+        return url.protocol === "https:" || (url.protocol === "http:" && isLoopback(url.hostname));
+      }, "base_url must use https unless it points at this machine (localhost, 127.0.0.0/8, ::1)")
       .optional(),
     options: z.record(z.string(), z.unknown()).optional(),
   }),

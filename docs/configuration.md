@@ -19,9 +19,9 @@
 | `model.provider` | 必須 | `anthropic` か `openai-compatible`。SDK から使うときは登録した provider の id |
 | `model.model` | 必須 | model の名前。provider にそのまま渡す |
 | `model.api_key_env` | 必須 | API キーを入れる環境変数の名前。大文字の英字で始まり、英数字と `_`。値はここに書かない |
-| `model.base_url` | 任意 | API の root。openai-compatible では `/v1` まで含める(例 `http://localhost:11434/v1`)。省略時は各 provider の既定。`user:pass@` は書けない |
+| `model.base_url` | 任意 | API の root。openai-compatible では `/v1` まで含める(例 `http://localhost:11434/v1`)。省略時は各 provider の既定。`user:pass@` は書けない。https か、localhost のようにこの機械を指す http だけ。遠隔のホストに http を書くとキーが平文で流れるので拒む |
 | `model.options` | 任意 | provider にそのまま渡す指定。Anthropic なら `effort` や `thinking`、OpenAI 互換なら `reasoning_effort` や `temperature`。model、messages、tools、出力の上限は上書きできない |
-| `tools` | 任意 | Tool provider の並び。省略時は `[{ provider: standard }]`。各項目は `provider`(組み込みの id)か `module`(ToolProvider を default export するファイルのパス)のどちらか 1 つ。`allow` を書くと、その名前の Tool だけを model に渡す |
+| `tools` | 任意 | Tool provider の並び。省略時は `[{ provider: standard }]`。各項目は `provider`(組み込みの id)か `module`(ToolProvider を default export するファイルのパス)のどちらか 1 つ。`allow` を書くと、その名前の Tool だけを model に渡す。`module` はそのファイルを読み込んで実行するので、信用できないフォルダでは動かさない |
 | `limits.max_model_calls` | 任意 | 1 つの Work での model 呼び出しの上限。既定 30。超えると Work は失敗(上限到達)で止まる |
 | `limits.max_tool_calls` | 任意 | Tool 呼び出しの上限。拒否された呼び出しも数える。既定 100 |
 | `limits.max_output_tokens` | 任意 | model の 1 回の出力の上限。既定 16000 |

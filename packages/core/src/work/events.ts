@@ -245,13 +245,23 @@ export function canonical(
     for (const key of Object.keys(value as Record<string, unknown>).sort()) {
       const inner = insideData || DATA_KEYS.has(key);
       const item = canonical((value as Record<string, unknown>)[key], inner, seen);
-      if (item !== undefined) out[key] = item;
-      else if (inner) out[key] = null;
+      if (item !== undefined) define(out, key, item);
+      else if (inner) define(out, key, null);
     }
     return out;
   } finally {
     seen.delete(value);
   }
+}
+
+/** Sets an own property even for a key such as `__proto__`, which plain assignment would treat as the prototype. */
+function define(target: Record<string, unknown>, key: string, item: unknown): void {
+  Object.defineProperty(target, key, {
+    value: item,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
 }
 
 export function eventFromFile(input: unknown): AnyEvent {

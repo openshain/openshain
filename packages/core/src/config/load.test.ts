@@ -211,6 +211,26 @@ company: { name: *e }
     expect(err.message).toMatch(/model\.base_url: .*credentials/);
   });
 
+  test("rejects an http base_url that leaves this machine, and keeps one that stays", () => {
+    const withUrl = (url: string) =>
+      example.replace(
+        "  api_key_env: ANTHROPIC_API_KEY\n",
+        `  api_key_env: ANTHROPIC_API_KEY\n  base_url: ${url}\n`,
+      );
+
+    expect(configError(withUrl("http://gateway.internal/v1")).message).toMatch(
+      /model\.base_url: .*https/,
+    );
+    expect(configError(withUrl("ftp://localhost/v1")).message).toMatch(/model\.base_url/);
+    for (const url of [
+      "http://localhost:11434/v1",
+      "http://127.0.0.1:8080/v1",
+      "http://[::1]:8080/v1",
+    ]) {
+      expect(parseConfig(withUrl(url), { modelProviders: ["anthropic"] }).model.baseUrl).toBe(url);
+    }
+  });
+
   test("rejects instructions beyond the length limit", () => {
     const text = example.replace(
       "  instructions: |\n    あなたはこの会社の事務担当です。\n",

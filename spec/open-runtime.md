@@ -430,7 +430,7 @@ limits:
 - 設定の検証は起動時に行い、不備は行番号つきで報告する。
 - `model` を書き換えるだけで provider が切り替わる。コードは変えない。
 - `allow` に書かれていない Tool は model に定義を渡さない。呼ばれたら `tool.rejected`(code: `not_allowed`)。
-- `principal.id`、`profession.id`、`model.provider` は `^[a-z][a-z0-9_-]*$`。`profession.instructions` は 100,000 文字まで。`base_url` に資格情報(`user:pass@`)は書けない。`tools` を省略すると `[{ provider: standard }]`。
+- `principal.id`、`profession.id`、`model.provider` は `^[a-z][a-z0-9_-]*$`。`profession.instructions` は 100,000 文字まで。`base_url` に資格情報(`user:pass@`)は書けない。`base_url` は https か、この機械を指す http(localhost、127.0.0.0/8、::1)だけ。`tools` を省略すると `[{ provider: standard }]`。
 - `api_key_env`、`base_url`、`options`、`debug` は環境の節。それ以外は会社の manifest(「openshain.yaml の責務」を参照)。
 
 ## 構成

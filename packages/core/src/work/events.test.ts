@@ -236,6 +236,20 @@ describe("event file hardening", () => {
     expect(() => eventFromFile(JSON.parse(line))).not.toThrow();
   });
 
+  test("keeps a key named __proto__ inside tool input as data", () => {
+    const input = JSON.parse('{"__proto__":{"x":1},"k":"v"}');
+    const event: Event = {
+      ...base,
+      type: "tool.called",
+      payload: { callId: "c", provider: "p", name: "t", input },
+    };
+
+    const text = JSON.stringify(eventToFile(event));
+
+    expect(text).toContain('"__proto__":{"x":1}');
+    expect(({} as { x?: unknown }).x).toBeUndefined();
+  });
+
   test("sorts object keys inside data so equal events are equal bytes", () => {
     const a: Event = {
       ...base,
