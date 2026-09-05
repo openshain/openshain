@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p dist
           for target in bun-linux-x64 bun-linux-arm64 bun-darwin-x64 bun-darwin-arm64; do
-            bun build --compile --target "$target" packages/cli/src/bin.ts --outfile "dist/openshain-${target#bun-}"
+            bun scripts/build.ts --target "$target" --outfile "dist/openshain-${target#bun-}"
           done
           (cd dist && sha256sum openshain-* > SHA256SUMS)
           ls -la dist

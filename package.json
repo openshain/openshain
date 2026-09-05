@@ -14,7 +14,7 @@
     "format": "biome format --write .",
     "test": "bun test",
     "schemas": "bun scripts/generate-schemas.ts",
-    "build": "bun build --compile packages/cli/src/bin.ts --outfile dist/openshain"
+    "build": "bun scripts/build.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",
