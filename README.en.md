@@ -12,7 +12,11 @@ Early. `openshain run` works with an Anthropic or OpenAI-compatible API key; the
 
 ## Quickstart
 
-You need Bun 1.3, git and an API key for Anthropic or an OpenAI-compatible API.
+You need an API key for Anthropic or an OpenAI-compatible API. Install `openshain` in one of three ways:
+
+- Download a binary from [GitHub Releases](https://github.com/openshain/openshain/releases) and put it on your PATH as `openshain`. The macOS binaries are unsigned: run `xattr -d com.apple.quarantine openshain` once.
+- With Bun 1.3: `bun install -g openshain`
+- From source:
 
 ```
 git clone https://github.com/openshain/openshain.git
@@ -20,8 +24,9 @@ cd openshain
 bun install
 bun run build                    # produces dist/openshain
 cp dist/openshain ~/.local/bin/  # anywhere on your PATH
-openshain --help
 ```
+
+`openshain --help` shows the commands.
 
 Create a company folder and a workspace in it:
 
