@@ -141,8 +141,8 @@ Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Sch
 
 - Work, not answers.
 - Existing SaaS remains the system of record.
-- Official has no hidden privilege: official and third-party implementations use the same contracts.
-- Paid means easiest: a paid offering takes over operations; it does not unlock features.
+- Official has no hidden privilege: the tools and model providers openshain itself ships go through the same interfaces as anyone else's. There is no back door.
+- Paid means easiest: the open-source code completes the main use cases on its own. Anything paid takes over running openshain for a company; it does not unlock features.
 
 Principles in full: [docs/principles.md](docs/principles.md). Why each package is shaped as it is: [docs/design/](docs/design/README.md). Specification: [spec/](spec/README.md).
 

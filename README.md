@@ -142,8 +142,8 @@ model:
 
 - Work, not answers。業務の完了まで進めます
 - Existing SaaS remains the system of record。既存の SaaS をそのまま使います
-- Official has no hidden privilege。公式実装と第三者実装は同じインターフェースを使います
-- Paid means easiest。有償版が引き受けるのは運用で、機能の解禁ではありません
+- Official has no hidden privilege。openshain 自身が作る Tool や model provider も、第三者が作るものと同じインターフェースを通ります。裏口はありません
+- Paid means easiest。OSS だけで主要な用途を完了できます。有償で提供するものがあるなら、それは openshain を会社に代わって動かし続ける運用の肩代わりで、機能の解禁ではありません
 
 全文は [docs/principles.md](docs/principles.md)、各 package をなぜその形にしたかは [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md) にあります。
 

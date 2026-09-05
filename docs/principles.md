@@ -2,6 +2,8 @@
 
 openshain が判断に迷ったときに立ち返るものです。README には利用者が選ぶ判断に要る 4 つだけを載せ、全文はここに置きます。
 
+文中の語について。公式実装は openshain 自身が作る Tool、model provider、入口(CLI、MCP)で、第三者実装は他の人が同じインターフェースで作るものです。有償版は、openshain を会社に代わって動かし続ける有償のサービスを指します。まだ提供していませんが、原則は先に決めてあります。
+
 | 項目 | 意味 |
 |---|---|
 | Work, not answers | 業務の完了まで進めます |
@@ -13,5 +15,5 @@ openshain が判断に迷ったときに立ち返るものです。README には
 | Know when not to act | 止まれることは能力です |
 | Knowledge is authored, compiled, executed | Knowledge は人が書き、build し、Runtime が使います |
 | Open by default | Model、Knowledge、Expert、Profession、Tool を交換できます |
-| Official has no hidden privilege | 公式実装と第三者実装は同じインターフェースを使います |
-| Paid means easiest | 有償版が引き受けるのは運用です。機能の解禁ではありません |
+| Official has no hidden privilege | openshain 自身が作る Tool、model provider、入口も、第三者が作るものと同じインターフェースを通ります。core に自分たち向けの裏口を作りません |
+| Paid means easiest | OSS だけで主要な用途を完了できます。有償で提供するものがあるなら、それは運用の肩代わりで、機能の解禁ではありません |
