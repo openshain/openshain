@@ -102,7 +102,16 @@ openshain work list
 openshain work show <id>
 ```
 
-On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. The mouse wheel, PageUp and PageDown scroll back through the conversation; the up and down arrows recall earlier input. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/work resume <id>`. The conversation itself is kept as a work.
+On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. The conversation itself is kept as a work; when you leave, the terminal returns to where it was, and `openshain work show <session id>` reads the conversation back.
+
+| On the screen | What it does |
+|---|---|
+| `/work list`, `/work show <id>` | List works, show one |
+| `/work resume <id>` | Continue a stopped work, answering its questions on the screen |
+| `/tools`, `/help`, `/quit` | The tools available, the help, leave |
+| Ctrl-C | Stop the running work, withdrawing a question it waits on; leave when nothing runs |
+| ↑ ↓ | Recall the lines sent before; the bottom is the new line |
+| Mouse wheel, PageUp and PageDown, End | Scroll back through the conversation; End returns to the newest rows |
 
 | Command | What it does |
 |---|---|
@@ -142,7 +151,7 @@ model:
   api_key_env: ANTHROPIC_API_KEY
 ```
 
-Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Schemas: [spec/schemas/](spec/schemas/).
+`company.language` (`ja` or `en`, default `ja`) selects the list the employee agent's name comes from; `openshain init` fills it from the OS locale. Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Schemas: [spec/schemas/](spec/schemas/).
 
 ## Design
 

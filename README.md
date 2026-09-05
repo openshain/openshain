@@ -106,7 +106,16 @@ openshain work list
 openshain work show <id>
 ```
 
-画面では、頼んだことを社員エージェントが Work にして進め、Tool の呼び出しが 1 行ずつ流れます。Work が質問すればその場で答えられます。会話はマウスホイールか PageUp と PageDown で遡れ、上下の矢印は入力履歴です。Ctrl-C は動いている Work を止め、質問を待っている途中なら質問を取り下げます。止めた Work は `/work resume <id>` で続きます。会話も Work として記録に残ります。
+画面では、頼んだことを社員エージェントが Work にして進め、Tool の呼び出しが 1 行ずつ流れます。Work が質問すればその場で答えられます。会話も Work として記録に残り、終了すると元の画面に戻って、`openshain work show <セッションの id>` で読み返せます。
+
+| 画面の操作 | 動き |
+|---|---|
+| `/work list`、`/work show <id>` | Work の一覧と詳細を画面に出します |
+| `/work resume <id>` | 止まった Work を続けます。質問は画面で答えます |
+| `/tools`、`/help`、`/quit` | 使える Tool、使い方、終了です |
+| Ctrl-C | 動いている Work を止めます。質問待ちなら質問を取り下げます。何も動いていなければ終了です |
+| ↑ ↓ | 前に送った行を入力欄に呼び戻します。いちばん下は新しい入力です |
+| マウスホイール、PageUp と PageDown、End | 会話を遡り、End で最新に戻ります |
 
 | コマンド | 動き |
 |---|---|
@@ -146,7 +155,7 @@ model:
   api_key_env: ANTHROPIC_API_KEY
 ```
 
-全項目は [docs/configuration.md](docs/configuration.md) にあります。JSON Schema は [spec/schemas/](spec/schemas/) です。
+`company.language`(`ja` か `en`。省略時は `ja`)で社員エージェントの名前の一覧が変わります。`openshain init` は OS の locale を見て埋めます。全項目は [docs/configuration.md](docs/configuration.md) にあります。JSON Schema は [spec/schemas/](spec/schemas/) です。
 
 ## 設計
 
