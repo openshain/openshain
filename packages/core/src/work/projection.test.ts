@@ -85,8 +85,8 @@ describe("buildProjection", () => {
 
     expect(projection.system).toContain("事務担当として働く。");
     expect(projection.system).toContain("サンプル株式会社");
-    expect(projection.system).toContain("Alice");
-    expect(projection.system).toContain("alice");
+    expect(projection.system).toContain("依頼する人は Alice(alice)");
+    expect(projection.system).toContain("あなた自身は Alice ではなく");
     expect(projection.system).toContain("返事は要らない");
     expect(projection.system).toContain("自分で数えたり足したりしない");
   });

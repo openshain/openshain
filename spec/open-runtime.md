@@ -139,7 +139,7 @@ outcome:
 
 model に渡す内容は events.jsonl から組み立てます。会話履歴を別に保存しません。
 
-- system: profession の指示文、会社名、principal、Runtime の決まり(件数、合計、検索は Tool の値をそのまま使う。末尾の残量の 1 行は通知で返事は要らない。依頼が終わったら要約して終える)です
+- system: profession の指示文、会社名、依頼する人(principal。model はその人の代理として働き、その人と話す。model 自身はその人ではなく、この会社の社員エージェント)、Runtime の決まり(件数、合計、検索は Tool の値をそのまま使う。末尾の残量の 1 行は通知で返事は要らない。依頼が終わったら要約して終える)です
 - messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたものです。`type: session` の Work では objective は入れません。`session` は会話の記録に予約した type で、`work_create` と `work_run` は受け付けず、`work resume` でも動きません
 - tools: 許可リストを通った Tool 定義です
 

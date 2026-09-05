@@ -33,7 +33,7 @@ export function buildProjection(input: ProjectionInput): Projection {
   const system = [
     config.profession.instructions.trim(),
     `この会社は ${config.company.name}。`,
-    `あなたが代理する人は ${config.principal.name}(${config.principal.id})。`,
+    `依頼する人は ${config.principal.name}(${config.principal.id})。あなたはこの人の代理として働き、この人と話す。あなた自身は ${config.principal.name} ではなく、この会社で働く社員エージェントで、名乗るならそう名乗る。`,
     "件数、合計、検索の結果は Tool が返した値をそのまま使い、自分で数えたり足したりしない。各ターンの最後に Runtime が「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行を user message として足す。これは残量の通知で、返事は要らない。依頼が終わったら、何をしたかを要約して終える。",
   ].join("\n\n");
 
