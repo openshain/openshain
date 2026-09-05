@@ -292,6 +292,10 @@ describe("standard tools", () => {
           totals: { amount: { sum: 300, min: 300, max: 300, count: 1, skipped: 0 } },
         },
       ],
+      overall: {
+        rows: 4,
+        totals: { amount: { sum: 2300, min: 300, max: 1200, count: 3, skipped: 1 } },
+      },
       truncated: false,
     });
     expect(result.observation?.source).toBe("ledger.csv");
@@ -312,6 +316,7 @@ describe("standard tools", () => {
       matched: 3,
       groupCount: 1,
       groups: [{ group: {}, rows: 3, totals: { amount: { sum: 2000, count: 2, skipped: 1 } } }],
+      overall: { rows: 3, totals: { amount: { sum: 2000, count: 2, skipped: 1 } } },
     });
   });
 

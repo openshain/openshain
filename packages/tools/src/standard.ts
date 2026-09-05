@@ -151,7 +151,7 @@ const definitions: ToolDefinition[] = [
   {
     name: "csv_aggregate",
     description:
-      "Count and total the rows of a CSV file with a header row, over the whole file in one call. group_by names the columns to group by (omit it for a single group), sum names the numeric columns to total, filter keeps only the rows whose columns equal the given values. Returns one entry per group, ordered by the group's values, with its row count and, for each summed column, the sum, min, max, the number of numeric cells and the number of cells skipped as non-numeric. Cells such as 1,200, ¥300 or full-width １２３ count as numbers.",
+      "Count and total the rows of a CSV file with a header row, over the whole file in one call. group_by names the columns to group by (omit it for a single group), sum names the numeric columns to total, filter keeps only the rows whose columns equal the given values. Returns one entry per group, ordered by the group's values, with its row count and, for each summed column, the sum, min, max, the number of numeric cells and the number of cells skipped as non-numeric; and overall, the same figures over every matched row. Take a grand total from overall instead of adding the groups yourself. Cells such as 1,200, ¥300 or full-width １２３ count as numbers.",
     inputSchema: {
       type: "object",
       properties: {
@@ -437,38 +437,43 @@ async function csvAggregate(
   }
 
   const matched = rows.filter((row) => filters.every((f) => (row[f.column] ?? "") === f.equals));
+  const newTotals = (): Record<string, Totals> =>
+    Object.fromEntries(
+      sums.map((column) => [column, { sum: 0, min: null, max: null, count: 0, skipped: 0 }]),
+    );
+  const add = (totals: Record<string, Totals>, row: Record<string, string>) => {
+    for (const column of sums) {
+      const t = totals[column];
+      if (t) accumulate(t, row[column] ?? "");
+    }
+  };
   const groups = new Map<
     string,
     { values: string[]; rows: number; totals: Record<string, Totals> }
   >();
+  const overall = newTotals();
   for (const row of matched) {
     const values = groupBy.map((column) => row[column] ?? "");
     const key = JSON.stringify(values);
     let group = groups.get(key);
     if (!group) {
-      group = {
-        values,
-        rows: 0,
-        totals: Object.fromEntries(
-          sums.map((column) => [column, { sum: 0, min: null, max: null, count: 0, skipped: 0 }]),
-        ),
-      };
+      group = { values, rows: 0, totals: newTotals() };
       groups.set(key, group);
     }
     group.rows += 1;
-    for (const column of sums) {
-      const totals = group.totals[column];
-      if (totals) accumulate(totals, row[column] ?? "");
-    }
+    add(group.totals, row);
+    add(overall, row);
   }
 
+  const tidyTotals = (totals: Record<string, Totals>) =>
+    Object.fromEntries(
+      Object.entries(totals).map(([column, t]) => [column, { ...t, sum: tidy(t.sum) }]),
+    );
   const sorted = [...groups.values()].sort((a, b) => compareValues(a.values, b.values));
   const window = sorted.slice(0, limit).map((group) => ({
     group: Object.fromEntries(groupBy.map((column, i) => [column, group.values[i] ?? ""])),
     rows: group.rows,
-    totals: Object.fromEntries(
-      Object.entries(group.totals).map(([column, t]) => [column, { ...t, sum: tidy(t.sum) }]),
-    ),
+    totals: tidyTotals(group.totals),
   }));
   return json(
     {
@@ -477,6 +482,8 @@ async function csvAggregate(
       matched: matched.length,
       groupCount: sorted.length,
       groups: window,
+      // The same figures over every matched row, so a grand total is never added by hand.
+      overall: { rows: matched.length, totals: tidyTotals(overall) },
       truncated: window.length < sorted.length,
     },
     path,

@@ -291,7 +291,7 @@ Tool の結果は観測であって転送ではない。ファイルを丸ごと
 | `fs_read` | observe | `path`、`offset`(行)、`limit`(既定 200 行) | 範囲の本文と、全行数、バイト数、続きがあるか |
 | `fs_write` | mutate | `path`、`content` | 書いた path と sha256(`after`) |
 | `csv_read` | observe | `path`、`offset`(行)、`limit`(既定 50 行) | 列名、全行数、範囲の行(1 行 1 オブジェクト)、続きがあるか |
-| `csv_aggregate` | observe | `path`、`group_by`(列)、`sum`(数値の列)、`filter`(列 = 値)、`limit`(既定 100 グループ) | グループごとの行数と、`sum` に挙げた列の sum、min、max、数値だった件数、数値でなく飛ばした件数。`1,200` や `¥300` は数値として読む |
+| `csv_aggregate` | observe | `path`、`group_by`(列)、`sum`(数値の列)、`filter`(列 = 値)、`limit`(既定 100 グループ) | グループごとの行数と、`sum` に挙げた列の sum、min、max、数値だった件数、数値でなく飛ばした件数。`overall` に、条件に合った全行の同じ値。`1,200` や `¥300` は数値として読む |
 | `csv_write` | mutate | `path`、`rows`、`columns` | 書いた path と sha256(`after`) |
 | `markdown_read` | observe | `path`、`section`(見出しの文字列)、`limit`(既定 100 行) | 見出しの一覧(level、text、行番号)と先頭の本文。`section` があれば、その見出しから、同じか上の level の次の見出しの手前までを返す |
 
