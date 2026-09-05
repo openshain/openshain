@@ -129,7 +129,7 @@ describe("work show", () => {
         kind: "model_inference",
         provider: "fake",
         model: "fake-1",
-        usage: { inputTokens: 40, outputTokens: 10 },
+        usage: { inputTokens: 40, outputTokens: 10, cachedInputTokens: 25 },
       },
     });
     await handle.append({
@@ -146,7 +146,7 @@ describe("work show", () => {
     expect(text).toContain(work.id);
     expect(text).toContain("completed");
     expect(text).toContain("summary.md を作成");
-    expect(text).toContain("入力 70 トークン");
+    expect(text).toContain("入力 70 トークン(うちキャッシュ 25)");
     expect(text).toContain("出力 15 トークン");
     expect(text).toContain("fs_write summary.md");
     expect(text).toContain("次に動く人はいません");
