@@ -83,7 +83,7 @@ describe("AnthropicProvider", () => {
     expect(response.stopReason).toBe("end_turn");
     expect(response.message.content).toEqual([{ type: "text", text: "7月の経費は 350 円です。" }]);
     expect(response.usage).toEqual({
-      inputTokens: 1200,
+      inputTokens: 2200,
       outputTokens: 25,
       cachedInputTokens: 1000,
       cacheWriteTokens: 0,
@@ -103,7 +103,7 @@ describe("AnthropicProvider", () => {
     expect(body.model).toBe("claude-opus-5");
     expect(body.max_tokens).toBe(4000);
     expect(body.system).toBe("あなたは経理担当です。");
-    expect(body.cache_control).toEqual({ type: "ephemeral" });
+    expect(body.cache_control).toBeUndefined();
     expect(body.tools).toEqual([
       {
         name: "csv_read",
@@ -118,6 +118,38 @@ describe("AnthropicProvider", () => {
     expect(body.messages).toEqual([
       { role: "user", content: [{ type: "text", text: "7月の経費を集計して" }] },
     ]);
+  });
+
+  test("anchors the prompt cache on the last message that will not change next turn", async () => {
+    const { calls, provider } = recorded(200, await fixture("text-only"));
+
+    await provider.generate({
+      ...request,
+      messages: [
+        ...request.messages,
+        {
+          role: "assistant",
+          content: [{ type: "tool_call", id: "c1", name: "csv_read", input: {} }],
+        },
+        {
+          role: "user",
+          content: [{ type: "tool_result", callId: "c1", content: "a,b", isError: false }],
+        },
+        {
+          role: "user",
+          content: [{ type: "text", text: "残り model 呼び出し 3 回、Tool 呼び出し 3 回" }],
+        },
+      ],
+      stableMessages: 3,
+    });
+
+    const messages = (calls[0]?.body.messages ?? []) as { content: Record<string, unknown>[] }[];
+    expect(messages[2]?.content[0]).toMatchObject({
+      type: "tool_result",
+      cache_control: { type: "ephemeral" },
+    });
+    expect(messages[3]?.content[0]?.cache_control).toBeUndefined();
+    expect(messages[0]?.content[0]?.cache_control).toBeUndefined();
   });
 
   test("puts providerOptions on the request, with effort as a shorthand for output_config", async () => {

@@ -151,6 +151,7 @@ async function loop(
           tools: projection.tools,
           maxOutputTokens: limits.maxOutputTokens,
           budget: projection.budget,
+          stableMessages: projection.messages.length - 1,
           ...(runtime.config.model.options && { providerOptions: runtime.config.model.options }),
         },
         options.signal,

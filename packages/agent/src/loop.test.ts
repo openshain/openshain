@@ -708,6 +708,8 @@ describe("runWork tells the model its budget", () => {
 
     expect(model.requests[0]?.budget).toEqual({ modelCallsLeft: 5, toolCallsLeft: 3 });
     expect(model.requests[1]?.budget).toEqual({ modelCallsLeft: 4, toolCallsLeft: 2 });
+    expect(model.requests[0]?.stableMessages).toBe(1);
+    expect(model.requests[1]?.stableMessages).toBe(3);
   });
 });
 

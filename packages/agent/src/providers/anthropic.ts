@@ -83,7 +83,8 @@ export class AnthropicProvider implements ModelProvider {
  * thinking, output_config and cache_control can be set or overridden from the config; `effort`
  * alone is a shorthand for output_config.effort. The model, the limit, the system prompt, the
  * tools, the messages and the choice not to stream come from the runtime and cannot be
- * overridden. The last cacheable block is cached by default.
+ * overridden. A cache breakpoint goes on the last block of the last message that will be sent
+ * unchanged next turn (`stableMessages`), so the next turn reads that prefix from the cache.
  */
 export function toParams(
   request: ModelRequest,
@@ -104,8 +105,9 @@ export function toParams(
     ...(output_config as Record<string, unknown> | undefined),
     ...(effort !== undefined && { effort }),
   };
+  const messages = request.messages.map(toMessage);
+  anchorCache(messages, request.stableMessages ?? 0);
   return {
-    cache_control: { type: "ephemeral" },
     ...extra,
     ...(Object.keys(outputConfig).length > 0 && { output_config: outputConfig }),
     model,
@@ -113,8 +115,18 @@ export function toParams(
     max_tokens: request.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
     ...(request.system && { system: request.system }),
     ...(request.tools && request.tools.length > 0 && { tools: request.tools.map(toTool) }),
-    messages: request.messages.map(toMessage),
+    messages,
   } as Anthropic.MessageCreateParamsNonStreaming;
+}
+
+/** Marks the last block of the last stable message, the point up to which the next turn is identical. */
+function anchorCache(messages: Anthropic.MessageParam[], stable: number): void {
+  const anchor = messages[stable - 1];
+  if (!anchor || !Array.isArray(anchor.content)) return;
+  const last = anchor.content.at(-1);
+  if (last && (last.type === "text" || last.type === "tool_result" || last.type === "tool_use")) {
+    last.cache_control = { type: "ephemeral" };
+  }
 }
 
 /** The SDK appends /v1/messages itself, so a base URL that ends in /v1 loses that part. */
@@ -212,8 +224,10 @@ function toStopReason(reason: string | null, hasToolUse: boolean): StopReason {
 
 function toUsage(usage: Anthropic.Usage | undefined): ModelUsage {
   const thinking = usage?.output_tokens_details?.thinking_tokens;
+  const read = usage?.cache_read_input_tokens ?? 0;
+  const written = usage?.cache_creation_input_tokens ?? 0;
   return {
-    inputTokens: usage?.input_tokens ?? 0,
+    inputTokens: (usage?.input_tokens ?? 0) + read + written,
     outputTokens: usage?.output_tokens ?? 0,
     ...(usage?.cache_read_input_tokens != null && {
       cachedInputTokens: usage.cache_read_input_tokens,
