@@ -12,7 +12,6 @@ import {
 } from "@openshain/core";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
-import safeRegex from "safe-regex2";
 
 /** Files larger than this are not opened at all. What a tool returns is a window, far smaller. */
 export const MAX_READ_BYTES = 1024 * 1024;
@@ -69,7 +68,9 @@ const definitions: ToolDefinition[] = [
         path: { ...pathProperty, default: "." },
         pattern: {
           type: "string",
-          description: "Glob on the entry name, for example *.csv or 2026-*.",
+          minLength: 1,
+          description:
+            "Wildcard on the entry name, for example *.csv or 2026-*. * matches any run of characters and ? one character.",
         },
         limit: limitProperty("entries", DEFAULT_WINDOW.fs_list, 1000),
       },
@@ -80,14 +81,15 @@ const definitions: ToolDefinition[] = [
   {
     name: "fs_search",
     description:
-      "Search the text files inside the workspace for a string, or for a regular expression when regex is true. Returns up to limit matches (default 100) with the file path, the line number and the matching line, and whether more matches were cut off. path narrows the search to a directory or to a single file. Hidden entries, symlinks, binary files and files over 1 MiB are skipped.",
+      "Search the text files inside the workspace for a pattern. In the pattern, * matches any run of characters and ? one character; everything else matches literally, so it is not a regular expression. Returns up to limit matches (default 100) with the file path, the line number and the matching line, and whether more matches were cut off. path narrows the search to a directory or to a single file. Hidden entries, symlinks, binary files and files over 1 MiB are skipped.",
     inputSchema: {
       type: "object",
       properties: {
         pattern: {
           type: "string",
           minLength: 1,
-          description: "Text to look for, or a regular expression when regex is true.",
+          description:
+            "Text to look for. * matches any run of characters and ? one character; other characters, including . ( ) [ ] and |, match literally.",
         },
         path: {
           ...pathProperty,
@@ -95,7 +97,6 @@ const definitions: ToolDefinition[] = [
           description:
             "Directory or file to search, relative to the workspace root. Defaults to the whole workspace.",
         },
-        regex: { type: "boolean", default: false },
         limit: limitProperty("matches", DEFAULT_WINDOW.fs_search, 1000),
       },
       required: ["pattern"],
@@ -150,7 +151,7 @@ const definitions: ToolDefinition[] = [
   {
     name: "csv_aggregate",
     description:
-      "Count and total the rows of a CSV file with a header row, over the whole file in one call. group_by names the columns to group by (omit it for a single group), sum names the numeric columns to total, filter keeps only the rows whose columns equal the given values. Returns one entry per group, ordered by the group's values, with its row count and, for each summed column, the sum, min, max, the number of numeric cells and the number of cells skipped as non-numeric. Cells such as 1,200 or ¥300 count as numbers.",
+      "Count and total the rows of a CSV file with a header row, over the whole file in one call. group_by names the columns to group by (omit it for a single group), sum names the numeric columns to total, filter keeps only the rows whose columns equal the given values. Returns one entry per group, ordered by the group's values, with its row count and, for each summed column, the sum, min, max, the number of numeric cells and the number of cells skipped as non-numeric. Cells such as 1,200, ¥300 or full-width １２３ count as numbers.",
     inputSchema: {
       type: "object",
       properties: {
@@ -214,7 +215,11 @@ const definitions: ToolDefinition[] = [
       type: "object",
       properties: {
         path: pathProperty,
-        section: { type: "string", description: "Text of the heading whose section to return." },
+        section: {
+          type: "string",
+          minLength: 1,
+          description: "Text of the heading whose section to return.",
+        },
         limit: limitProperty("lines", DEFAULT_WINDOW.markdown_read, 2000),
       },
       required: ["path"],
@@ -234,7 +239,12 @@ export function standardTools(): ToolProvider {
       const path = typeof input.path === "string" ? input.path : ".";
       switch (call.name) {
         case "fs_list":
-          return fsList(ctx, path, text(input.pattern), count(input.limit, DEFAULT_WINDOW.fs_list));
+          return fsList(
+            ctx,
+            path,
+            nonEmpty(input.pattern),
+            count(input.limit, DEFAULT_WINDOW.fs_list),
+          );
         case "fs_search":
           return fsSearch(ctx, path, input);
         case "fs_read":
@@ -261,7 +271,7 @@ export function standardTools(): ToolProvider {
           return markdownRead(
             ctx,
             path,
-            text(input.section),
+            nonEmpty(input.section),
             count(input.limit, DEFAULT_WINDOW.markdown_read),
           );
         default:
@@ -279,7 +289,7 @@ async function fsList(
 ): Promise<ToolResult> {
   const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
   const root = await resolveWorkspacePath(ctx.workspaceRoot, ".");
-  const matches = pattern === undefined ? () => true : globMatcher(pattern);
+  const matches = pattern === undefined ? () => true : wildcardMatcher(pattern);
   const entries = (await readdir(resolved, { withFileTypes: true }))
     .filter((entry) => visible(entry.name, resolved === root))
     .filter((entry) => matches(entry.name))
@@ -306,8 +316,9 @@ async function fsSearch(
   const pattern = text(input.pattern) ?? "";
   if (pattern === "") return failure("pattern must not be empty");
   const limit = count(input.limit, DEFAULT_WINDOW.fs_search);
-  const test = input.regex === true ? regexTest(pattern) : (line: string) => line.includes(pattern);
-  if (typeof test === "string") return failure(test);
+  const test = /[*?]/.test(pattern)
+    ? wildcardMatcher(`*${pattern}*`)
+    : (line: string) => line.includes(pattern);
 
   const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
   const root = await resolveWorkspacePath(ctx.workspaceRoot, ".");
@@ -317,21 +328,16 @@ async function fsSearch(
   let truncated = false;
   const files = (await stat(resolved)).isFile() ? [resolved] : walk(resolved, root);
   search: for await (const file of files) {
-    if (filesSearched >= MAX_SEARCH_FILES) {
+    if (filesSearched + filesSkipped >= MAX_SEARCH_FILES) {
       truncated = true;
       break;
     }
-    if ((await stat(file)).size > MAX_READ_BYTES) {
-      filesSkipped += 1;
-      continue;
-    }
-    const buffer = await readFile(file);
-    if (buffer.subarray(0, 8192).includes(0)) {
+    if ((await stat(file)).size > MAX_READ_BYTES || (await looksBinary(file))) {
       filesSkipped += 1;
       continue;
     }
     filesSearched += 1;
-    const lines = splitLines(buffer.toString("utf8"));
+    const lines = splitLines(await readFile(file, "utf8"));
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? "";
       if (!test(line)) continue;
@@ -648,31 +654,56 @@ function compareValues(a: string[], b: string[]): number {
   return 0;
 }
 
-/** `*` matches any run of characters and `?` one character; everything else is literal. */
-function globMatcher(pattern: string): (name: string) => boolean {
-  const source = [...pattern]
-    .map((ch) => (ch === "*" ? ".*" : ch === "?" ? "." : ch.replace(/[.+^${}()|[\]\\]/g, "\\$&")))
-    .join("");
-  const re = new RegExp(`^${source}$`, "u");
-  return (name) => re.test(name);
+/**
+ * Matches a whole string against a pattern in which `*` stands for any run of characters and `?`
+ * for one character; everything else is literal. Takes time proportional to the pattern times the
+ * subject, so a pattern the model writes cannot stall the run the way a backtracking regular
+ * expression can.
+ */
+function wildcardMatcher(pattern: string): (subject: string) => boolean {
+  const p = [...pattern];
+  return (subject) => {
+    const s = [...subject];
+    let pi = 0;
+    let si = 0;
+    let starP = -1;
+    let starS = 0;
+    while (si < s.length) {
+      if (pi < p.length && (p[pi] === "?" || p[pi] === s[si])) {
+        pi += 1;
+        si += 1;
+      } else if (pi < p.length && p[pi] === "*") {
+        starP = pi;
+        starS = si;
+        pi += 1;
+      } else if (starP >= 0) {
+        pi = starP + 1;
+        starS += 1;
+        si = starS;
+      } else {
+        return false;
+      }
+    }
+    while (pi < p.length && p[pi] === "*") pi += 1;
+    return pi === p.length;
+  };
 }
 
-/** A line test for a regular expression, or the reason it cannot be used. */
-function regexTest(pattern: string): ((line: string) => boolean) | string {
-  if (!safeRegex(pattern)) {
-    return `the regular expression "${pattern}" could take too long to run; make it simpler`;
-  }
+/** A NUL byte in the first 8 KiB marks a file the search skips. */
+async function looksBinary(file: string): Promise<boolean> {
+  const handle = await open(file, "r");
   try {
-    const re = new RegExp(pattern, "u");
-    return (line) => re.test(line);
-  } catch (err) {
-    return `invalid regular expression: ${(err as Error).message}`;
+    const head = Buffer.alloc(8192);
+    const { bytesRead } = await handle.read(head, 0, head.length, 0);
+    return head.subarray(0, bytesRead).includes(0);
+  } finally {
+    await handle.close();
   }
 }
 
-/** Cells such as 1,200, ¥300 or -50.5 are numbers; anything else is skipped. */
+/** Cells such as 1,200, ¥300, １２３ or -50.5 are numbers; anything else is skipped. */
 function toNumber(cell: string): number | undefined {
-  const cleaned = cell.trim().replace(/[,¥$\s]/g, "");
+  const cleaned = cell.normalize("NFKC").replace(/[,¥$\s]/g, "");
   return /^[-+]?(\d+\.?\d*|\.\d+)$/.test(cleaned) ? Number(cleaned) : undefined;
 }
 
@@ -688,9 +719,9 @@ function accumulate(totals: Totals, cell: string): void {
   totals.max = totals.max === null ? value : Math.max(totals.max, value);
 }
 
-/** Hides the noise of binary floating point in a sum of decimals, such as 0.1 + 0.2. */
+/** Hides the noise of binary floating point in a sum of decimals, such as 0.1 + 0.2. Integers stay exact. */
 function tidy(n: number): number {
-  return Number(n.toPrecision(15));
+  return Number.isInteger(n) ? n : Number(n.toPrecision(15));
 }
 
 /** Lines of a text, without the empty line a trailing newline would add. */
@@ -711,6 +742,10 @@ function clip(line: string): string {
 
 function text(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+function nonEmpty(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function count(value: unknown, fallback: number): number {

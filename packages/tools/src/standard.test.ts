@@ -326,6 +326,16 @@ describe("standard tools", () => {
     );
   });
 
+  test("csv_aggregate keeps integer sums exact and reads full-width digits", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, "wide.csv"), "x\n1234567890123456\n１２３\n￥４５\n1\n");
+
+    const result = await call("csv_aggregate", { path: "wide.csv", sum: ["x"] });
+
+    const totals = (jsonOf(result).groups as { totals: { x: unknown } }[])[0]?.totals.x;
+    expect(totals).toMatchObject({ sum: 1234567890123625, count: 4, skipped: 0 });
+  });
+
   test("csv_aggregate cuts the groups at limit", async () => {
     const { root, call } = await workspace();
     await writeFile(join(root, "ledger.csv"), LEDGER);
@@ -418,6 +428,15 @@ describe("standard tools", () => {
     expect(messageOf(result)).toContain("7月, 交通費, 内訳");
   });
 
+  test("markdown_read treats an empty section as no section", async () => {
+    const { call } = await workspace();
+
+    const result = await call("markdown_read", { path: "notes.md", section: "" });
+
+    expect(jsonOf(result)).toMatchObject({ offset: 0, returned: 9, truncated: false });
+    expect(jsonOf(result).section).toBeUndefined();
+  });
+
   test("markdown_read cuts a long file at limit but keeps the whole outline", async () => {
     const { root, call } = await workspace();
     const lines = Array.from({ length: 300 }, (_, i) => (i === 249 ? "## 後半" : `行 ${i + 1}`));
@@ -491,21 +510,34 @@ describe("standard tools", () => {
     });
   });
 
-  test("fs_search takes a regular expression when asked, and refuses one that could run away", async () => {
-    const { call } = await workspace();
+  test("fs_search treats * and ? as wildcards and everything else literally", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, "odd.txt"), "price (net): 30\n");
 
-    const found = await call("fs_search", {
-      pattern: "Acme|Quote",
-      regex: true,
+    const wild = await call("fs_search", {
+      pattern: "2026-07-0?,*Q*",
       path: "receipts/2026-07.csv",
     });
-    const refused = await call("fs_search", { pattern: "(a+)+$", regex: true });
-    const broken = await call("fs_search", { pattern: "(", regex: true });
+    const literal = await call("fs_search", { pattern: "(net)" });
+    const noRegex = await call("fs_search", { pattern: "Acme|Quote" });
 
-    expect((jsonOf(found).matches as { line: number }[]).map((m) => m.line)).toEqual([2, 3]);
-    expect(refused.isError).toBe(true);
-    expect(messageOf(refused)).toContain("too long");
-    expect(broken.isError).toBe(true);
+    expect((jsonOf(wild).matches as { line: number }[]).map((m) => m.line)).toEqual([3]);
+    expect(jsonOf(literal).matches).toEqual([
+      { path: "odd.txt", line: 1, text: "price (net): 30" },
+    ]);
+    expect(jsonOf(noRegex).matches).toEqual([]);
+  });
+
+  test("fs_list and fs_search answer a pattern full of wildcards without stalling", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, `${"a".repeat(200)}.txt`), `${"a".repeat(5000)}\n`);
+    const pattern = "*a*a*a*a*a*a*a*a*a*a*c";
+
+    const listed = await call("fs_list", { path: ".", pattern });
+    const found = await call("fs_search", { pattern });
+
+    expect(jsonOf(listed)).toMatchObject({ total: 0 });
+    expect(jsonOf(found)).toMatchObject({ matches: [], truncated: false });
   });
 
   test("fs_search stops at limit and says so", async () => {

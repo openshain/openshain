@@ -285,8 +285,8 @@ Tool の結果は観測であって転送ではない。ファイルを丸ごと
 
 | name | effect | 入力 | 返すもの |
 |---|---|---|---|
-| `fs_list` | observe | `path`(既定 `.`)、`pattern`(名前の glob)、`limit`(既定 200) | 項目の名前、種類、サイズ。全件数と、切ったかどうか。再帰しない |
-| `fs_search` | observe | `pattern`、`path`(既定 `.`。ディレクトリかファイル)、`regex`(既定 false)、`limit`(既定 100) | 一致した行の path、行番号、本文。隠し項目、symlink、バイナリ、1 MiB 超のファイルは飛ばす。正規表現は破局的な後退がないか確かめてから使う |
+| `fs_list` | observe | `path`(既定 `.`)、`pattern`(名前の wildcard。`*` と `?`)、`limit`(既定 200) | 項目の名前、種類、サイズ。全件数と、切ったかどうか。再帰しない |
+| `fs_search` | observe | `pattern`(`*` と `?` だけが wildcard。他の文字はそのまま)、`path`(既定 `.`。ディレクトリかファイル)、`limit`(既定 100) | 一致した行の path、行番号、本文。隠し項目、symlink、バイナリ、1 MiB 超のファイルは飛ばす。正規表現は受け取らない |
 | `fs_read` | observe | `path`、`offset`(行)、`limit`(既定 200 行) | 窓の本文と、全行数、バイト数、続きがあるか |
 | `fs_write` | mutate | `path`、`content` | 書いた path と sha256(`after`) |
 | `csv_read` | observe | `path`、`offset`(行)、`limit`(既定 50 行) | 列名、全行数、窓の行(1 行 1 オブジェクト)、続きがあるか |
