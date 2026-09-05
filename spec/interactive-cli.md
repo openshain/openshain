@@ -1,6 +1,6 @@
 # Spec: 対話型 CLI(セッション)
 
-Status: draft v0.1
+Status: v0.1(実装済み。完了の条件 1 から 7 を満たす)
 
 ## 目的
 
@@ -28,7 +28,7 @@ Status: draft v0.1
 - 新しいイベント `human.message`。payload は `text`。人の発言で、投影では user message になる
 - `work.created` の payload に任意の `parent`(親 Work の id)を足す。無ければ今までどおり
 - 担当の返答は `model.completed`、担当の道具の呼び出しは `tool.called` と `tool.completed`(provider `runtime`)、使用量は `usage.recorded`。すべて既存の形
-- セッションの終了は `work.completed`(summary は `会話を終了`)。プロセスが落ちたセッションは `in_progress` のまま残る
+- セッションの終了は `work.completed`(summary は `会話を終了`)。端末が閉じたとき(SIGHUP)と停止の信号(SIGTERM)でも閉じてから終わる。それ以外でプロセスが落ちたセッションは `in_progress` のまま残る
 
 ## 担当の道具
 
