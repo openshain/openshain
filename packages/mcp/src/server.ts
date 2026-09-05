@@ -16,7 +16,6 @@ import {
   isOpenshainError,
   isTerminal,
   loadConfig,
-  type OpenshainError,
   parseWorkId,
   type RuntimeProviders,
   resolveWorkspacePath,
