@@ -1,0 +1,84 @@
+# `@openshain/tools` の設計
+
+標準 Tool は、Runtime が model に見せる「何ができるか」の面。model は Tool を呼ぶ提案をするだけで、入力の検証、許可、実行、記録は Runtime(core)がやる。標準 Tool は 8 つ。fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read。Office 文書と Email は後の版で足す。
+
+標準といっても、Runtime から見れば第三者の Tool と同格。同じ ToolProvider の契約を通り、同じ許可リストに従い、同じ path guard を通る。標準 Tool だけが使える Runtime の入口はない。
+
+## 結果は観測であって転送ではない
+
+決めたこと。観測する Tool(fs_list、fs_search、fs_read、csv_read、csv_aggregate、markdown_read)は、ファイルの全体ではなく窓を返す。結果の先頭に JSON で件数と窓の位置と続きの有無を置き、本文はその後に続ける。既定の窓は小さく、続きは `offset` と `limit` で model が取りに行く。数値は spec の表にある。
+
+理由。context に入れたものは、そのターンだけでなく以後の全ターンで毎回入力として送られ、課金され、注意を薄める。架空の会社の 296 行の CSV で測ったとき、csv_read が全行を返す版では Tool の結果 1 つが 48,115 文字あり、Work 全体の入力が 68,346 トークン、出力が 7,326 トークンだった。窓と集計に変えた版では、同じ依頼が入力 30,985 トークン、出力 2,169 トークンで終わり、結果の数字は一致した。出力が 3 分の 1 になったのは、model が行を読み上げながら足し算していたのをやめたからだ。
+
+捨てた案。
+
+- 全行を返し、Runtime の 50,000 文字の切り詰めに任せる。切り詰めは事故を止めるもので、context を守る設計ではない。切られた行は model からも見えなくなり、合計が黙って欠ける。
+- Tool の側で要約して返す。要約は解釈で、model が読み間違えたときに元へ戻れない。窓と件数なら、model が自分で続きを取れる。
+- 投影の圧縮(古い Tool の結果を畳む)で対処する。圧縮は後の版で入れるが、入ったあとも最初から小さいほうが安く、再現もしやすい。
+
+変える条件。変えない。context が安くなっても、転送は観測に戻せない。
+
+## 数える、足す、探すは Tool がやる
+
+決めたこと。csv_aggregate(`group_by`、`sum`、`filter`)と fs_search を持つ。model が行を読んで足す道は、csv_read と fs_read の説明文で塞ぐ。合計には csv_aggregate を使え、と書いてある。
+
+理由。model の足し算は毎回同じ結果にならず、検証もできない。Tool の集計は決定的で、テストで固定できる。数字は Runtime の側で作り、model は表に写すだけにする。
+
+集計の形。グループごとの行数と、`sum` に挙げた列ごとの sum、min、max、数値だった件数、数値でなく飛ばした件数。飛ばした件数を返すのは、`n/a` や空欄が混じった列で合計が静かに欠けるのを model に見せるため。`1,200` や `¥300` を数値として読むのは、日本の台帳ではその書き方が普通だから。無い列を指定されたら、列名の一覧を `isError` で返す。列名を推測させるより、見せて選ばせるほうが呼び出し回数が減る。
+
+捨てた案。SQL や式言語を受け取る汎用の集計 Tool。強力だが、model が書いた式の検証が難しく、注入の入口にもなる。形を固定した Tool のほうが、後で権限の判定(どの列を見てよいか)にも載せやすい。
+
+変える条件。`group_by` と `sum` で足りない集計が具体的に出たとき、式言語ではなく Tool を 1 つ足す。
+
+## 説明文は出力の意味まで書く
+
+model が読む Tool の面は、名前、説明、入力 schema の 3 つしかない。だから説明文には、何を返すか、何を返さないか、代わりに何を使うかまで書く。返す形を変えたら説明文も変える。説明文は model が読む文なので英語で書き、利用者向けの文言は CLI が持つ。
+
+## 出典を付ける
+
+観測する Tool は `observation`(source と retrievedAt)を返し、Runtime が `tool.completed` に残す。結果が何をいつ見たものかを後から辿るため。今は path と時刻だけで、版や有効日は文書の種類が増えたときに足す。
+
+## workspace の外に出ない
+
+決めたこと。すべての Tool が core の path guard を通す。相対パスだけを受け、`..` と絶対パス、symlink の先が外を指すもの、予約パス(`openshain.yaml`、`work/`)、先頭が `.` の項目を拒否する。判定は大文字小文字を区別しない。書き込みは O_NOFOLLOW で開く。fs_list と fs_search は隠し項目と予約パスを見せない。
+
+理由。パスは model が書く入力で、信用しない。`.git`、`.env`、Runtime 自身の記録を Tool から触らせない。symlink を 1 段ずつ辿って行き先で判定するのは、workspace 内のリンクから外へ抜ける経路を閉じるため。読めないものを一覧に出さないのは、model が読もうとして拒否され、呼び出し回数を無駄にするから。
+
+## 上限は 2 段
+
+1 MiB を超えるファイルは開かない。Tool の結果は Runtime が 50,000 文字で切る。窓が context を守り、上限が事故を止める。役割が違うので両方ある。書き込みも同じ 1 MiB で止め、Tool が書いたものは Tool が開ける形にしてある。
+
+変える条件。1 MiB は経理の CSV と Markdown を見て決めた値で、Office 文書を足すときに見直す。
+
+## 書き込みは直接、ただし記録する
+
+決めたこと。fs_write と csv_write は今は直接書く。結果に `after`(path と sha256)を返し、Runtime が記録する。Work の完了時に Runtime がファイルからハッシュを計算し直し、model の申告と食い違っても Runtime の値が残る。
+
+理由。提案、差分、承認、適用の順に進める ChangeSet は後の版で入れる。今の版で直接書いてよいのは、書き先が workspace の中に限られているから。外部の SaaS に書く Tool はこの形では足さない。
+
+変える条件。ChangeSet が入ったら、`effect: "mutate"` の Tool はすべてそこを通す。`effect` はその差し込み口として今から付けてある。
+
+## CSV の数式を無害化する
+
+csv_write は `=`、`+`、`@` で始まるセルに `'` を付ける。`-` は負数を除いて同じ。利用者は書いた CSV を Excel で開く。model の出力に紛れた式がそこで実行されるのを防ぐ。
+
+## 同じ入力には同じ出力
+
+fs_list と fs_search はコードポイント順、csv_aggregate のグループはグループの値の順に並べる。locale に依存する並びは使わない。投影が byte 単位で再現できることが Runtime の前提で、Tool の結果もその一部。テストが機械を選ばなくなる。
+
+## 正規表現は検査してから使う
+
+fs_search の `regex` は safe-regex2 で破局的な後退を検査し、危ないものは `isError` で返す。パターンは model が書く。Tool の呼び出し 1 つが Runtime を止めてはいけない。Tool 定義の schema にある `pattern` を core が同じ理由で検査しているのと対になる。
+
+## 公開面
+
+export するのは `standardTools()`、`MAX_READ_BYTES`、`MAX_WRITE_BYTES`、`DEFAULT_WINDOW`。Tool の中の関数は出さない。標準 Tool を拡張したい人は継承ではなく provider を 1 つ足し、設定で並べる。provider の組み合わせは設定で決めるものだから。
+
+## 捨てた案(package 全体)
+
+- Tool の種類ごとに package を分ける(fs、csv、markdown)。今は 1 ファイルで足りる。分けるのは Office 文書で依存が増えたとき。
+- Node の fs の前に抽象 FS を挟む。差し替える実装がない。
+
+## これから
+
+Office 文書(xlsx、docx、pdf)と Email。表は csv_read と同じ窓と集計で読めるようにし、文書は markdown_read と同じ見出しと節で読めるようにする。形式ごとに別の読み方を model に覚えさせない。

@@ -32,7 +32,7 @@ Claude や Codex、Gemini のような汎用 Agent は、そのままでは会�
 - Official has no hidden privilege。公式実装と第三者実装は同じ contract を使う
 - Paid means easiest。有償版が引き受けるのは運用で、機能の解禁ではない
 
-全文は [docs/principles.md](docs/principles.md)。リポジトリの構成は [AGENTS.md](AGENTS.md)。
+全文は [docs/principles.md](docs/principles.md)。各 package をなぜその形にしたかは [docs/design/](docs/design/README.md)。リポジトリの構成は [AGENTS.md](AGENTS.md)。
 
 ## 開発
 

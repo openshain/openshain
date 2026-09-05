@@ -23,7 +23,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - `packages/mcp` MCP server exposing the runtime
 - `packages/cli` the `openshain` reference CLI
 - `spec/` human-readable specs and JSON Schemas generated from `packages/core`
-- `docs/` user-facing documentation in Japanese
+- `docs/` user-facing documentation in Japanese; `docs/design/` says why each package is shaped as it is
 - `packs/` profession packs (none yet)
 - `examples/` fictional sample companies and sample extensions such as tool providers
 
@@ -41,6 +41,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Work in thin vertical slices: one contract, one command or one tool at a time, each with its test, before widening.
 - Prefer the boring solution. A new abstraction needs two concrete uses.
 - A tool that observes returns a window and the counts around it, never a whole file. Counting, adding and searching happen in the tool, not in the model.
+- When a change alters how a package works, update its note under `docs/design/` in the same commit. The note holds the reasons; the spec holds the numbers.
 - Touch only what the task needs. Do not reformat, rename or clean up unrelated code.
 - If the spec, the code and this file disagree, stop and ask. Do not pick one silently.
 - A change is done when `bun run typecheck`, `bun run lint` and `bun test` pass and the new behavior has a test. Run them; do not claim completion from reading alone.
