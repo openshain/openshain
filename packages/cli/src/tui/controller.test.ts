@@ -118,7 +118,7 @@ describe("the screen's controller", () => {
     expect(controller.state().status.work?.status).toBe("completed");
   });
 
-  test("stops a running work on interrupt and resumes it on /resume", async () => {
+  test("stops a running work on interrupt and resumes it on /work resume", async () => {
     const { controller, runtime } = await setup([
       callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
       callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
@@ -138,16 +138,16 @@ describe("the screen's controller", () => {
 
     const child = (await runtime.works.list()).works.find((w) => w.type === "request");
     expect(child?.status).toBe("in_progress");
-    expect(texts(controller, "notice").at(-1)).toContain(`/resume ${child?.id}`);
+    expect(texts(controller, "notice").at(-1)).toContain(`/work resume ${child?.id}`);
 
-    await controller.submit(`/resume ${child?.id}`);
+    await controller.submit(`/work resume ${child?.id}`);
 
     expect((await runtime.works.get(child?.id as never)).status).toBe("completed");
     expect(texts(controller, "line").some((l) => l.includes("続きをやりました"))).toBe(true);
     expect(controller.interrupt()).toBe(false);
   });
 
-  test("Ctrl-C while a work waits for an answer takes the question back, and /resume asks again", async () => {
+  test("Ctrl-C while a work waits for an answer takes the question back, and /work resume asks again", async () => {
     const { controller, runtime } = await setup([
       callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
       callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
@@ -163,9 +163,9 @@ describe("the screen's controller", () => {
     expect(controller.state().busy).toBe(false);
     const child = (await runtime.works.list()).works.find((w) => w.type === "request");
     expect(child?.status).toBe("waiting_input");
-    expect(texts(controller, "notice").at(-1)).toContain(`/resume ${child?.id}`);
+    expect(texts(controller, "notice").at(-1)).toContain(`/work resume ${child?.id}`);
 
-    const resumed = controller.submit(`/resume ${child?.id}`);
+    const resumed = controller.submit(`/work resume ${child?.id}`);
     await waitFor(() => controller.state().question !== undefined);
     await controller.submit("7月");
     await resumed;
@@ -174,7 +174,7 @@ describe("the screen's controller", () => {
     expect(texts(controller, "line").some((l) => l.includes("7月分は 100 円"))).toBe(true);
   });
 
-  test("Ctrl-C stops a work that /resume is driving", async () => {
+  test("Ctrl-C stops a work that /work resume is driving", async () => {
     const { controller, runtime } = await setup([
       callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
       callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
@@ -205,11 +205,11 @@ describe("the screen's controller", () => {
     expect(child?.status).toBe("in_progress");
 
     result = stopAtToolLine();
-    await controller.submit(`/resume ${child?.id}`);
+    await controller.submit(`/work resume ${child?.id}`);
 
     expect(result()).toBe(true);
     expect((await runtime.works.get(child?.id as never)).status).toBe("in_progress");
-    expect(texts(controller, "notice").at(-1)).toContain(`/resume ${child?.id}`);
+    expect(texts(controller, "notice").at(-1)).toContain(`/work resume ${child?.id}`);
     expect(controller.state().busy).toBe(false);
     expect(controller.interrupt()).toBe(false);
   });
@@ -241,13 +241,15 @@ describe("the screen's controller", () => {
     await controller.submit("/help");
     await controller.submit("/work list");
     await controller.submit("/tools");
+    await controller.submit("/resume");
     await controller.submit("/nope");
     await controller.submit("/quit");
 
     const lines = texts(controller, "line");
-    expect(lines.some((l) => l.startsWith("/resume"))).toBe(true);
+    expect(lines.some((l) => l.startsWith("/work resume"))).toBe(true);
     expect(lines.some((l) => l.includes(controller.sessionId))).toBe(true);
     expect(lines.some((l) => l.includes("fs_read"))).toBe(true);
+    expect(texts(controller, "notice").at(-2)).toContain("/work resume <id>");
     expect(texts(controller, "notice").at(-1)).toContain("/help");
     expect(controller.state().closed).toBe(true);
     expect((await runtime.works.get(controller.sessionId)).status).toBe("completed");

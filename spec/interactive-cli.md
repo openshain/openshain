@@ -58,8 +58,8 @@ Runtime が提供します。名前は予約で、Tool provider は同じ名前�
 - 履歴は画面の中でスクロールします。PageUp と PageDown で 1 画面、上下の矢印で 1 行、Home で先頭、End で最新です。端末が対応していればマウスホイールも矢印として届きます。上を見ている間は状態行にその旨を出し、発言を送ると最新に戻ります
 - 入力欄は 1 行です。貼り付けた文に改行が含まれていれば、最初の改行までを送り、残りは入力欄に残します
 - 終了すると元の画面に戻り、会話は端末に残りません。記録の読み方(`openshain work show <セッションの id>`)を 1 行出します
-- スラッシュコマンドは `/work list`、`/work show <id>`、`/resume <id>`(止まった Work を続けます。質問は画面で答えます)、`/tools`、`/help`、`/quit` です
-- Ctrl-C は、子 Work が動いていれば中断します(Work は `in_progress` で残り、`/resume` で続きます)。子 Work が質問を待っていれば質問を取り下げます(Work は `waiting_input` で残り、`/resume` でもう一度聞きます)。`/resume` で動かしている Work も同じです。動いていなければセッションを閉じます
+- スラッシュコマンドは `/work list`、`/work show <id>`、`/work resume <id>`(止まった Work を続けます。質問は画面で答えます)、`/tools`、`/help`、`/quit` です。`/resume` はセッションの再開のために空けてあり、今はその旨を返します
+- Ctrl-C は、子 Work が動いていれば中断します(Work は `in_progress` で残り、`/work resume` で続きます)。子 Work が質問を待っていれば質問を取り下げます(Work は `waiting_input` で残り、`/work resume` でもう一度聞きます)。`/work resume` で動かしている Work も同じです。動いていなければセッションを閉じます
 - 文言は日本語です。CLI の既存の表を使います。注意の行と質問には色を付けます
 
 ## 設定
@@ -74,7 +74,7 @@ Runtime が提供します。名前は予約で、Tool provider は同じ名前�
 
 1. `openshain` で対話が始まり、「receipt/2026-07.csv を category ごとに集計して」と打つと子 Work ができ、進捗が出て、結果が返ります。子 Work の `parent` がセッションを指します
 2. 子 Work の質問に画面で答えられ、答えが子 Work の記録に入ります
-3. Ctrl-C で子 Work が中断され、`/resume <id>` で続きます
+3. Ctrl-C で子 Work が中断され、`/work resume <id>` で続きます
 4. `work show <セッションの id>` で会話の使用量の合計が出て、記録から会話を並べ直せます
 5. 社員エージェントがファイルの Tool を持たないことをテストで確かめます
 6. 1 から 5 を `bun test` で再現します。model は fake、画面は ink-testing-library です
@@ -82,5 +82,5 @@ Runtime が提供します。名前は予約で、Tool provider は同じ名前�
 
 ## 未決
 
-- セッションの再開と、複数のセッションを並べる形
+- セッションの再開(`/resume <セッションの id>` を予定)と、複数のセッションを並べる形
 - 質問待ちや完了を端末の外へ知らせる形

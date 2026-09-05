@@ -60,7 +60,7 @@ export interface ControllerOptions {
 const HELP = [
   "/work list         Work の一覧",
   "/work show <id>    Work の詳細",
-  "/resume <id>       止まった Work を続ける",
+  "/work resume <id>  止まった Work を続ける",
   "/tools             使える Tool",
   "/quit              終わる",
   "Ctrl-C             動いている Work を止める。質問待ちなら質問を取り下げる。何も動いていなければ終わる",
@@ -163,7 +163,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
 
   const stopped = (workId: string | undefined) =>
     workId
-      ? `止めました。${workId} は途中のまま残っています。/resume ${workId} で続けられます。`
+      ? `止めました。${workId} は途中のまま残っています。/work resume ${workId} で続けられます。`
       : "止めました。";
 
   const explain = (result: TurnResult) => {
@@ -220,7 +220,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       await capture((write) => workList({ workspaceRoot: options.workspaceRoot, write }));
     else if (name === "work" && sub === "show" && id)
       await capture((write) => workShow({ workspaceRoot: options.workspaceRoot, id, write }));
-    else if (name === "resume" && id) {
+    else if (name === "work" && sub === "resume" && id) {
       await stoppable(async (signal) => {
         try {
           await workResume({
@@ -236,6 +236,11 @@ export async function createController(options: ControllerOptions): Promise<Cont
         }
         if (signal.aborted) push("notice", stopped(id));
       });
+    } else if (name === "resume") {
+      push(
+        "notice",
+        "セッションの再開はまだありません。止まった Work を続けるなら /work resume <id> です。",
+      );
     } else {
       push("notice", `分からないコマンドです。/help で一覧が出ます。`);
     }
