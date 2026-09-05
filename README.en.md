@@ -140,7 +140,7 @@ Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Sch
 ## Design
 
 - Work, not answers.
-- Existing SaaS remains the system of record.
+- Existing SaaS remains the system of record: the company's records stay in the accounting software, SaaS and ledgers it already uses. openshain reads and writes there; the only records it keeps are its own work records.
 - Official has no hidden privilege: the tools and model providers openshain itself ships go through the same interfaces as anyone else's. There is no back door.
 - Paid means easiest: the open-source code completes the main use cases on its own. Anything paid takes over running openshain for a company; it does not unlock features.
 

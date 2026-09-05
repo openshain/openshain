@@ -8,7 +8,7 @@ openshain が判断に迷ったときに立ち返るものです。README には
 |---|---|
 | Work, not answers | 業務の完了まで進めます |
 | Profession, not prompts | 専門職は職務、手順、権限、知識の束として定義します |
-| Existing SaaS remains the system of record | 既存の SaaS をそのまま使います |
+| Existing SaaS remains the system of record | 会社の記録の原本は、いま使っている会計ソフトや SaaS、台帳のままです。openshain はそれを読み書きする側で、記録の置き場を新しく作りません。自分で持つのは作業の記録(`work/`)だけです |
 | Progressive automation | API がなくても働けます。API があればもっと働けます |
 | Need-to-Know before retrieval | 知らなくてよい情報は LLM に渡しません |
 | Agent acts on behalf of a principal | エージェントは誰かの代理として、委任された権限の範囲で動きます |

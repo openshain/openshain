@@ -141,7 +141,7 @@ model:
 ## 設計
 
 - Work, not answers。業務の完了まで進めます
-- Existing SaaS remains the system of record。既存の SaaS をそのまま使います
+- Existing SaaS remains the system of record。会社の記録の原本は、いま使っている会計ソフトや SaaS、台帳のままです。openshain はそれを読み書きする側で、自分で持つのは作業の記録だけです
 - Official has no hidden privilege。openshain 自身が作る Tool や model provider も、第三者が作るものと同じインターフェースを通ります。裏口はありません
 - Paid means easiest。OSS だけで主要な用途を完了できます。有償で提供するものがあるなら、それは openshain を会社に代わって動かし続ける運用の肩代わりで、機能の解禁ではありません
 
