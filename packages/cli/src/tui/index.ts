@@ -12,15 +12,16 @@ export interface TuiOptions {
 /** Opens the conversation screen and returns when the person leaves it. */
 export async function startTui(options: TuiOptions): Promise<number> {
   const controller = await createController(options);
-  // A closed terminal or a stop signal still ends the session in the record.
+  const { waitUntilExit } = render(React.createElement(App, { controller }), {
+    exitOnCtrlC: false,
+  });
+  // A closed terminal or a stop signal still ends the session in the record. Registered after
+  // render: Ink's own signal handling re-raises a signal when it thinks nobody else listens.
   const closeAndExit = () => {
     controller.close().finally(() => process.exit(0));
   };
   process.once("SIGHUP", closeAndExit);
   process.once("SIGTERM", closeAndExit);
-  const { waitUntilExit } = render(React.createElement(App, { controller }), {
-    exitOnCtrlC: false,
-  });
   await waitUntilExit();
   await controller.close();
   return 0;
