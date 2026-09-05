@@ -33,5 +33,6 @@ describe("text for the terminal", () => {
     expect(plain("\x1b(B\x1b7a\x9b1;2Hb\x1b")).toBe("ab");
     expect(plain("a\tb\nc\x7f\x9b")).toBe("a\tb\nc");
     expect(plain("受領書 2026-07.csv")).toBe("受領書 2026-07.csv");
+    expect(plain("summary\u202e.md\u200b\ufeff")).toBe("summary.md");
   });
 });

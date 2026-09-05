@@ -40,8 +40,9 @@ export function truncate(text: string, max = 80): string {
 /**
  * Text as it may reach a terminal: escape sequences and other control characters are dropped,
  * newline and tab stay. Nothing a model says or a file contains can then move the cursor,
- * retitle the window or write the clipboard. A scan over the characters, not a regular expression,
- * so the time is linear in the text.
+ * retitle the window or write the clipboard. Invisible formatting characters (zero-width and
+ * bidirectional controls) go too, so a line cannot be made to read differently from what it is.
+ * A scan over the characters, not a regular expression, so the time is linear in the text.
  */
 export function plain(text: string): string {
   const chars = [...text];
@@ -65,7 +66,14 @@ const BEL = 0x07;
 const ST = 0x9c;
 
 function isControl(code: number): boolean {
-  return (code < 0x20 && code !== 0x0a && code !== 0x09) || (code >= 0x7f && code <= 0x9f);
+  return (
+    (code < 0x20 && code !== 0x0a && code !== 0x09) ||
+    (code >= 0x7f && code <= 0x9f) ||
+    (code >= 0x200b && code <= 0x200f) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069) ||
+    code === 0xfeff
+  );
 }
 
 /** The index after the escape sequence that starts at `start`. An unfinished one runs to the end. */
