@@ -273,6 +273,8 @@ README の「状態」を quickstart に置き換える(インストール、`op
 - 完了条件 1 から 10 が、それぞれどのテストで確認されるか対応表を spec に足す
 - レビュー
 
+Checkpoint 5(2026-09-05 対応表を追加)。Task 18 は zod から config、events、work の JSON Schema を生成し、CI が最新かを見る。Task 19 は README の quickstart(バイナリを作って PATH に置く)、docs/configuration.md、`openshain init` が書く 4 ファイル。quickstart は新しいディレクトリで上から実行し、`run` と `.mcp.json` 経由の MCP 接続まで通した。Runtime の model が AGENTS.md を読んで work_* を探す挙動が出たので、AGENTS.md の冒頭で MCP 経由の Agent 向けだと断った。対応表は spec の「条件とテストの対応」。レビューは次。
+
 ## 並行できるもの
 
 Checkpoint 1 の後は、Task 8(標準 Tool)、Task 13 と 14(provider)、Task 16(MCP)が互いに独立。worktree を分ければ同時に進められる。Task 9 から 12 は直列。

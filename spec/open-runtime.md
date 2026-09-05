@@ -494,6 +494,23 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 9. 完了した Work の `outcome.artifacts` は Runtime が計算したハッシュを持ち、model の申告と食い違っても Runtime の値が残る。読めなかった成果物は `missing` で区別し、Runtime が検証した値としては扱わない。
 10. 同じ `events.jsonl` から投影を 2 回作ると byte 単位で一致する。
 
+### 条件とテストの対応
+
+すべて `bun test` で走り、CI が push ごとに実行する。live のテストは `OPENSHAIN_LIVE_TESTS=1` のときだけ動く。
+
+| 条件 | テスト |
+|---|---|
+| 1 | `packages/agent/src/swap.test.ts` "completes with the same events and the same artifact when only the config's model changes"、"hands each provider the tool results in its own wire format"。本物の API は `live.test.ts` |
+| 2 | `packages/mcp/src/server.test.ts` "drives a work from creation to completion, recording the calls and the evidence"。stdio 経由は `packages/cli/src/commands/mcp.test.ts` "is offered and callable over MCP through openshain mcp on stdio"。Claude Code との実接続は plan の Checkpoint 4 |
+| 3 | `packages/cli/src/commands/mcp.test.ts` の "appears in tools list"、"is called by the model in run"、"is offered and callable over MCP …"。読み込み側は `packages/core/src/runtime.test.ts` "loads a third-party tool provider from a module path in the config" |
+| 4 | `packages/agent/src/loop.test.ts` "passes the remaining budget to the model and records model usage"、`packages/cli/src/commands/work.test.ts` "shows the state, the outcome, the usage totals and who acts next"、`packages/cli/src/usage.test.ts` |
+| 5 | 上の各テストそのもの。`.github/workflows/ci.yml` |
+| 6 | `packages/core/src/tool/paths.test.ts`(symlink、予約名、ループ)、`packages/tools/src/standard.test.ts` "every tool refuses %s with the path guard's own error"、`packages/core/src/runtime.test.ts` "records a path rejection thrown by the tool as tool.rejected"、`packages/mcp/src/server.test.ts` "refuses artifacts outside the workspace and records nothing" |
+| 7 | `packages/core/src/runtime.test.ts` "rejects input that does not match the schema before running anything"、"rejects a tool the allow list hides as not_allowed, and one nobody has as unknown_tool"、`packages/core/src/tool/registry.test.ts` "an allow list hides the other tools of that provider"、`packages/agent/src/loop.test.ts` "keeps going when a tool call is rejected, showing the model the reason" |
+| 8 | `packages/agent/src/loop.test.ts` "stops with limit_reached when the model calls run out"、"stops with limit_reached when the tool calls run out"、"records a truncated answer and fails with limit_reached" |
+| 9 | `packages/agent/src/loop.test.ts` "reads a CSV, writes a summary and completes with artifacts hashed by the runtime"、"marks an artifact the tool reported but never wrote as missing"、"evidence refs point at the events that wrote the artifacts"、`packages/mcp/src/server.test.ts` "keeps the runtime's hash when the agent misreports an artifact, and marks one it never wrote"、"marks a file the agent names but no tool of the work wrote as claimed, with the runtime's hash" |
+| 10 | `packages/core/src/work/projection.test.ts` "builds byte-identical output from the same events"、"builds the same bytes when only the key order inside tool input differs"、`packages/core/src/work/events.test.ts` "sorts object keys inside data so equal events are equal bytes" |
+
 ## 未決
 
 - MCP の elicitation を `ask_user` の代わりに使うか。この段階では使わない。
