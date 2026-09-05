@@ -1,6 +1,6 @@
 # openshain
 
-Turns a general agent into a professional employee of your company. Open Company Profession Runtime.
+An agent harness that turns a general agent into a professional employee of your company.
 
 [![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
@@ -20,7 +20,7 @@ model calls 5, tool calls 7, input 20862 tokens (18953 cached), output 769 token
 Nobody needs to act next.
 ```
 
-Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as a runtime.
+Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as an agent harness.
 
 ## Features
 

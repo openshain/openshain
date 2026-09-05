@@ -4,7 +4,7 @@
 
 ## [0.1.0] - 2026-09-05
 
-最初の公開版。Model、Tool、入口を交換できる Open Runtime。
+最初の公開版。Model、Tool、入口を交換できるエージェントハーネスの土台(spec の Open Runtime)。
 
 ### Added
 

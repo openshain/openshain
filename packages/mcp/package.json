@@ -1,7 +1,7 @@
 {
   "name": "@openshain/mcp",
   "version": "0.1.0",
-  "description": "MCP server that exposes the runtime to any agent",
+  "description": "MCP server that exposes an openshain workspace to any agent",
   "keywords": [
     "openshain",
     "agent",

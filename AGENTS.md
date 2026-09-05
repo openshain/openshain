@@ -1,6 +1,6 @@
 # openshain
 
-Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
+An agent harness that turns a general agent into a professional employee of a company. TypeScript on Bun. Apache-2.0.
 
 ## Tech stack
 
@@ -37,6 +37,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first.
 - Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: インターフェース rather than 契約 for contract, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.
 - Commit messages follow Conventional Commits and say what changed in the product.
+- The project calls itself an agent harness (エージェントハーネス) wherever it describes itself. "Runtime" names the component that runs works, not the project.
 
 ## How to work here
 

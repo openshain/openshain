@@ -1,6 +1,6 @@
 # openshain
 
-汎用の Agent を、あなたの会社で働く専門社員にする Runtime。Open Company Profession Runtime。
+汎用の Agent を、あなたの会社で働く専門社員にするエージェントハーネス。
 
 [![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
@@ -20,7 +20,7 @@ model 呼び出し 5 回、Tool 呼び出し 7 回、入力 20862 トークン(�
 次に動く人はいません。
 ```
 
-Claude や Codex のような Agent は、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれを Runtime として足す。
+Claude や Codex のような Agent は、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれをエージェントハーネスとして足す。
 
 ## できること
 

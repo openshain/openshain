@@ -1,7 +1,7 @@
 {
   "name": "openshain",
   "version": "0.1.0",
-  "description": "Reference CLI agent for the openshain runtime",
+  "description": "Reference CLI of the openshain agent harness",
   "keywords": [
     "openshain",
     "agent",
