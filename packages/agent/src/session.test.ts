@@ -207,8 +207,10 @@ describe("a session", () => {
     const listed = (await runtime.works.events(session.id))
       .filter((e) => e.type === "tool.completed")
       .at(-1);
-    const value = (listed?.payload as { content: { value: { works: { type: string }[] } }[] })
-      .content[0]?.value;
+    const payload = listed?.payload as
+      | { content: { value: { works: { type: string }[] } }[] }
+      | undefined;
+    const value = payload?.content[0]?.value;
     expect(value?.works).toHaveLength(1);
     expect(value?.works[0]?.type).toBe("request");
   });
