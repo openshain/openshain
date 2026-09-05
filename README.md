@@ -29,7 +29,7 @@ Claude や Codex のような Agent は、そのままでは会社の社員と�
 - `openshain` と打つと担当と話せる。作業が出てきたら担当が Work にして進め、結果を返す
 - 依頼を Work として進め、`work/<id>/events.jsonl` に全部残す。途中で止めても再開できる
 - Model は設定で切り替える。Anthropic と OpenAI 互換 API。キーは自分のもの
-- 標準 Tool はファイル、CSV、Markdown。workspace の外には出ない。結果は窓と集計で返し、ファイルを丸ごと model に渡さない
+- 標準 Tool はファイル、CSV、Markdown。workspace の外には出ない。結果は頼まれた範囲と集計で返し、ファイルを丸ごと model に渡さない
 - Claude Code や Codex から MCP で同じ Runtime を使う。思考は Agent、記録は Runtime
 - 自作の Tool は設定に 1 行足すだけ。公式の Tool と同じインターフェース
 - 成果物のハッシュと使用量を Work ごとに記録する
@@ -116,7 +116,7 @@ model:
 - Official has no hidden privilege。公式実装と第三者実装は同じインターフェースを使う
 - Paid means easiest。有償版が引き受けるのは運用で、機能の解禁ではない
 
-原則の全文は [docs/principles.md](docs/principles.md)、各 package をなぜその形にしたかは [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md)。
+全文は [docs/principles.md](docs/principles.md)、各 package をなぜその形にしたかは [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md)。
 
 ## 開発
 

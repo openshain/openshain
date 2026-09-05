@@ -44,8 +44,8 @@ openshain で最初に作る部分。Model、Tool、Agent の入口を交換で�
 ├── openshain.yaml         設定
 ├── work/
 │   └── <work-id>/
-│       ├── events.jsonl   追記専用のイベントログ。正本
-│       ├── work.json      現在の状態。events.jsonl からの投影で、矛盾したら events.jsonl が正
+│       ├── events.jsonl   追記専用のイベントログ。原本
+│       ├── work.json      現在の状態。events.jsonl からの投影で、矛盾したら events.jsonl が原本
 │       └── lock           書き手の pid と開始時刻。2 つ目の書き手はエラーで止まる
 └── (利用者のファイル)      Tool が読み書きしてよいのはこの下だけ
 ```
@@ -282,21 +282,21 @@ export interface ToolResult {
 
 ### 標準 Tool(`packages/tools`)
 
-Tool の結果は観測であって転送ではない。ファイルを丸ごと model の context に載せると、数百行の CSV でも入力トークンの大半をそれが占め、しかも足し算を model にやらせることになる。観測する Tool は件数と窓(先頭の一部)を返し、続きは `offset` と `limit` で取りに行かせる。数える、足す、探すは Tool がやる。
+Tool の結果は観測であって転送ではない。ファイルを丸ごと model の context に載せると、数百行の CSV でも入力トークンの大半をそれが占め、しかも足し算を model にやらせることになる。観測する Tool は件数と先頭の一部を返し、続きは `offset` と `limit` で取りに行かせる。数える、足す、探すは Tool がやる。
 
 | name | effect | 入力 | 返すもの |
 |---|---|---|---|
 | `fs_list` | observe | `path`(既定 `.`)、`pattern`(名前の wildcard。`*` と `?`)、`limit`(既定 200) | 項目の名前、種類、サイズ。全件数と、切ったかどうか。再帰しない |
 | `fs_search` | observe | `pattern`(`*` と `?` だけが wildcard。他の文字はそのまま)、`path`(既定 `.`。ディレクトリかファイル)、`limit`(既定 100) | 一致した行の path、行番号、本文。隠し項目、symlink、バイナリ、1 MiB 超のファイルは飛ばす。正規表現は受け取らない |
-| `fs_read` | observe | `path`、`offset`(行)、`limit`(既定 200 行) | 窓の本文と、全行数、バイト数、続きがあるか |
+| `fs_read` | observe | `path`、`offset`(行)、`limit`(既定 200 行) | 範囲の本文と、全行数、バイト数、続きがあるか |
 | `fs_write` | mutate | `path`、`content` | 書いた path と sha256(`after`) |
-| `csv_read` | observe | `path`、`offset`(行)、`limit`(既定 50 行) | 列名、全行数、窓の行(1 行 1 オブジェクト)、続きがあるか |
+| `csv_read` | observe | `path`、`offset`(行)、`limit`(既定 50 行) | 列名、全行数、範囲の行(1 行 1 オブジェクト)、続きがあるか |
 | `csv_aggregate` | observe | `path`、`group_by`(列)、`sum`(数値の列)、`filter`(列 = 値)、`limit`(既定 100 グループ) | グループごとの行数と、`sum` に挙げた列の sum、min、max、数値だった件数、数値でなく飛ばした件数。`1,200` や `¥300` は数値として読む |
 | `csv_write` | mutate | `path`、`rows`、`columns` | 書いた path と sha256(`after`) |
 | `markdown_read` | observe | `path`、`section`(見出しの文字列)、`limit`(既定 100 行) | 見出しの一覧(level、text、行番号)と先頭の本文。`section` があれば、その見出しから、同じか上の level の次の見出しの手前までを返す |
 
-- 観測する Tool は結果の先頭に JSON で窓の情報(path、offset、returned、全体の件数、truncated)を置き、本文はその後に text で続ける。model はこの 1 行を見て、続きを読むか集計に切り替えるかを決める。
-- 既定の窓は小さい。広げたいときは `limit` を上げる(上限は Tool ごとに schema に書く)。それでも 50,000 文字の上限は残る。窓は context を守るためのもの、上限は事故を止めるためのもの。
+- 観測する Tool は結果の先頭に JSON で範囲の情報(path、offset、returned、全体の件数、truncated)を置き、本文はその後に text で続ける。model はこの 1 行を見て、続きを読むか集計に切り替えるかを決める。
+- 既定の範囲は小さい。広げたいときは `limit` を上げる(上限は Tool ごとに schema に書く)。それでも 50,000 文字の上限は残る。範囲の制限は context を守るためのもの、上限は事故を止めるためのもの。
 - 1 MiB を超えるファイルは開かない(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばす)。書き込みも同じ 1 MiB で止める。Tool が書いたものは Tool が開ける。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返す。グループはグループの値の順に並べ、同じ入力には同じ出力を返す。
 - すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。予約パスの判定は大文字小文字を区別しない。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。

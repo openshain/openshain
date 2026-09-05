@@ -4,13 +4,13 @@
 
 ## 概要
 
-core の土台(エラー、ID、設定、イベントログ、Work、Tool の登録と検証、投影)を先に固め、次に「台本どおりに応答する fake の model で CSV を読み Markdown を書く」1 本を CLI まで通す。動く縦 1 本ができてから、本物の provider 2 つ、MCP、第三者 Tool の順に広げる。最後に JSON Schema の生成と quickstart。
+core の基本部分(エラー、ID、設定、イベントログ、Work、Tool の登録と検証、投影)を先に固め、次に「台本どおりに応答する fake の model で CSV を読み Markdown を書く」1 本を CLI まで通す。動く縦 1 本ができてから、本物の provider 2 つ、MCP、第三者 Tool の順に広げる。最後に JSON Schema の生成と quickstart。
 
 ## 設計上の決め
 
 - 依存の向きは core ← agent, tools, mcp, cli。core は他の package を import しない。model provider の生成は agent が持ち、`createRuntime` には factory を渡す(core が provider の実装を知らないため)
 - 設定の `module:` で指定された第三者 Tool は core が動的 import で読む
-- 追加する依存とその理由: `zod`(schema と型の単一の正本)、`yaml`(行番号つきの解析)、`ajv`(第三者 Tool の任意の JSON Schema を検証)、`csv-parse` と `csv-stringify`(RFC 4180 準拠、Bun に CSV の組み込みがない)、`@anthropic-ai/sdk`、`openai`、`@modelcontextprotocol/sdk`。CLI の引数解析は `node:util` の `parseArgs` を使い、依存を足さない
+- 追加する依存とその理由: `zod`(schema と型の単一の原本)、`yaml`(行番号つきの解析)、`ajv`(第三者 Tool の任意の JSON Schema を検証)、`csv-parse` と `csv-stringify`(RFC 4180 準拠、Bun に CSV の組み込みがない)、`@anthropic-ai/sdk`、`openai`、`@modelcontextprotocol/sdk`。CLI の引数解析は `node:util` の `parseArgs` を使い、依存を足さない
 - 版はすべて固定(exact)。更新は別 PR
 - `FakeModelProvider` は `@openshain/agent/testing` として公開し、第三者が自分の Tool を試せるようにする
 - CLI のコマンドは Runtime と ModelProvider を引数で受ける関数として書き、bin が本物を配線する。テストは関数を fake で呼ぶ
@@ -37,7 +37,7 @@ examples/tools/echo(インターフェースと module 読み込みだけに依�
 
 サイズは AGENTS.md の目安(S: 1 から 2 ファイル、M: 3 から 5 ファイル)。テストは対象ファイルの隣に置く。各タスクは 1 つの PR。
 
-### Phase 1: core の土台
+### Phase 1: core の基本部分
 
 #### Task 1: errors と ids
 
@@ -123,7 +123,7 @@ Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証
 
 `fs_list`、`fs_read`、`fs_write`、`csv_read`、`csv_write`、`markdown_read`。path guard を通す。mutate は `after` に sha256。
 
-追記(Phase 4 の後): 読む Tool は窓と件数を返す形に改め、`fs_search` と `csv_aggregate` を足した。CSV を丸ごと context に載せると入力トークンの大半をそれが占めたため。表は spec を正とする。
+追記(Phase 4 の後): 読む Tool は範囲と件数を返す形に改め、`fs_search` と `csv_aggregate` を足した。CSV を丸ごと context に載せると入力トークンの大半をそれが占めたため。表は spec を正とする。
 
 - 受け入れ: 各 Tool が spec の表どおりに動く。予約パスと root 外は Tool が `reserved_path` などの OpenshainError を throw し、Runtime が `tool.rejected` として記録する(`isError` の結果ではない)。`fs_write` 後の `after.sha256` が実ファイルと一致する。CSV の引用符とカンマを含むセルが往復で崩れない。
 - 検証: `bun test packages/tools`

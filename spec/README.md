@@ -2,7 +2,7 @@
 
 人が読む仕様と、コードから生成した JSON Schema を置く場所。
 
-- 正本は `packages/core` の型と schema。ここにある JSON Schema は生成物なので、手で編集しない。
+- 原本は `packages/core` の型と schema。ここにある JSON Schema は生成物なので、手で編集しない。
 - provider contract、Work とイベントの schema、Profession Pack の仕様を置く。
 - `*.plan.md` は同名の spec の実装計画。タスクと checkpoint を持ち、進捗に合わせて更新する。
 

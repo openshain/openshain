@@ -10,24 +10,24 @@ core はインターフェース(ModelProvider、ToolProvider)、基本オブジ
 
 捨てた案。将来の provider の interface を最初から並べる。使われない抽象は保守されず、実装が来たときに壊して作り直すことになる。
 
-## イベントログが正本
+## イベントログが原本
 
 決めたこと。Work に起きたことは `work/<id>/events.jsonl` に追記する。Work の状態は `reduceWork` がイベントから作る。会話履歴も進捗も使用量の合計も、そこから導く。
 
 envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通す。項目を足しても古い Runtime がログを拒否しないため。envelope を変えるときは `v` を上げる。書き込みは正規形。キーを再帰的にソートし、自由形式の値の中の undefined は null にする。同じイベントは同じバイト列になる。追記は自分の行を読み返してから書き、末尾が改行で終わっていないファイルには書かない。
 
-理由。正本が 1 つなら、再開、再生、監査、集計が同じ道を通る。テキストのまま読めることも要る。壊れた記録を人が直せるからだ。
+理由。原本が 1 つなら、再開、再生、監査、集計が同じ道を通る。テキストのまま読めることも要る。壊れた記録を人が直せるからだ。
 
 捨てた案。
 
-- 会話履歴を JSON で別に保存する。正本が 2 つになり、食い違ったときにどちらを信じるかが決まらない。
+- 会話履歴を JSON で別に保存する。原本が 2 つになり、食い違ったときにどちらを信じるかが決まらない。
 - 最初から SQLite に入れる。1 つの Work の記録は小さく、grep で読めることのほうが今は価値がある。複数の Work をまたぐ検索や集計が要るようになったら、WorkStore の裏で差し替える。
 
 ## 投影は毎回組み立てる
 
 決めたこと。model に渡す内容(system、messages、tools、末尾の残り回数の行)は、そのつどイベントから組み立てる。同じイベント列からは byte 単位で同じ messages ができる。provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider にだけ無変更で返す。残り回数の通知は独立した user message として末尾に足す。
 
-理由。model を交換できる条件は、model 固有の状態を正本にしないこと。thinking は捨てられる最適化として扱う。byte 一致は prompt cache の前提でもある。残り回数の行を独立した message にしたのは、前の message の byte をターンをまたいで変えないため。
+理由。model を交換できる条件は、model 固有の状態を原本にしないこと。thinking は捨てられる最適化として扱う。byte 一致は prompt cache の前提でもある。残り回数の行を独立した message にしたのは、前の message の byte をターンをまたいで変えないため。
 
 ## 会話も Work の記録に載せる
 
@@ -57,7 +57,7 @@ provider と Runtime の失敗は `OpenshainError`(code と message)で表す。
 
 `index.ts` から export したものが SDK。SDK という package は作らない。内部と公開 APIを分けるのは、外部の利用者から互換性の要求が来たときでよい。build はせず、TypeScript のソースをそのまま export している。今はインターフェースを壊して直す時期で、固定した公開 API はまだ嘘になる。
 
-`jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作る。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを見る。正本は zod で、JSON Schema は他の言語や道具のための写し。refine で書いた条件はそこに出ない。
+`jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作る。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを見る。原本は zod で、JSON Schema は他の言語や道具のための写し。refine で書いた条件はそこに出ない。
 
 捨てた案。公開 API を型定義ファイルで固定して semver を守る。守れない約束を先にしない。
 

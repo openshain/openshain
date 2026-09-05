@@ -35,7 +35,7 @@
 
 ## 記録
 
-Work ごとに `work/<id>/events.jsonl`(正本)と `work.json`(状態の投影)が残る。`openshain` の画面での会話も `type: session` の Work として残り、そこから頼んだ Work は `parent` で会話を指す。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json)。`openshain work list` と `openshain work show <id>` で読める。
+Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残る。`openshain` の画面での会話も `type: session` の Work として残り、そこから頼んだ Work は `parent` で会話を指す。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json)。`openshain work list` と `openshain work show <id>` で読める。
 
 ## Claude Code から使うためのファイル
 

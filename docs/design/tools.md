@@ -1,19 +1,19 @@
 # `@openshain/tools` の設計
 
-標準 Tool は、Runtime が model に見せる「何ができるか」の面。model は Tool を呼ぶ提案をするだけで、入力の検証、許可、実行、記録は Runtime(core)がやる。標準 Tool は 8 つ。fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read。Office 文書と Email は後の版で足す。
+標準 Tool は、Runtime が model に見せる何ができるかの一覧。model は Tool を呼ぶ提案をするだけで、入力の検証、許可、実行、記録は Runtime(core)がやる。標準 Tool は 8 つ。fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read。Office 文書と Email は後の版で足す。
 
 標準といっても、Runtime から見れば第三者の Tool と同格。同じ ToolProvider のインターフェースを通り、同じ許可リストに従い、同じ path guard を通る。標準 Tool だけが使える Runtime の入口はない。
 
 ## 結果は観測であって転送ではない
 
-決めたこと。観測する Tool(fs_list、fs_search、fs_read、csv_read、csv_aggregate、markdown_read)は、ファイルの全体ではなく窓を返す。結果の先頭に JSON で件数と窓の位置と続きの有無を置き、本文はその後に続ける。既定の窓は小さく、続きは `offset` と `limit` で model が取りに行く。数値は spec の表にある。
+決めたこと。観測する Tool(fs_list、fs_search、fs_read、csv_read、csv_aggregate、markdown_read)は、ファイルの全体ではなく、頼まれた範囲だけを返す。結果の先頭に JSON で件数と範囲と続きの有無を置き、本文はその後に続ける。既定の範囲は小さく、続きは `offset` と `limit` で model が取りに行く。数値は spec の表にある。
 
-理由。context に入れたものは、そのターンだけでなく以後の全ターンで毎回入力として送られ、課金され、注意を薄める。架空の会社の 296 行の CSV を、同じ model に同じ依頼で頼んで測った。csv_read が全行を返す版では Tool の結果 1 つが 48,115 文字あり、Work 全体の入力が 68,346 トークン、出力が 7,326 トークンだった。窓と集計に変えた版では、同じ依頼が入力 30,985 トークン、出力 2,169 トークンで終わり、結果の数字は一致した。出力が 3 分の 1 になったのは、model が行を読み上げながら足し算していたのをやめたからだ。
+理由。context に入れたものは、そのターンだけでなく以後の全ターンで毎回入力として送られ、課金され、注意を薄める。架空の会社の 296 行の CSV を、同じ model に同じ依頼で頼んで測った。csv_read が全行を返す版では Tool の結果 1 つが 48,115 文字あり、Work 全体の入力が 68,346 トークン、出力が 7,326 トークンだった。範囲と集計に変えた版では、同じ依頼が入力 30,985 トークン、出力 2,169 トークンで終わり、結果の数字は一致した。出力が 3 分の 1 になったのは、model が行を読み上げながら足し算していたのをやめたからだ。
 
 捨てた案。
 
 - 全行を返し、Runtime の 50,000 文字の切り詰めに任せる。切り詰めは事故を止めるもので、context を守る設計ではない。切られた行は model からも見えなくなり、合計が黙って欠ける。
-- Tool の側で要約して返す。要約は解釈で、model が読み間違えたときに元へ戻れない。窓と件数なら、model が自分で続きを取れる。
+- Tool の側で要約して返す。要約は解釈で、model が読み間違えたときに元へ戻れない。範囲と件数なら、model が自分で続きを取れる。
 - 投影の圧縮(古い Tool の結果を畳む)で対処する。圧縮は後の版で入れるが、入ったあとも最初から小さいほうが安く、再現もしやすい。
 
 変える条件。変えない。context が安くなっても、転送は観測に戻せない。
@@ -32,7 +32,7 @@
 
 ## 説明文は出力の意味まで書く
 
-model が読む Tool の面は、名前、説明、入力 schema の 3 つしかない。だから説明文には、何を返すか、何を返さないか、代わりに何を使うかまで書く。返す形を変えたら説明文も変える。説明文は model が読む文なので英語で書き、利用者向けの文言は CLI が持つ。
+model が Tool について読めるのは、名前、説明、入力 schema の 3 つしかない。だから説明文には、何を返すか、何を返さないか、代わりに何を使うかまで書く。返す形を変えたら説明文も変える。説明文は model が読む文なので英語で書き、利用者向けの文言は CLI が持つ。
 
 ## 出典を付ける
 
@@ -46,7 +46,7 @@ model が読む Tool の面は、名前、説明、入力 schema の 3 つしか
 
 ## 上限は 2 段
 
-1 MiB を超えるファイルは開かない。Tool の結果は Runtime が 50,000 文字で切る。窓が context を守り、上限が事故を止める。役割が違うので両方ある。書き込みも同じ 1 MiB で止め、Tool が書いたものは Tool が開ける形にしてある。
+1 MiB を超えるファイルは開かない。Tool の結果は Runtime が 50,000 文字で切る。範囲の制限が context を守り、上限が事故を止める。役割が違うので両方ある。書き込みも同じ 1 MiB で止め、Tool が書いたものは Tool が開ける形にしてある。
 
 変える条件。1 MiB は経理の CSV と Markdown を見て決めた値で、Office 文書を足すときに見直す。
 
@@ -87,4 +87,4 @@ export するのは `standardTools()`、`MAX_READ_BYTES`、`MAX_WRITE_BYTES`、`
 
 ## これから
 
-Office 文書(xlsx、docx、pdf)と Email。表は csv_read と同じ窓と集計で読めるようにし、文書は markdown_read と同じ見出しと節で読めるようにする。形式ごとに別の読み方を model に覚えさせない。
+Office 文書(xlsx、docx、pdf)と Email。表は csv_read と同じ範囲の指定と集計で読めるようにし、文書は markdown_read と同じ見出しと節で読めるようにする。形式ごとに別の読み方を model に覚えさせない。

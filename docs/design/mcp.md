@@ -48,7 +48,7 @@ Tool の説明とエラー文は Agent が読むので英語。利用者向け�
 
 決めたこと。Claude Code や Codex が持つ Read、Write、Bash を openshain が奪うことはしない。会社のファイルを Runtime の Tool で扱わせるのは、Tool の説明文、会社フォルダに置く指示、host 側の権限設定で行う。
 
-理由。外部 Agent が自前の Tool でフォルダを触る経路は、Runtime からは見えないし塞げない。塞げるのは host だけで、Claude Code なら会社フォルダの設定で Write や Bash を deny できる。判断が LLM の外にある、という原則と同じ形で、Runtime が host の Tool を上書きする形ではない。接続テストでは、自前の Tool を使わないよう依頼文で言わないと Runtime を通らなかった。言えば csv_aggregate を自分で選び、合計を足し算しなかった。
+理由。外部 Agent が自前の Tool でフォルダを触る経路は、Runtime からは見えないし塞げない。塞げるのは host だけで、Claude Code なら会社フォルダの設定で Write や Bash を deny できる。判断が LLM の外にある、という決まりと同じ形で、Runtime が host の Tool を上書きする形ではない。接続テストでは、自前の Tool を使わないよう依頼文で言わないと Runtime を通らなかった。言えば csv_aggregate を自分で選び、合計を足し算しなかった。
 
 Runtime を通らなかった操作は記録に残らない。それが差で、外部の SaaS への変更は後の版で Runtime の Tool が唯一の経路になる。ローカルのファイルは最後まで host の Tool でも触れる。
 

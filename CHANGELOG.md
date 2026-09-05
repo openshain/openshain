@@ -4,11 +4,11 @@
 
 ## [0.1.0] - 2026-09-05
 
-最初の公開版。Model、Tool、入口を交換できるエージェントハーネスの土台(spec の Open Runtime)。
+最初の公開版。Model、Tool、入口を交換できるエージェントハーネスの中核(spec の Open Runtime)。
 
 ### Added
 
-- Runtime の契約(ModelProvider、ToolProvider)、Work のイベントログ、投影、path guard(`@openshain/core`)
+- Runtime のインターフェース(ModelProvider、ToolProvider)、Work のイベントログ、投影、path guard(`@openshain/core`)
 - Anthropic と OpenAI 互換 API の ModelProvider。API キーは利用者のもの(`@openshain/agent`)
 - 標準 Tool: fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read(`@openshain/tools`)
 - MCP server。Claude Code や Codex から同じ Runtime を使う(`@openshain/mcp`)
