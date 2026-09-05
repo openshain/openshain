@@ -237,6 +237,49 @@ describe("the screen's controller", () => {
     expect(texts(controller, "assistant")).toEqual(["こんにちは"]);
   });
 
+  test("tells the screen when a turn ends, with busy off, and when a question is taken back", async () => {
+    const { controller, runtime } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
+      callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
+      say("済み"),
+    ]);
+    const seen: { busy: boolean; question: string | undefined }[] = [];
+    controller.subscribe(() => {
+      const s = controller.state();
+      seen.push({ busy: s.busy, question: s.question });
+    });
+
+    const turn = controller.submit("集計して");
+    await waitFor(() => controller.state().question !== undefined);
+    controller.interrupt();
+    await turn;
+
+    expect(seen.at(-1)).toEqual({ busy: false, question: undefined });
+    expect(seen.some((s) => s.question === "何月ですか")).toBe(true);
+    expect((await runtime.works.list()).works.find((w) => w.type === "request")?.status).toBe(
+      "waiting_input",
+    );
+  });
+
+  test("/quit while a work waits for an answer takes the question back and closes", async () => {
+    const { controller, runtime } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
+      callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
+      say("never reached"),
+    ]);
+
+    const turn = controller.submit("集計して");
+    await waitFor(() => controller.state().question !== undefined);
+    await controller.submit("/quit");
+    await turn;
+
+    expect(controller.state().closed).toBe(true);
+    expect((await runtime.works.get(controller.sessionId)).status).toBe("completed");
+    expect((await runtime.works.list()).works.find((w) => w.type === "request")?.status).toBe(
+      "waiting_input",
+    );
+  });
+
   test("slash commands print the CLI's own lines, and /quit closes the session", async () => {
     const { controller, runtime } = await setup([]);
 
@@ -244,6 +287,7 @@ describe("the screen's controller", () => {
     await controller.submit("/work list");
     await controller.submit("/tools");
     await controller.submit("/resume");
+    await controller.submit("/work show");
     await controller.submit("/nope");
     await controller.submit("/quit");
 
@@ -251,7 +295,8 @@ describe("the screen's controller", () => {
     expect(lines.some((l) => l.startsWith("/work resume"))).toBe(true);
     expect(lines.some((l) => l.includes(controller.sessionId))).toBe(true);
     expect(lines.some((l) => l.includes("fs_read"))).toBe(true);
-    expect(texts(controller, "notice").at(-2)).toContain("/work resume <id>");
+    expect(texts(controller, "notice").at(-3)).toContain("/work resume <id>");
+    expect(texts(controller, "notice").at(-2)).toContain("id が要ります");
     expect(texts(controller, "notice").at(-1)).toContain("/help");
     expect(controller.state().closed).toBe(true);
     expect((await runtime.works.get(controller.sessionId)).status).toBe("completed");

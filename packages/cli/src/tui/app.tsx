@@ -1,5 +1,5 @@
 import { Box, Text, useApp, useInput, useStdout } from "ink";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Controller, ControllerState } from "./controller.ts";
 import { type ScreenLine, screenLines } from "./lines.ts";
 
@@ -69,7 +69,10 @@ export function App({ controller }: { controller: Controller }) {
   const height = Math.max(CHROME_ROWS + 1, size.rows - 1);
   const width = Math.max(20, size.columns);
   const paneRows = height - CHROME_ROWS;
-  const lines = screenLines(state.entries, width).map((line, row) => ({ ...line, row }));
+  const lines = useMemo(
+    () => screenLines(state.entries, width).map((line, row) => ({ ...line, row })),
+    [state.entries, width],
+  );
   const maxScroll = Math.max(0, lines.length - paneRows);
   const scrolled = Math.min(scroll, maxScroll);
   const end = lines.length - scrolled;

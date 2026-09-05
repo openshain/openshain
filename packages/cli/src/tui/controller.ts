@@ -91,8 +91,23 @@ export async function createController(options: ControllerOptions): Promise<Cont
       usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0 },
     },
   };
+  // A listener may act on the controller and cause another notification; those run after this one.
+  let notifying = false;
+  let again = false;
   const notify = () => {
-    for (const listener of listeners) listener();
+    if (notifying) {
+      again = true;
+      return;
+    }
+    notifying = true;
+    try {
+      do {
+        again = false;
+        for (const listener of listeners) listener();
+      } while (again);
+    } finally {
+      notifying = false;
+    }
   };
   const push = (kind: EntryKind, text: string) => {
     state.entries = [...state.entries, { id: nextId++, kind, text: plain(text) }];
@@ -118,7 +133,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
   const settleQuestion = (answer?: string) => {
     const waiting = pending;
     pending = undefined;
-    delete state.question;
+    if (state.question !== undefined) {
+      delete state.question;
+      notify();
+    }
     if (!waiting) return;
     if (answer === undefined) waiting.reject(new Error(QUESTION_WITHDRAWN));
     else waiting.resolve(answer);
@@ -203,6 +221,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       running = undefined;
       aborter = undefined;
       state.busy = false;
+      notify();
     }
   };
 
@@ -223,6 +242,8 @@ export async function createController(options: ControllerOptions): Promise<Cont
     else if (name === "tools") await capture((write) => toolsList({ ...options, write }));
     else if (name === "work" && sub === "list")
       await capture((write) => workList({ workspaceRoot: options.workspaceRoot, write }));
+    else if (name === "work" && (sub === "show" || sub === "resume") && !args[1])
+      push("notice", `/work ${sub} には Work の id が要ります。/work list で確かめてください。`);
     else if (name === "work" && sub === "show" && id)
       await capture((write) => workShow({ workspaceRoot: options.workspaceRoot, id, write }));
     else if (name === "work" && sub === "resume" && id) {
@@ -275,7 +296,9 @@ export async function createController(options: ControllerOptions): Promise<Cont
       if (text === "" || closing) return;
       if (pending) {
         push("user", text);
-        settleQuestion(text);
+        // Everything typed answers the question, except leaving: that takes the question back.
+        if (text === "/quit" || text === "/exit") await close();
+        else settleQuestion(text);
         return;
       }
       if (state.busy) {
