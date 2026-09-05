@@ -95,6 +95,59 @@ describe("the screen", () => {
     expect(lastFrame()).toContain("行40");
   });
 
+  test("the up and down arrows recall the lines sent before, with the new line at the bottom", async () => {
+    const { controller, submitted } = fakeController();
+
+    const { stdin, lastFrame } = render(<App controller={controller} />);
+    await tick();
+    stdin.write("最初\r");
+    await tick();
+    stdin.write("二番目\r");
+    await tick();
+    stdin.write("途中");
+    await tick();
+    stdin.write("\x1b[A");
+    await tick();
+    expect(lastFrame()).toContain("> 二番目▌");
+    stdin.write("\x1b[A");
+    await tick();
+    expect(lastFrame()).toContain("> 最初▌");
+    stdin.write("\x1b[A");
+    await tick();
+    expect(lastFrame()).toContain("> 最初▌");
+    stdin.write("\x1b[B");
+    await tick();
+    expect(lastFrame()).toContain("> 二番目▌");
+    stdin.write("\x1b[B");
+    await tick();
+    expect(lastFrame()).toContain("> 途中▌");
+    stdin.write("\x1b[B");
+    await tick();
+    expect(lastFrame()).toContain("> 途中▌");
+
+    expect(submitted).toEqual(["最初", "二番目"]);
+  });
+
+  test("the mouse wheel scrolls the conversation and leaves the input alone", async () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: i + 1,
+      kind: "line" as const,
+      text: `行${i + 1}`,
+    }));
+    const { controller } = fakeController(many);
+
+    const { stdin, lastFrame } = render(<App controller={controller} />);
+    await tick();
+    stdin.write("\x1b[<64;10;5M");
+    await tick();
+    expect(lastFrame()).toContain("↑ 3 行上を表示中");
+    expect(lastFrame()).toContain("> ▌");
+    stdin.write("\x1b[<65;10;5M\x1b[<65;10;5M");
+    await tick();
+    expect(lastFrame()).toContain("行40");
+    expect(lastFrame()).not.toContain("[<");
+  });
+
   test("echoes what is typed and hands the line to the controller on Enter", async () => {
     const { controller, submitted } = fakeController();
 

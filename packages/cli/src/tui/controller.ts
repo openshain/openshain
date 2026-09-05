@@ -65,6 +65,8 @@ const HELP = [
   "/work resume <id>  止まった Work を続ける",
   "/tools             使える Tool",
   "/quit              終わる",
+  "↑ ↓                前に送った行を入力欄に呼び戻す。いちばん下は新しい入力",
+  "ホイール、PageUp/PageDown  会話を遡る。End で最新へ",
   "Ctrl-C             動いている Work を止める。質問待ちなら質問を取り下げる。何も動いていなければ終わる",
 ];
 

@@ -9,9 +9,9 @@ export interface TuiOptions {
   providers: RuntimeProviders;
 }
 
-/** The alternate screen, cleared, with the mouse wheel sending arrow keys where the terminal supports it. */
-const ENTER_SCREEN = "\x1b[?1049h\x1b[H\x1b[2J\x1b[?1007h";
-const LEAVE_SCREEN = "\x1b[?1007l\x1b[?1049l";
+/** The alternate screen, cleared, with the terminal reporting the mouse (SGR) so the wheel reaches the screen. */
+const ENTER_SCREEN = "\x1b[?1049h\x1b[H\x1b[2J\x1b[?1000h\x1b[?1006h";
+const LEAVE_SCREEN = "\x1b[?1006l\x1b[?1000l\x1b[?1049l";
 
 /** Opens the conversation screen and returns when the person leaves it. */
 export async function startTui(options: TuiOptions): Promise<number> {

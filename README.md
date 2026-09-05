@@ -106,7 +106,7 @@ openshain work list
 openshain work show <id>
 ```
 
-画面では、頼んだことを社員エージェントが Work にして進め、Tool の呼び出しが 1 行ずつ流れます。Work が質問すればその場で答えられます。履歴は PageUp と PageDown で遡れます。Ctrl-C は動いている Work を止め、質問を待っている途中なら質問を取り下げます。止めた Work は `/work resume <id>` で続きます。会話も Work として記録に残ります。
+画面では、頼んだことを社員エージェントが Work にして進め、Tool の呼び出しが 1 行ずつ流れます。Work が質問すればその場で答えられます。会話はマウスホイールか PageUp と PageDown で遡れ、上下の矢印は入力履歴です。Ctrl-C は動いている Work を止め、質問を待っている途中なら質問を取り下げます。止めた Work は `/work resume <id>` で続きます。会話も Work として記録に残ります。
 
 | コマンド | 動き |
 |---|---|

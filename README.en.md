@@ -102,7 +102,7 @@ openshain work list
 openshain work show <id>
 ```
 
-On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. PageUp and PageDown scroll back through the conversation. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/work resume <id>`. The conversation itself is kept as a work.
+On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. The mouse wheel, PageUp and PageDown scroll back through the conversation; the up and down arrows recall earlier input. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/work resume <id>`. The conversation itself is kept as a work.
 
 | Command | What it does |
 |---|---|

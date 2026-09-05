@@ -19,7 +19,8 @@ const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", 
 const CHROME_ROWS = 5;
 
 function statusText(state: ControllerState, scrolled: number): string {
-  if (scrolled > 0) return `↑ ${scrolled} 行上を表示中。End で最新へ、PageUp と PageDown で移動`;
+  if (scrolled > 0)
+    return `↑ ${scrolled} 行上を表示中。End で最新へ、ホイールか PageUp と PageDown で移動`;
   const { work, usage } = state.status;
   const parts = [];
   if (work) parts.push(`${work.id} ${work.status}`);
@@ -32,14 +33,17 @@ function statusText(state: ControllerState, scrolled: number): string {
 
 /**
  * The whole terminal: a header, the conversation with the newest rows at the bottom, the input
- * box, and a status line. The conversation scrolls inside the screen with PageUp, PageDown and
- * the arrow keys; End returns to the newest rows.
+ * box, and a status line. The conversation scrolls inside the screen with the mouse wheel, PageUp
+ * and PageDown; End returns to the newest rows. The up and down arrows recall the lines sent before.
  */
 export function App({ controller }: { controller: Controller }) {
   const { exit } = useApp();
   const { stdout } = useStdout();
   const [state, setState] = useState<ControllerState>(() => ({ ...controller.state() }));
   const [input, setInput] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  /** While the arrows walk the history: where we are, and what the input held before. */
+  const [recall, setRecall] = useState<{ index: number; draft: string } | undefined>();
   const [scroll, setScroll] = useState(0);
   const [size, setSize] = useState({ columns: stdout.columns ?? 80, rows: stdout.rows ?? 24 });
   const [tick, setTick] = useState(0);
@@ -73,21 +77,48 @@ export function App({ controller }: { controller: Controller }) {
   const page = Math.max(1, paneRows - 1);
 
   useInput((ch, key) => {
+    // The terminal reports the mouse (SGR). The wheel scrolls the conversation; the rest is ignored.
+    if (/\[<\d+;\d+;\d+[Mm]/.test(ch)) {
+      let delta = 0;
+      for (const m of ch.matchAll(/\[<(6[45]);\d+;\d+M/g)) delta += m[1] === "64" ? 3 : -3;
+      if (delta !== 0) setScroll((s) => Math.max(0, Math.min(maxScroll, s + delta)));
+      return;
+    }
     if (key.ctrl && ch === "c") {
       if (!controller.interrupt()) void controller.close();
       return;
     }
     if (key.pageUp) return setScroll((s) => Math.min(maxScroll, s + page));
     if (key.pageDown) return setScroll((s) => Math.max(0, s - page));
-    if (key.upArrow) return setScroll((s) => Math.min(maxScroll, s + 1));
-    if (key.downArrow) return setScroll((s) => Math.max(0, s - 1));
     if (key.home) return setScroll(maxScroll);
     if (key.end) return setScroll(0);
+    // Up and down walk the lines sent before; below the newest one is what was being typed.
+    if (key.upArrow) {
+      const index = (recall?.index ?? history.length) - 1;
+      if (index < 0) return;
+      setRecall({ index, draft: recall?.draft ?? input });
+      setInput(history[index] ?? "");
+      return;
+    }
+    if (key.downArrow) {
+      if (!recall) return;
+      const index = recall.index + 1;
+      if (index >= history.length) {
+        setInput(recall.draft);
+        setRecall(undefined);
+        return;
+      }
+      setRecall({ ...recall, index });
+      setInput(history[index] ?? "");
+      return;
+    }
     // Ink hands a pasted or quickly typed chunk over whole, and a newline inside it does not set
     // key.return. The line ends at the first newline; what follows stays in the input.
     const newline = key.return ? 0 : ch.search(/[\r\n]/);
     if (newline >= 0) {
       const line = input + ch.slice(0, newline);
+      if (line.trim() !== "") setHistory((h) => (h.at(-1) === line ? h : [...h, line]));
+      setRecall(undefined);
       setInput(ch.slice(newline + 1).replace(/^\n/, ""));
       setScroll(0);
       void controller.submit(line);
