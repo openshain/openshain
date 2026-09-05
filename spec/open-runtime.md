@@ -4,7 +4,7 @@ Status: v0.3(実装済み。完了の条件 1 から 10 を満たし、対応す
 
 ## 目的
 
-openshain の最初の実装単位。Model、Tool、Agent の入口を交換できる Runtime を作る。
+openshain で最初に作る部分。Model、Tool、Agent の入口を交換できる Runtime を作る。
 
 利用者は、会社のフォルダで `openshain run "<依頼>"` と打つか、Claude Code や Codex から MCP 経由で同じ Runtime を使う。どちらの経路でも、Work の状態、Tool の呼び出し、model の使用量が同じ形式で `work/<id>/` に残る。
 
@@ -63,7 +63,7 @@ Company Workspace の manifest。root の印であり、この会社に属する
 - 会社の事実(`company`)と、Agent が代理する人(`principal`)
 - 使う職能(`profession`)。いまは指示文を直接書く。Profession Pack が入ったら `pack:` で参照する
 - 社員が使ってよい Tool(`tools`)と、その許可リスト(`allow`)
-- 予算の上限(`limits`)
+- 呼び出し回数の上限(`limits`)
 - 使うベンダーと model(`model.provider`、`model.model`)
 
 環境の節。`model.api_key_env`、`model.base_url`、`model.options`、`debug` は Runtime を動かす環境に属する。当面は同じファイルに置くが、2 つ目の環境(managed)が現れた時点で、commit しない `openshain.local.yaml` による上書きを足す。それまでは作らない。
@@ -147,10 +147,10 @@ model に渡す内容は events.jsonl から組み立てる。会話履歴を別
 - 過去の message は書き換えない。追記だけ。
 - 同じイベント列からは byte 単位で同じ messages を作る。provider の thinking を返せる条件であり、prompt cache の前提でもある。
 - provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider には無変更で返し、別の provider には渡さない。
-- 末尾に Runtime の user message を 1 つ足す。「残り model 呼び出し N 回、Tool 呼び出し M 回」の 1 行だけを持つ。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。独立した message なので、前の message の byte はターンをまたいで変わらない。Runtime は `stableMessages` で「末尾の予算行を除いた件数」を provider に渡し、provider はそこに prompt cache の切れ目を置く。provider は連続する user message を 1 ターンとして送る。
+- 末尾に Runtime の user message を 1 つ足す。「残り model 呼び出し N 回、Tool 呼び出し M 回」の 1 行だけを持つ。同じ数値を `budget` として構造化しても返す。model が残量を知って畳めるようにする。独立した message なので、前の message の byte はターンをまたいで変わらない。Runtime は `stableMessages` で「末尾の残り回数の行を除いた件数」を provider に渡し、provider はそこに prompt cache の切れ目を置く。provider は連続する user message を 1 ターンとして送る。
 - tool_result は直前の assistant message の tool_call に対応していなければならず、tool_call は次の message までに結果を持たなければならない。どちらかが欠けたログは壊れたものとして扱う。
 
-## Contract
+## インターフェース
 
 `packages/core` に置く。公式実装も第三者実装も同じものを使う。
 
@@ -202,7 +202,7 @@ export interface ModelResponse {
 
 - `capabilities.tools` が false の model を設定したら、起動時にエラーにする。
 - `refusal` は provider が安全上の理由で応答を止めたことを表す。Runtime は Work を `failed`(reason: `model_refusal`)にする。
-- provider ごとの違い(thinking、effort、cache)は `providerOptions` で渡す。契約側で吸収しない。
+- provider ごとの違い(thinking、effort、cache)は `providerOptions` で渡す。インターフェース側で吸収しない。
 - usage の `inputTokens` は入力の全部で、prompt cache から読んだ分と書いた分を含む。`cachedInputTokens` はそのうち読んだ分、`cacheWriteTokens` は書いた分、`reasoningTokens` は出力のうち thinking の分。provider によって生の値の意味が違うので、provider がこの形に揃える。
 
 ### ToolProvider
@@ -238,7 +238,7 @@ export interface ToolResult {
 
 - 名前が重複する Tool が登録されたら起動時にエラーにする。黙って上書きしない。
 - Runtime は `inputSchema` で入力を検証してから `call` する。不一致は `tool.rejected` として記録し、model には `isError` の結果として返す。
-- `inputSchema` は `type: object` でなければならない。入力の値を渡すのは model なので、`pattern` と `patternProperties` に破局的な後退を起こす正規表現があれば登録を拒否する。
+- `inputSchema` は `type: object` でなければならない。入力の値を渡すのは model なので、`pattern` と `patternProperties` にバックトラックが爆発する正規表現(ReDoS)があれば登録を拒否する。
 - 1 つの応答に複数の tool_call が来たら、順に実行し、結果はまとめて 1 つの user message で返す。分けて返すと model が並列呼び出しをやめる。
 - Tool の結果の text は 50,000 文字で切り、切ったことを末尾に印す。Tool 1 つで model の context を溢れさせないため。
 - `effect: "mutate"` の Tool は、この段階では直接実行する。後の段階で ChangeSet を通す差し込み口になる。
@@ -260,7 +260,7 @@ export interface ToolResult {
 - content: text と tool_use はそのまま。thinking と redacted_thinking、その他のブロックは `opaque`(provider: anthropic)として保存し、次の request の assistant message に無変更で戻す
 - usage: inputTokens は input_tokens と cache_read_input_tokens と cache_creation_input_tokens の和(API の input_tokens はキャッシュ分を含まない)。output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)
 - エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答とそれ以外の API エラーは `invalid_response`。SDK の再試行(既定 2 回)の後に投げる
-- request: prompt cache の切れ目は、`stableMessages` が指す最後の message の末尾のブロックに `cache_control: { type: ephemeral }` として置く。次のターンはそこまでをキャッシュから読み、続きを書く。request 末尾の自動キャッシュは使わない(切れ目が毎ターン変わる予算行の後ろになり、一度も当たらない)。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages、stream(常に false)は Runtime のもので上書きできない
+- request: prompt cache の切れ目は、`stableMessages` が指す最後の message の末尾のブロックに `cache_control: { type: ephemeral }` として置く。次のターンはそこまでをキャッシュから読み、続きを書く。request 末尾の自動キャッシュは使わない(切れ目が毎ターン変わる残り回数の行の後ろになり、一度も当たらない)。`providerOptions` は request の body にそのまま載る(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受ける。model、max_tokens、system、tools、messages、stream(常に false)は Runtime のもので上書きできない
 - API キーは `api_key_env` の環境変数から読む(前後の空白は取り除く)。未設定なら起動時に `config` エラー。認証は `x-api-key` ヘッダ。`base_url` は root を指し、省略時は `https://api.anthropic.com`。末尾の `/v1` は SDK が自分で足すので外す
 - 応答が message の形でない(content や usage が欠けている、JSON でない)ときは `invalid_response`。usage の項目が欠けていれば 0。`maxOutputTokens` が省略された request では 16,000。system と tools が空なら送らない。相手 provider の opaque だけでできた assistant のターンは送る前に `invalid_response`
 
@@ -437,8 +437,8 @@ limits:
 
 | パス | この spec で置くもの |
 |---|---|
-| `packages/core/src/model/` | ModelProvider の契約と message 型 |
-| `packages/core/src/tool/` | ToolProvider の契約、JSON Schema 検証、名前の登録と許可リスト |
+| `packages/core/src/model/` | ModelProvider のインターフェースと message 型 |
+| `packages/core/src/tool/` | ToolProvider のインターフェース、JSON Schema 検証、名前の登録と許可リスト |
 | `packages/core/src/work/` | Work、Event、投影、`work/<id>/` の読み書きと lock |
 | `packages/core/src/config/` | `openshain.yaml` の読み込みと検証 |
 | `packages/core/src/errors.ts` | `OpenshainError` |
@@ -447,11 +447,11 @@ limits:
 | `packages/tools/src/` | 標準 Tool |
 | `packages/mcp/src/` | MCP Server |
 | `packages/cli/src/` | コマンド |
-| `examples/tools/echo/` | 第三者 Tool の例。契約と設定だけで組み込めることの証明に使う |
+| `examples/tools/echo/` | 第三者 Tool の例。インターフェースと設定だけで組み込めることの証明に使う |
 
 ## コードの書き方
 
-契約は `interface`、データは `type` と zod の schema。zod の schema から JSON Schema を生成して `spec/` に置く。
+インターフェースは TypeScript の `interface`、データは `type` と zod の schema。zod の schema から JSON Schema を生成して `spec/` に置く。
 
 ```ts
 // packages/core/src/work/work.ts

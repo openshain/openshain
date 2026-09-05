@@ -13,5 +13,5 @@ openshain が判断に迷ったときに立ち返る原則。README には利用
 | Know when not to act | 止まれることは能力 |
 | Knowledge is authored, compiled, executed | Knowledge は人が書き、build し、Runtime が使う |
 | Open by default | Model、Knowledge、Expert、Profession、Tool を交換できる |
-| Official has no hidden privilege | 公式実装と第三者実装は同じ contract を使う |
+| Official has no hidden privilege | 公式実装と第三者実装は同じインターフェースを使う |
 | Paid means easiest | 有償版が引き受けるのは運用。機能の解禁ではない |

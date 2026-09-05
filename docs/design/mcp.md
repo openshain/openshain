@@ -54,6 +54,6 @@ Runtime を通らなかった操作は記録に残らない。それが差で、
 
 変える条件。会社フォルダに置く指示のひな型を `openshain init` が書くかは、quickstart を書くときに決める。
 
-## 公開面
+## 公開 API
 
 `createMcpServer`、`Session`。

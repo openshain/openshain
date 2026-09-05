@@ -2,7 +2,7 @@
 
 標準 Tool は、Runtime が model に見せる「何ができるか」の面。model は Tool を呼ぶ提案をするだけで、入力の検証、許可、実行、記録は Runtime(core)がやる。標準 Tool は 8 つ。fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read。Office 文書と Email は後の版で足す。
 
-標準といっても、Runtime から見れば第三者の Tool と同格。同じ ToolProvider の契約を通り、同じ許可リストに従い、同じ path guard を通る。標準 Tool だけが使える Runtime の入口はない。
+標準といっても、Runtime から見れば第三者の Tool と同格。同じ ToolProvider のインターフェースを通り、同じ許可リストに従い、同じ path guard を通る。標準 Tool だけが使える Runtime の入口はない。
 
 ## 結果は観測であって転送ではない
 
@@ -22,7 +22,7 @@
 
 決めたこと。csv_aggregate(`group_by`、`sum`、`filter`)と fs_search を持つ。model が行を読んで足す道は、csv_read と fs_read の説明文で塞ぐ。合計には csv_aggregate を使え、と書いてある。
 
-理由。model の足し算は毎回同じ結果にならず、検証もできない。Tool の集計は決定的で、テストで固定できる。数字は Runtime の側で作り、model は表に写すだけにする。
+理由。model の足し算は毎回同じ結果にならず、検証もできない。Tool の集計は同じ入力なら同じ結果で、テストで固定できる。数字は Runtime の側で作り、model は表に写すだけにする。
 
 集計の形。グループごとの行数と、`sum` に挙げた列ごとの sum、min、max、数値だった件数、数値でなく飛ばした件数。飛ばした件数を返すのは、`n/a` や空欄が混じった列で合計が静かに欠けるのを model に見せるため。`1,200` や `¥300` を数値として読むのは、日本の台帳ではその書き方が普通だから。無い列を指定されたら、列名の一覧を `isError` で返す。列名を推測させるより、見せて選ばせるほうが呼び出し回数が減る。
 
@@ -76,7 +76,7 @@ fs_list と fs_search はコードポイント順、csv_aggregate のグルー�
 
 変える条件。wildcard で書けない検索が具体的に出たとき、線形時間の正規表現エンジンを依存に足すかを考える。バックトラックする正規表現を model に書かせる形には戻さない。Tool 定義の schema にある `pattern` は core が検査するが、あれは Tool の作者が書く固定の式で、事情が違う。
 
-## 公開面
+## 公開 API
 
 export するのは `standardTools()`、`MAX_READ_BYTES`、`MAX_WRITE_BYTES`、`DEFAULT_WINDOW`。Tool の中の関数は出さない。標準 Tool を拡張したい人は継承ではなく provider を 1 つ足し、設定で並べる。provider の組み合わせは設定で決めるものだから。
 

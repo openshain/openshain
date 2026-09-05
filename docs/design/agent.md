@@ -30,19 +30,19 @@ Work が止まるのは、完了、質問、上限到達、model の refusal、�
 
 理由。投影の規則(tool_call は次の message までに結果を持つ)を満たさないログは model に渡せない。満たさないまま続けるより、閉じてから続けるほうが、model にも人にも何が起きたかが見える。記録そのものが矛盾していれば `corrupt_log` で止め、勝手に直さない。
 
-## provider は契約に揃える
+## provider はインターフェースに揃える
 
-決めたこと。provider は各社の公式 SDK を使い、message、stop reason、usage、エラーの code を契約の形に揃える。provider 固有の指定(thinking、effort、temperature)は `providerOptions` に入れてそのまま渡し、契約側で共通化しない。model、messages、tools、出力の上限、stream しないことは Runtime が決め、`providerOptions` で上書きできない。
+決めたこと。provider は各社の公式 SDK を使い、message、stop reason、usage、エラーの code をインターフェースの形に揃える。provider 固有の指定(thinking、effort、temperature)は `providerOptions` に入れてそのまま渡し、インターフェース側で共通化しない。model、messages、tools、出力の上限、stream しないことは Runtime が決め、`providerOptions` で上書きできない。
 
 usage の `inputTokens` は入力の全部で、prompt cache から読んだ分と書いた分を含む。provider によって生の値の意味が違うので、揃えるのは provider の仕事。Runtime は `stableMessages`(次のターンも変わらない message の数)を渡す。Anthropic の provider はそこに cache の切れ目を置き、OpenAI 互換の provider は接頭辞の自動一致に任せて使わない。
 
 エラーは code に写す。認証は `auth`、上限超過は `rate_limit`、設定の誤り(model 名、URL)は `config`、接続と 5xx は `network`、形が読めない応答は `invalid_response`。Runtime は code で分岐し、利用者向けの文言は CLI が持つ。
 
-理由。契約は 1 つで、差は provider の中に閉じ込める。差を契約に吸い上げると、provider を足すたびに契約が変わる。
+理由。インターフェースは 1 つで、差は provider の中に閉じ込める。差をインターフェースに吸い上げると、provider を足すたびにインターフェースが変わる。
 
 捨てた案。
 
-- vendor 横断の SDK を adapter として挟む。契約が二重になり、差分の吸収先がどちらか分からなくなる。
+- vendor 横断の SDK を adapter として挟む。インターフェースが二重になり、差分の吸収先がどちらか分からなくなる。
 - streaming。Work の進捗は Tool の行で足りる。途中の文字列を見せる価値より、記録の単純さを取った。
 - provider ごとに会話の形式を保存する。model を替えたときに読めなくなる。
 
@@ -50,6 +50,6 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 
 質問は Work の状態(`waiting_input`)に直結するので、Tool provider に任せず Runtime が持つ。provider は `runtime`、名前は予約。入力は他の Tool と同じく schema で検証し、外れたら同じターンで拒否を返し、待たない。MCP では登録しない。外部 Agent が利用者に聞くから。
 
-## 公開面
+## 公開 API
 
 `runWork`、`ASK_USER`、`pendingQuestions`、`countToolCalls`、`FailureReason`、provider の factory と class。loop の内部の関数は出さない。

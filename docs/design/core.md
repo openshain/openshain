@@ -1,10 +1,10 @@
 # `@openshain/core` の設計
 
-core は契約(ModelProvider、ToolProvider)、基本オブジェクト(Work、Event)、Work Runtime(記録、投影、path guard、Tool の登録と呼び出し)を持つ。model も Tool も持たない。CLI、MCP Server、第三者のプログラムはこの上に載る。
+core はインターフェース(ModelProvider、ToolProvider)、基本オブジェクト(Work、Event)、Work Runtime(記録、投影、path guard、Tool の登録と呼び出し)を持つ。model も Tool も持たない。CLI、MCP Server、第三者のプログラムはこの上に載る。
 
-## 契約を切る場所は 3 つ
+## インターフェースを切る場所は 3 つ
 
-決めたこと。契約にするのは ModelProvider、ToolProvider、入口(CLI と MCP)の 3 つ。Knowledge、検索、認証、秘密の管理は、2 つ目の実装が現れたときに切る。
+決めたこと。インターフェースにするのは ModelProvider、ToolProvider、入口(CLI と MCP)の 3 つ。Knowledge、検索、認証、秘密の管理は、2 つ目の実装が現れたときに切る。
 
 理由。実装が 1 つしかない抽象は、その 1 つの形をなぞるだけで、2 つ目が来たときに合わない。model は vendor が複数あり、Tool は標準と第三者があり、入口は CLI と MCP がある。この 3 つは今から複数の実装が要る。
 
@@ -25,15 +25,15 @@ envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に�
 
 ## 投影は毎回組み立てる
 
-決めたこと。model に渡す内容(system、messages、tools、末尾の予算行)は、そのつどイベントから組み立てる。同じイベント列からは byte 単位で同じ messages ができる。provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider にだけ無変更で返す。予算の通知は独立した user message として末尾に足す。
+決めたこと。model に渡す内容(system、messages、tools、末尾の残り回数の行)は、そのつどイベントから組み立てる。同じイベント列からは byte 単位で同じ messages ができる。provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider にだけ無変更で返す。残り回数の通知は独立した user message として末尾に足す。
 
-理由。model を交換できる条件は、model 固有の状態を正本にしないこと。thinking は捨てられる最適化として扱う。byte 一致は prompt cache の前提でもある。予算行を独立した message にしたのは、前の message の byte をターンをまたいで変えないため。
+理由。model を交換できる条件は、model 固有の状態を正本にしないこと。thinking は捨てられる最適化として扱う。byte 一致は prompt cache の前提でもある。残り回数の行を独立した message にしたのは、前の message の byte をターンをまたいで変えないため。
 
 ## 判断はコードが持つ
 
 状態遷移の表、呼び出し回数の上限、path guard、入力の schema 検証、Tool の許可判定は、普通の関数で書く。model に「してはいけない」と教えても強制にならない。`authorize()` は今は許可リストだけだが、Tool を実行する直前の 1 か所に置いてあり、後の権限の判定はそこに差し込む。
 
-Tool 定義の schema は登録時に検証する。`pattern` と `patternProperties` に破局的な後退を起こす正規表現があれば登録を拒否する。入力の値を渡すのは model なので、検証自体を止められる schema を受け付けない。
+Tool 定義の schema は登録時に検証する。`pattern` と `patternProperties` にバックトラックが爆発する正規表現(ReDoS)があれば登録を拒否する。入力の値を渡すのは model なので、検証自体を止められる schema を受け付けない。
 
 ## 予約する名前とパス
 
@@ -47,9 +47,9 @@ ID は UUIDv7 に接頭辞(`work_`、`evt_`)を付け、コードでは branded 
 
 provider と Runtime の失敗は `OpenshainError`(code と message)で表す。code は機械が読む語の閉じた一覧で、Runtime はそれで分岐し、利用者向けの文言は入口が持つ。provider の独自の理由は message に書く。Tool の業務上の失敗(ファイルがない、列がない)は例外ではなく `isError` の結果で、Work は続く。
 
-## 公開面
+## 公開 API
 
-`index.ts` から export したものが SDK。SDK という package は作らない。内部と公開面を分けるのは、外部の利用者から互換性の要求が来たときでよい。build はせず、TypeScript のソースをそのまま export している。今は契約を壊して直す時期で、固定した公開 API はまだ嘘になる。
+`index.ts` から export したものが SDK。SDK という package は作らない。内部と公開 APIを分けるのは、外部の利用者から互換性の要求が来たときでよい。build はせず、TypeScript のソースをそのまま export している。今はインターフェースを壊して直す時期で、固定した公開 API はまだ嘘になる。
 
 `jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作る。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを見る。正本は zod で、JSON Schema は他の言語や道具のための写し。refine で書いた条件はそこに出ない。
 
@@ -57,6 +57,6 @@ provider と Runtime の失敗は `OpenshainError`(code と message)で表す。
 
 ## 変える条件
 
-- 2 つ目の実装が現れた契約は切る(Knowledge、検索、認証)。
+- 2 つ目の実装が現れたインターフェースは切る(Knowledge、検索、認証)。
 - Work をまたぐ検索や集計が要るようになったら、WorkStore の裏に SQLite を入れる。イベントログの形は変えない。
-- 外部から互換性の要求が来たら、内部と公開面を分けて semver を始める。
+- 外部から互換性の要求が来たら、内部と公開 APIを分けて semver を始める。

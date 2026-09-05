@@ -35,6 +35,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Money, authority checks, state transitions and safety conditions are ordinary code, never model output.
 - Named exports only. Tests sit next to the source: `work.ts` has `work.test.ts`.
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first.
+- Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: インターフェース rather than 契約 for contract, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.
 - Commit messages follow Conventional Commits and say what changed in the product.
 
 ## How to work here

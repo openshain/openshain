@@ -10,7 +10,7 @@
 
 | spec | 状態 | 内容 |
 |---|---|---|
-| [open-runtime.md](open-runtime.md) | v0.3(実装済み) | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider の契約、Work とイベント、CLI と MCP |
+| [open-runtime.md](open-runtime.md) | v0.3(実装済み) | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider のインターフェース、Work とイベント、CLI と MCP |
 | [open-runtime.plan.md](open-runtime.plan.md) | draft | 上の spec の実装計画。19 タスク、5 checkpoint |
 
 ## JSON Schema(`schemas/`)

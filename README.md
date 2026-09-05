@@ -28,7 +28,7 @@ Claude や Codex のような Agent は、そのままでは会社の社員と�
 - Model は設定で切り替える。Anthropic と OpenAI 互換 API。キーは自分のもの
 - 標準 Tool はファイル、CSV、Markdown。workspace の外には出ない。結果は窓と集計で返し、ファイルを丸ごと model に渡さない
 - Claude Code や Codex から MCP で同じ Runtime を使う。思考は Agent、記録は Runtime
-- 自作の Tool は設定に 1 行足すだけ。公式の Tool と同じ契約
+- 自作の Tool は設定に 1 行足すだけ。公式の Tool と同じインターフェース
 - 成果物のハッシュと使用量を Work ごとに記録する
 
 権限、承認、専門家へのエスカレーション、職種 Pack はこれから。いまの職種は `generic` だけで、最初の職種として経理を作っている。
@@ -106,7 +106,7 @@ model:
 
 - Work, not answers。業務の完了まで進める
 - Existing SaaS remains the system of record。既存の SaaS をそのまま使う
-- Official has no hidden privilege。公式実装と第三者実装は同じ契約を使う
+- Official has no hidden privilege。公式実装と第三者実装は同じインターフェースを使う
 - Paid means easiest。有償版が引き受けるのは運用で、機能の解禁ではない
 
 原則の全文は [docs/principles.md](docs/principles.md)、各 package をなぜその形にしたかは [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md)。

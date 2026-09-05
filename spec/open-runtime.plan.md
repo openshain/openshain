@@ -21,8 +21,8 @@ core の土台(エラー、ID、設定、イベントログ、Work、Tool の登
 errors, ids
   ├── config (yaml + zod)
   ├── work: events(zod は config で入る)→ event log → lock → Work と遷移 → projection
-  ├── tool: 契約(events の ToolContent と Artifact を使う)→ registry(一意性、allow)→ ajv 検証 → path guard
-  └── model: 契約
+  ├── tool: インターフェース(events の ToolContent と Artifact を使う)→ registry(一意性、allow)→ ajv 検証 → path guard
+  └── model: インターフェース
         └── createRuntime(config → registry、module 読み込み、events)
               ├── tools/standard(path guard、after の sha256)
               ├── agent/loop(fake model で先に通す)→ ask_user
@@ -30,7 +30,7 @@ errors, ids
               │     └── providers/openai-compatible
               ├── cli(init、run、work、tools)→ mcp コマンド
               └── mcp/server(loop は使わない)
-examples/tools/echo(契約と module 読み込みだけに依存)
+examples/tools/echo(インターフェースと module 読み込みだけに依存)
 ```
 
 ## タスク
@@ -79,7 +79,7 @@ Work の schema と遷移表、`work.json` への投影の書き出し、`WorkSt
 - ファイル: `packages/core/src/work/work.ts`、`store.ts`、`lock.ts`、各 test
 - サイズ: M
 
-#### Task 5: Tool の契約、registry、検証、path guard
+#### Task 5: Tool のインターフェース、registry、検証、path guard
 
 ToolDefinition と ToolProvider の型。`ToolRegistry`(provider 登録、名前の一意性、allow による絞り込み)。ajv(2020-12)による `validateInput`。`resolveWorkspacePath(root, rel)`(`..`、絶対パス、symlink の先、予約パスを拒否)。
 
@@ -89,7 +89,7 @@ ToolDefinition と ToolProvider の型。`ToolRegistry`(provider 登録、名前
 - ファイル: `packages/core/src/tool/types.ts`、`registry.ts`、`validate.ts`、`paths.ts`、test、`package.json`(ajv)
 - サイズ: M
 
-#### Task 6: model の契約と投影
+#### Task 6: model のインターフェースと投影
 
 ModelProvider と message の型。`buildProjection(events, config, budget)`: system、追記だけの messages、許可済み Tool 定義、`opaque` の扱い、残量の 1 行。
 
@@ -182,7 +182,7 @@ Checkpoint 2(2026-09-04 完了)。4 面のレビュー(敵対、spec と code、
 
 #### Task 13: Anthropic provider
 
-`@anthropic-ai/sdk`。ModelRequest → `messages.create`(system、tools、max_tokens、providerOptions の透過)。応答の text、tool_use、thinking(→ `opaque`)と stop_reason、usage(cache 読み取りを含む)の対応。SDK の例外を `code` に対応づける。
+`@anthropic-ai/sdk`。ModelRequest → `messages.create`(system、tools、max_tokens、providerOptions はそのまま渡す)。応答の text、tool_use、thinking(→ `opaque`)と stop_reason、usage(cache 読み取りを含む)の対応。SDK の例外を `code` に対応づける。
 
 - 受け入れ: 記録した応答(text のみ、tool_use あり、max_tokens、refusal)の 4 fixture で対応どおりに変換される。`providerOptions.effort` が request に載る。認証エラーが `auth` になる。
 - 検証: `bun test packages/agent/src/providers/anthropic.test.ts`
@@ -215,7 +215,7 @@ Checkpoint 2(2026-09-04 完了)。4 面のレビュー(敵対、spec と code、
 - 完了条件 1 のテストが通る。maintainer が実キーで live smoke を 1 回回す
 - レビュー
 
-Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認。1 回目に見えた「予算の通知に model が返事をする」挙動は system prompt の一文で直した。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映した。
+Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認。1 回目に見えた「残り回数の通知に model が返事をする」挙動は system prompt の一文で直した。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映した。
 
 ### Phase 4: MCP と第三者 Tool
 
@@ -284,8 +284,8 @@ Checkpoint 1 の後は、Task 8(標準 Tool)、Task 13 と 14(provider)、Task 1
 | リスク | 影響 | 手当て |
 |---|---|---|
 | TypeScript 7(native tsc)がライブラリの型定義で躓く | 中 | 版を固定。躓いたら typecheck だけ TypeScript 5.9 に戻す ADR を書く |
-| Anthropic API の仕様変化(thinking、effort、refusal の扱い) | 中 | fixture は実応答から記録する。providerOptions は透過にして契約側で吸収しない |
-| OpenAI 互換サーバーごとの差(tool 対応、strict、usage の項目) | 中 | 契約は最小の共通部分。差は `capabilities` と providerOptions で表す。live smoke は OpenAI 本家とローカル 1 つ |
+| Anthropic API の仕様変化(thinking、effort、refusal の扱い) | 中 | fixture は実応答から記録する。providerOptions はそのまま渡してインターフェース側で吸収しない |
+| OpenAI 互換サーバーごとの差(tool 対応、strict、usage の項目) | 中 | インターフェースは最小の共通部分。差は `capabilities` と providerOptions で表す。live smoke は OpenAI 本家とローカル 1 つ |
 | ajv の 2020-12 と strict mode が第三者 schema を弾く | 低 | strict を off にして未知キーワードを許す。弾いた理由を `tool.rejected` に残す |
 | lock の pid 生存確認が WSL と macOS で挙動が違う | 低 | `process.kill(pid, 0)` の例外種別で判定し、両 OS でテスト |
 | 投影の決定性が provider の `opaque` で崩れる | 中 | Task 6 のテストで JSON 文字列の一致を固定する |

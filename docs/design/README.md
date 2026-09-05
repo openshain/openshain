@@ -4,8 +4,8 @@ spec は何を作るかを決め、このディレクトリはなぜその形に
 
 | package | ノート | 一言で |
 |---|---|---|
-| `@openshain/core` | [core.md](core.md) | 契約とイベントログ。判断はコードが持つ |
-| `@openshain/agent` | [agent.md](agent.md) | イベントログの上で回る tool loop と、契約に揃える provider |
+| `@openshain/core` | [core.md](core.md) | インターフェースとイベントログ。判断はコードが持つ |
+| `@openshain/agent` | [agent.md](agent.md) | イベントログの上で回る tool loop と、インターフェースに揃える provider |
 | `@openshain/tools` | [tools.md](tools.md) | 標準 Tool。結果は観測であって転送ではない |
 | `@openshain/mcp` | [mcp.md](mcp.md) | 外部 Agent が考え、Runtime が状態と記録を持つ |
 | `openshain` CLI | [cli.md](cli.md) | 参照実装のクライアント。見せるのは進捗と結果だけ |
@@ -14,7 +14,7 @@ spec は何を作るかを決め、このディレクトリはなぜその形に
 
 各ノートは次の 5 つを前提にしている。
 
-1. 契約は core に置き、公式実装も第三者実装も同じ契約を使う。core に公式向けの裏口を作らない。
+1. インターフェースは core に置き、公式実装も第三者実装も同じインターフェースを使う。core に公式向けの裏口を作らない。
 2. 金額、権限、状態遷移、安全の判定は普通のコードで書く。model の出力に判断を委ねない。
 3. Work の正本は `work/<id>/events.jsonl`。会話履歴も進捗も使用量も、そこから組み立てる。別の保存形式を持たない。
 4. model に渡すのは、目的に合わせて組み立てた投影。ファイルや履歴を丸ごと渡さない。

@@ -7,7 +7,7 @@ English follows the Japanese.
 - バグや提案は GitHub の Issue へ。再現できる手順か、変えたい振る舞いを書いてください
 - コードの変更は fork から Pull Request で。1 つの PR で 1 つのことを変えます
 - PR は CI(typecheck、lint、test、schema の差分、audit)が通ることが条件です。手元では `bun run typecheck`、`bun run lint`、`bun test` を回してください
-- 振る舞いを変える PR には、その振る舞いのテストを含めてください。package の形を変えるなら `docs/design/` のノートも直します。契約(`packages/core`)や `spec/` を変えるときは、先に Issue で相談してください
+- 振る舞いを変える PR には、その振る舞いのテストを含めてください。package の形を変えるなら `docs/design/` のノートも直します。インターフェース(`packages/core`)や `spec/` を変えるときは、先に Issue で相談してください
 - コード、コメント、commit message は英語、利用者向けの文書は日本語です。commit message は Conventional Commits(feat、fix、docs、chore、refactor、test)
 - 規約と構成は [AGENTS.md](AGENTS.md) にまとめてあります。人にも Agent にも同じ規約です
 - 例、fixture、テストには架空の会社と架空のデータだけを使います。実在の会社のデータ、認証情報、個人情報は入れません
