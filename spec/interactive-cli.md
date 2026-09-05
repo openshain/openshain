@@ -36,7 +36,7 @@ Runtime が提供する。名前は予約で、Tool provider は同じ名前を�
 
 | name | effect | 内容 |
 |---|---|---|
-| `work_run` | mutate | objective(人の言葉で書き、会話で分かった前提を添える)と type を受け、Work を作って完了か停止まで進める。返すのは status、summary、artifacts、使用量、失敗の理由、質問待ちならその質問と Work id |
+| `work_run` | mutate | objective(人の言葉で書き、会話で分かった前提を添える)と type(`session` 以外)を受け、Work を作って完了か停止まで進める。返すのは status、summary、artifacts、使用量、失敗の理由、質問待ちならその質問と Work id |
 | `work_list` | observe | 最近の Work の id、status、objective、作成時刻。セッションは除く |
 | `work_show` | observe | id を受けて、要約、成果物、使用量、次に動くのが誰か |
 

@@ -17,6 +17,12 @@ export const WORK_STATUSES = [
 export const WorkStatus = z.enum(WORK_STATUSES);
 export type WorkStatus = z.infer<typeof WorkStatus>;
 
+/**
+ * The type of the work that records a conversation. Only a session opens one: its objective is a
+ * label that stays out of the projection, and it is not run like other works.
+ */
+export const SESSION_WORK_TYPE = "session";
+
 const allowed: Record<WorkStatus, readonly WorkStatus[]> = {
   queued: ["in_progress", "cancelled"],
   in_progress: [

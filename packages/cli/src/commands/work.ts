@@ -6,6 +6,7 @@ import {
   isTerminal,
   parseWorkId,
   type RuntimeProviders,
+  SESSION_WORK_TYPE,
   type Work,
   WorkStore,
 } from "@openshain/core";
@@ -94,6 +95,12 @@ export interface WorkResumeOptions extends DriveOptions {
 export async function workResume(options: WorkResumeOptions): Promise<number> {
   const workId = parseWorkId(options.id);
   const work = await new WorkStore(options.workspaceRoot).get(workId);
+  if (work.type === SESSION_WORK_TYPE) {
+    options.write(
+      `${work.id} は会話の記録のため、再開できません。会話は openshain で始め直してください。`,
+    );
+    return 1;
+  }
   if (isTerminal(work.status)) {
     options.write(`${work.id} は${statusLabel(work.status)}のため、再開できません。`);
     return 1;

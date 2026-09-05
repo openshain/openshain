@@ -4,6 +4,7 @@ import type { ModelMessage, UserPart } from "../model/types.ts";
 import type { ToolDefinition } from "../tool/types.ts";
 import type { AssistantPart } from "./events.ts";
 import { type AnyEvent, canonical, type Event, type ToolContent } from "./events.ts";
+import { SESSION_WORK_TYPE } from "./work.ts";
 
 export interface ProjectionInput {
   events: readonly AnyEvent[];
@@ -48,7 +49,7 @@ export function buildProjection(input: ProjectionInput): Projection {
       case "work.created": {
         // A session's objective is a label; the conversation starts with what the person says.
         const { objective, type } = (event as Event<"work.created">).payload;
-        if (type !== "session") pushUserPart({ type: "text", text: objective });
+        if (type !== SESSION_WORK_TYPE) pushUserPart({ type: "text", text: objective });
         break;
       }
       case "human.message":

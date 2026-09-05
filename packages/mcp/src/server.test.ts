@@ -76,6 +76,16 @@ describe("openshain over MCP", () => {
     expect(result.text).toContain("work_create");
   });
 
+  test("work_create refuses the type that records conversations", async () => {
+    const { call, store } = await connected();
+
+    const result = await call("work_create", { objective: "x", type: "session" });
+
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("reserved");
+    expect((await store.list()).works).toHaveLength(0);
+  });
+
   test("drives a work from creation to completion, recording the calls and the evidence", async () => {
     const { root, call, store } = await connected();
 

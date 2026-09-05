@@ -11,6 +11,7 @@ import {
   type ModelResponse,
   parseWorkId,
   type Runtime,
+  SESSION_WORK_TYPE,
   type ToolContent,
   type ToolDefinition,
   type Work,
@@ -112,7 +113,7 @@ export async function createSession(
     objective: "会話",
     principal: principal.id,
     profession: profession.id,
-    type: "session",
+    type: SESSION_WORK_TYPE,
   });
   await withHandle(runtime, created.id, options, (handle) =>
     handle.transition("in_progress", "session opened"),
@@ -352,11 +353,23 @@ async function runSessionTool(
 ): Promise<{ content: ToolContent[]; isError?: boolean }> {
   switch (name) {
     case "work_run": {
+      const type = typeof input.type === "string" && input.type !== "" ? input.type : "request";
+      if (type === SESSION_WORK_TYPE) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `type "${SESSION_WORK_TYPE}" is reserved for conversations; use another label, such as request`,
+            },
+          ],
+          isError: true,
+        };
+      }
       const child = await runtime.works.create({
         objective: String(input.objective),
         principal: runtime.config.principal.id,
         profession: runtime.config.profession.id,
-        type: typeof input.type === "string" && input.type !== "" ? input.type : "request",
+        type,
         parent: handle.id,
       });
       const done = await runWork(runtime, child.id, {
@@ -378,7 +391,7 @@ async function runSessionTool(
     case "work_list": {
       const { works } = await runtime.works.list();
       const recent = works
-        .filter((w) => w.type !== "session")
+        .filter((w) => w.type !== SESSION_WORK_TYPE)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
         .slice(0, 20)
         .map((w) => ({

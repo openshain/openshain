@@ -190,6 +190,21 @@ describe("a session", () => {
     ]);
   });
 
+  test("refuses to start a work of the type that records conversations", async () => {
+    const { runtime } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して", type: "session" } }),
+      say("できません"),
+    ]);
+    const session = await createSession(runtime);
+
+    const result = await session.turn("集計して");
+
+    expect(result.reply).toBe("できません");
+    const done = (await runtime.works.events(session.id)).find((e) => e.type === "tool.completed");
+    expect((done?.payload as { isError?: boolean } | undefined)?.isError).toBe(true);
+    expect((await runtime.works.list()).works.map((w) => w.type)).toEqual(["session"]);
+  });
+
   test("answers about earlier works from the records", async () => {
     const { runtime } = await setup([
       callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),

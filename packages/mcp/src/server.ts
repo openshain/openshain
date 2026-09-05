@@ -19,6 +19,7 @@ import {
   parseWorkId,
   type RuntimeProviders,
   resolveWorkspacePath,
+  SESSION_WORK_TYPE,
   type ToolDefinition,
   type ToolResult,
   verifyArtifact,
@@ -166,6 +167,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           );
         }
         const { objective, type } = input as { objective: string; type?: string };
+        if (type === SESSION_WORK_TYPE) {
+          return failure(
+            `type "${SESSION_WORK_TYPE}" is reserved for conversations; use another label, such as request`,
+          );
+        }
         const work = await works.create({
           objective,
           principal: config.principal.id,

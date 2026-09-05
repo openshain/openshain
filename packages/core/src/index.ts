@@ -90,6 +90,7 @@ export {
 export {
   isTerminal,
   reduceWork,
+  SESSION_WORK_TYPE,
   transition,
   WORK_STATUSES,
   type Work,

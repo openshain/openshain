@@ -265,6 +265,18 @@ describe("runWork", () => {
     await expect(runWork(runtime, work.id)).rejects.toThrow(/completed/);
   });
 
+  test("refuses to run the work that records a conversation", async () => {
+    const { runtime } = await setup([say("ok")]);
+    const session = await runtime.works.create({
+      objective: "会話",
+      principal: "alice",
+      profession: "generic",
+      type: "session",
+    });
+
+    await expect(runWork(runtime, session.id)).rejects.toThrow(/conversation/);
+  });
+
   test("uses the model given in the options over the runtime's", async () => {
     const { runtime, work } = await setup([say("from runtime")]);
     const other = new FakeModelProvider([say("from option")]);

@@ -140,7 +140,7 @@ outcome:
 model に渡す内容は events.jsonl から組み立てる。会話履歴を別に保存しない。
 
 - system: profession の指示文、会社名、principal、Runtime の通知の説明(末尾の残量の 1 行は通知で返事は要らない、依頼が終わったら要約して終える)
-- messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたもの。`type: session` の Work では objective は入れない
+- messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたもの。`type: session` の Work では objective は入れない。`session` は会話の記録に予約した type で、`work_create` と `work_run` は受け付けず、`work resume` でも動かない
 - tools: 許可リストを通った Tool 定義
 
 規則:
@@ -361,7 +361,7 @@ MCP tool:
 
 | name | 内容 |
 |---|---|
-| `work_create` | objective と type を受けて Work を作り、そのセッションの現在の Work にする |
+| `work_create` | objective と type を受けて Work を作り、そのセッションの現在の Work にする。type に `session` は使えない |
 | `work_select` | 既存の Work を現在の Work にする |
 | `work_get`、`work_list` | 参照 |
 | `work_complete` | summary と artifacts を受ける。artifacts は Runtime がファイルの存在と sha256 を検証し、Runtime の Tool で書いたファイルと合わせて `evidence.recorded` と `work.completed` を残す |

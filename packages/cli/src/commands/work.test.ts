@@ -219,6 +219,26 @@ describe("work resume", () => {
     expect(out.text()).toContain("のため、再開できません");
   });
 
+  test("refuses to resume the work that records a conversation", async () => {
+    const { root, providers } = await fakeWorkspace(new FakeModelProvider([]));
+    const session = await new WorkStore(root).create({
+      ...request,
+      objective: "会話",
+      type: "session",
+    });
+    const out = io();
+
+    const code = await workResume({
+      workspaceRoot: root,
+      providers,
+      id: session.id,
+      write: out.write,
+    });
+
+    expect(code).toBe(1);
+    expect(out.text()).toContain("会話の記録のため");
+  });
+
   test("without a way to ask, shows the pending question and stops", async () => {
     const model = new FakeModelProvider([
       callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),

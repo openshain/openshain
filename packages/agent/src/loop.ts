@@ -12,6 +12,7 @@ import {
   type ModelResponse,
   OpenshainError,
   type Runtime,
+  SESSION_WORK_TYPE,
   type ToolDefinition,
   verifyArtifact,
   type Work,
@@ -69,6 +70,12 @@ export async function runWork(
   const handle = options.onEvent ? observed(opened, options.onEvent) : opened;
   try {
     const work = await handle.current();
+    if (work.type === SESSION_WORK_TYPE) {
+      throw new OpenshainError(
+        "invalid_transition",
+        `work ${workId} is a conversation; it goes on in the screen that opened it, not through a run`,
+      );
+    }
     if (isTerminal(work.status)) {
       throw new OpenshainError("invalid_transition", `work ${workId} is already ${work.status}`);
     }
