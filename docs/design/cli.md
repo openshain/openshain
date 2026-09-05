@@ -38,4 +38,4 @@ MCP Server は別 package だが、起動は CLI のサブコマンド。イン�
 
 ## 公開面
 
-配布物は `openshain` コマンドだけ。コマンドの関数は内部のもので、import して使う契約ではない。プログラムから使うなら core と agent を使う。
+配布物は `openshain` コマンドだけ。コマンドの関数は bin とテストのために export しているが、import して使う契約ではなく、予告なく変える。プログラムから使うなら core と agent を使う。

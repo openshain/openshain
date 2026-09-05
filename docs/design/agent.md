@@ -34,7 +34,7 @@ Work が止まるのは、完了、質問、上限到達、model の refusal、�
 
 決めたこと。provider は各社の公式 SDK を使い、message、stop reason、usage、エラーの code を契約の形に揃える。provider 固有の指定(thinking、effort、temperature)は `providerOptions` に入れてそのまま渡し、契約側で共通化しない。model、messages、tools、出力の上限、stream しないことは Runtime が決め、`providerOptions` で上書きできない。
 
-usage の `inputTokens` は入力の全部で、prompt cache から読んだ分と書いた分を含む。provider によって生の値の意味が違うので、揃えるのは provider の仕事。Runtime は `stableMessages`(次のターンも変わらない message の数)を渡し、provider はそこに cache の切れ目を置く。
+usage の `inputTokens` は入力の全部で、prompt cache から読んだ分と書いた分を含む。provider によって生の値の意味が違うので、揃えるのは provider の仕事。Runtime は `stableMessages`(次のターンも変わらない message の数)を渡す。Anthropic の provider はそこに cache の切れ目を置き、OpenAI 互換の provider は接頭辞の自動一致に任せて使わない。
 
 エラーは code に写す。認証は `auth`、上限超過は `rate_limit`、設定の誤り(model 名、URL)は `config`、接続と 5xx は `network`、形が読めない応答は `invalid_response`。Runtime は code で分岐し、利用者向けの文言は CLI が持つ。
 
