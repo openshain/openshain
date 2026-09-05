@@ -99,6 +99,8 @@ describe("a tool provider from a module in the workspace", () => {
       args: [bin, "mcp", "--workspace", root],
       stderr: "pipe",
     });
+    const stderr: string[] = [];
+    transport.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk.toString("utf8")));
     const client = new Client({ name: "test", version: "0" });
     await client.connect(transport);
     try {
@@ -125,6 +127,7 @@ describe("a tool provider from a module in the workspace", () => {
       const events = await new WorkStore(root).events(id as never);
       expect(events.map((e) => e.type)).toContain("tool.called");
       expect(events.at(-1)?.type).toBe("work.completed");
+      expect(stderr.join("")).toContain(`MCP server を起動しました。workspace: ${root}`);
     } finally {
       await client.close();
     }
