@@ -66,6 +66,8 @@ openshain work list
 openshain work show <id>
 ```
 
+On the screen, the clerk turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/resume <id>`. The conversation itself is kept as a work.
+
 | Command | What it does |
 |---|---|
 | `openshain` | The conversation screen; work is started as works |
