@@ -344,7 +344,7 @@ provider が throw → model.failed → work.failed(model_error)
 | `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰か |
 | `openshain work resume <id>` | 途中で止まった Work を続ける。`waiting_input` なら端末で質問に答えて続け、`in_progress` なら中断した呼び出しを閉じてから続け、`queued` なら最初から進める。終わった Work は断る。端末がなければ質問せず、待機のまま質問文を出して終わる |
 | `openshain tools list` | 登録された Tool の一覧(name、provider、effect、許可の有無) |
-| `openshain mcp` | MCP Server を stdio で起動する。起動したら stderr に 1 行出す(stdout は protocol のもの) |
+| `openshain mcp` | MCP Server を stdio で起動する |
 
 `--workspace <dir>` で起点を指定できる。`init` はそこに書き、他のコマンドはそこから上に向かって `openshain.yaml` を探す。省略時はカレントディレクトリ。
 

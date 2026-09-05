@@ -28,7 +28,7 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 ## `openshain mcp` を同梱する
 
-MCP Server は別 package だが、起動は CLI のサブコマンド。インストールを 1 回で済ませるため。起動したことを伝える 1 行は stderr に出す。stdout は protocol が使うので、そこに何か書くと client が壊れる。
+MCP Server は別 package だが、起動は CLI のサブコマンド。インストールを 1 回で済ませるため。
 
 ## 捨てた案
 
