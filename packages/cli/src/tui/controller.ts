@@ -174,13 +174,13 @@ export async function createController(options: ControllerOptions): Promise<Cont
   const explain = (result: TurnResult) => {
     switch (result.stopped) {
       case "turn_limit":
-        return "担当が 1 回の返答でできる回数を超えたので、ここで止めました。続きを頼めます。";
+        return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きを頼めます。";
       case "aborted":
         return stopped(lastWorkId);
       case "max_tokens":
         return "返答が長さの上限で切れました。";
       case "refusal":
-        return "担当が続けられないと言っています。";
+        return "社員エージェントが続けられないと言っています。";
       case "model_error":
         return `model の呼び出しに失敗しました。${result.detail ?? ""}`.trim();
       default:
