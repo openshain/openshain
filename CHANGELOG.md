@@ -13,6 +13,7 @@
 - 標準 Tool: fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read(`@openshain/tools`)
 - MCP server。Claude Code や Codex から同じ Runtime を使う(`@openshain/mcp`)
 - `openshain` CLI: init、run、work list、work show、work resume、tools list、mcp
+- `openshain` の画面。担当と話し、作業は Work にして進める。会話は `type: session` の Work として残る
 - openshain.yaml、events.jsonl、work.json の JSON Schema(`spec/schemas/`)
 - 各 package の設計ノート(`docs/design/`)
 

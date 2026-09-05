@@ -29,6 +29,12 @@ envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に�
 
 理由。model を交換できる条件は、model 固有の状態を正本にしないこと。thinking は捨てられる最適化として扱う。byte 一致は prompt cache の前提でもある。残り回数の行を独立した message にしたのは、前の message の byte をターンをまたいで変えないため。
 
+## 会話も Work の記録に載せる
+
+決めたこと。人の発言は `human.message`、Work を始めた Work は `work.created` の `parent`。セッションは `type: session` の Work で、投影はその objective を model に見せない。
+
+理由。envelope、追記の規則、lock、一覧、JSON Schema を会話のためにもう 1 組作らず、type で区別する。Work は本来「終わりのある仕事」なので概念としてははみ出すが、記録の道具を 1 つに保つ価値のほうが大きい。
+
 ## 判断はコードが持つ
 
 状態遷移の表、呼び出し回数の上限、path guard、入力の schema 検証、Tool の許可判定は、普通の関数で書く。model に「してはいけない」と教えても強制にならない。`authorize()` は今は許可リストだけだが、Tool を実行する直前の 1 か所に置いてあり、後の権限の判定はそこに差し込む。

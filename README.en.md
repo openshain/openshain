@@ -9,7 +9,8 @@ An agent harness that turns a general agent into a professional employee of your
 The Japanese [README.md](README.md) is the primary one; documentation is written in Japanese first.
 
 ```
-$ openshain run "Total receipt/2026-07.csv by category and write summary.md"
+$ openshain
+> Total receipt/2026-07.csv by category and write summary.md
 fs_list .
 csv_read receipt/2026-07.csv
 csv_aggregate receipt/2026-07.csv
@@ -24,6 +25,7 @@ Agents such as Claude and Codex cannot work as employees of a company on their o
 
 ## Features
 
+- Type `openshain` and talk to your clerk; when there is work to do, the clerk turns it into a work and reports back
 - A request becomes a work, fully recorded in `work/<id>/events.jsonl`; stop and resume at will
 - Swap the model in configuration: Anthropic and OpenAI-compatible APIs, with your own key
 - Standard tools for files, CSV and Markdown, confined to the workspace; results come as windows and aggregates, never whole files
@@ -58,13 +60,15 @@ bun run build   # dist/openshain
 mkdir my-company && cd my-company
 openshain init                       # writes openshain.yaml, .mcp.json, AGENTS.md, CLAUDE.md
 export ANTHROPIC_API_KEY=...         # the variable name is api_key_env in openshain.yaml
-openshain run "Total this month's receipts"
+openshain                            # talk to the clerk; /help lists the screen's commands
+openshain run "Total this month's receipts"   # one request without the screen
 openshain work list
 openshain work show <id>
 ```
 
 | Command | What it does |
 |---|---|
+| `openshain` | The conversation screen; work is started as works |
 | `openshain init` | Write the workspace configuration and the instruction files for agents |
 | `openshain run "<request>"` | Create a work and drive it to completion or a stop |
 | `openshain work list` / `work show <id>` | List works and show one, with usage totals and who acts next |

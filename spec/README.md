@@ -12,6 +12,8 @@
 |---|---|---|
 | [open-runtime.md](open-runtime.md) | v0.3(実装済み) | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider のインターフェース、Work とイベント、CLI と MCP |
 | [open-runtime.plan.md](open-runtime.plan.md) | draft | 上の spec の実装計画。19 タスク、5 checkpoint |
+| [interactive-cli.md](interactive-cli.md) | draft v0.1 | `openshain` の画面。担当と話し、作業は Work に出す。セッションの記録と担当の道具 |
+| [interactive-cli.plan.md](interactive-cli.plan.md) | draft | 上の spec の実装計画。5 タスク、1 checkpoint |
 
 ## JSON Schema(`schemas/`)
 

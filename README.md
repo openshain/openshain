@@ -9,7 +9,8 @@
 English: [README.en.md](README.en.md)
 
 ```
-$ openshain run "receipt/2026-07.csv を category ごとに集計して summary.md に書いて"
+$ openshain
+> receipt/2026-07.csv を category ごとに集計して summary.md に書いて
 fs_list .
 csv_read receipt/2026-07.csv
 csv_aggregate receipt/2026-07.csv
@@ -18,12 +19,14 @@ category ごとの件数と合計を summary.md に書きました。全 296 件
   書き込み summary.md
 model 呼び出し 5 回、Tool 呼び出し 7 回、入力 20862 トークン(うちキャッシュ 18953)、出力 769 トークン
 次に動く人はいません。
+集計しました。category ごとの件数と合計を summary.md に書きました。
 ```
 
 Claude や Codex のような Agent は、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれをエージェントハーネスとして足す。
 
 ## できること
 
+- `openshain` と打つと担当と話せる。作業が出てきたら担当が Work にして進め、結果を返す
 - 依頼を Work として進め、`work/<id>/events.jsonl` に全部残す。途中で止めても再開できる
 - Model は設定で切り替える。Anthropic と OpenAI 互換 API。キーは自分のもの
 - 標準 Tool はファイル、CSV、Markdown。workspace の外には出ない。結果は窓と集計で返し、ファイルを丸ごと model に渡さない
@@ -58,13 +61,17 @@ bun run build   # dist/openshain
 mkdir my-company && cd my-company
 openshain init                       # openshain.yaml、.mcp.json、AGENTS.md、CLAUDE.md を書く
 export ANTHROPIC_API_KEY=...         # openshain.yaml の api_key_env で名前を変えられる
-openshain run "今月の領収書を集計して"
+openshain                            # 担当と話す。/help で画面の使い方
+openshain run "今月の領収書を集計して"   # 1 件だけ頼むとき
 openshain work list
 openshain work show <id>
 ```
 
+画面では、頼んだことを担当が Work にして進め、Tool の呼び出しが 1 行ずつ流れます。Work が質問すればその場で答えられ、Ctrl-C で動いている Work を止められます(止めた Work は `/resume <id>` で続く)。会話も Work として記録に残ります。
+
 | コマンド | 動き |
 |---|---|
+| `openshain` | 担当と話す画面。作業は Work にして進める |
 | `openshain init` | 会社フォルダの設定と、Agent 向けの指示ファイルを書く |
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進める |
 | `openshain work list` / `work show <id>` | Work の一覧と詳細。使用量の合計と、次に動くのが誰か |

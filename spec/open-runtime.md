@@ -115,7 +115,7 @@ outcome:
 
 | type | payload |
 |---|---|
-| `work.created` | objective、principal、profession、type |
+| `work.created` | objective、principal、profession、type、parent(任意。この Work を始めた Work の id) |
 | `work.status_changed` | from、to、reason |
 | `model.requested` | provider、model、message_count、tool_names |
 | `model.completed` | stop_reason、content(text と tool_call)、raw(`debug.persist_raw` のときだけ)。`max_tokens` で切れた途中の出力もここに残す |
@@ -125,6 +125,7 @@ outcome:
 | `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`)、reason |
 | `human.input_requested` | call_id(`ask_user` の呼び出し)、question |
 | `human.input_provided` | call_id、answer。答えは同じ call_id の `tool.completed` としても記録し、投影はそちらを使う |
+| `human.message` | text。セッションで人が言ったこと。投影では user message になる |
 | `usage.recorded` | kind(`model_inference` か `tool_execution`)、provider、model、usage。`tool_execution` のときは `duration_ms` だけ |
 | `evidence.recorded` | claim、refs(event id)、artifacts(path、sha256、完了時に読めなかったときは missing、この Work の Tool が書いていない申告だけのものは claimed) |
 | `work.completed` | summary |
@@ -139,7 +140,7 @@ outcome:
 model に渡す内容は events.jsonl から組み立てる。会話履歴を別に保存しない。
 
 - system: profession の指示文、会社名、principal、Runtime の通知の説明(末尾の残量の 1 行は通知で返事は要らない、依頼が終わったら要約して終える)
-- messages: objective、model の出力、Tool の結果を発生順に並べたもの
+- messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたもの。`type: session` の Work では objective は入れない
 - tools: 許可リストを通った Tool 定義
 
 規則:
@@ -299,7 +300,7 @@ Tool の結果は観測であって転送ではない。ファイルを丸ごと
 - 1 MiB を超えるファイルは開かない(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばす)。書き込みも同じ 1 MiB で止める。Tool が書いたものは Tool が開ける。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返す。グループはグループの値の順に並べ、同じ入力には同じ出力を返す。
 - すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。予約パスの判定は大文字小文字を区別しない。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。
-- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` も同じく予約)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
+- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
 
 ## Runtime の振る舞い(`packages/agent`)
 
@@ -338,6 +339,7 @@ provider が throw → model.failed → work.failed(model_error)
 
 | コマンド | 動き |
 |---|---|
+| `openshain` | 引数なしで端末があれば、担当と話す画面を開く(spec は interactive-cli.md)。端末がなければ使い方を出す |
 | `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書く。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書く |
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進める。Tool 呼び出しごとに 1 行出す。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を出す |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)。読めない Work は別枠で示す |

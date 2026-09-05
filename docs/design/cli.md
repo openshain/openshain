@@ -26,6 +26,20 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 `init` は指定したディレクトリに `openshain.yaml` のひな型を書く。他のコマンドはそこから上に向かって `openshain.yaml` を探す。会社のフォルダのどこにいても同じ Work が見えるため。
 
+## 画面は担当との会話で、作業は Work に出す
+
+決めたこと。`openshain` と打つと担当と話す画面が開く(spec/interactive-cli.md)。担当が持つ道具は `work_run`、`work_list`、`work_show` の 3 つで、ファイルを触るのは `work_run` が作る子 Work の中だけ。会話は `type: session` の Work として残り、子 Work は `parent` でそれを指す。画面は Ink で描く。
+
+理由。会話は続くが、記録が要るのは作業のほうで、作業は 1 つの依頼から終わりまでを単位にしたい。担当に作業を委ね、子 Work が自分の loop と Tool で動く形なら、担当は今どの Work の中かを持たずに済み、記録は Work ごとに閉じたままになる。Ink を選んだのは、採用例(Claude Code、Gemini CLI)が多く更新が続いていて、Bun で動き、単体バイナリにもできることを確かめたから。
+
+捨てた案。
+
+- 担当がファイルの Tool を直接持ち、`work_create` で現在の Work を決めて括る(MCP server の形)。接続ごとに Work が 1 つの MCP では成り立つが、担当が同時に 2 つの作業を始めると呼び出しの帰属が決まらない。
+- 全画面ではない readline の対話。依存は増えないが、進捗、質問、入力欄を 1 画面に同居させると行の出力だけでは崩れる。
+- セッションを別の記録(`sessions/`)にする。概念はきれいだが、envelope、lock、一覧、schema をもう 1 組作ることになる。type で区別して Work の仕組みを使い回した。
+
+変える条件。並行して作業を進めたくなったら、すぐ返る `work_start` と後で見る `work_status` を担当の道具に足す。閉じたセッションを再開したくなったら、そのときに spec を切る。
+
 ## `init` は 4 つのファイルを書く
 
 決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部 Agent への指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書く。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書く。
@@ -40,7 +54,6 @@ MCP Server は別 package だが、起動は CLI のサブコマンド。イン�
 
 ## 捨てた案
 
-- REPL(`openshain` と打つと会話が始まる)。Work は 1 つの依頼から始まり、状態は記録に残る。会話の継続はまだ要らない。
 - 色付け。端末によって崩れ、テストが読みにくくなる。
 - 使用量の金額換算。単価表を持つと保守が要り、vendor ごとに変わる。トークン数だけを出す。
 
