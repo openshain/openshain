@@ -1,6 +1,6 @@
 # Spec: Open Runtime
 
-Status: draft v0.2
+Status: v0.3(実装済み。完了の条件 1 から 10 を満たし、対応するテストがある)
 
 ## 目的
 

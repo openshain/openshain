@@ -2,7 +2,7 @@
 // Run with `bun run schemas`. CI fails when the committed files differ from this output.
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { jsonSchemas } from "../packages/core/src/schemas.ts";
+import { jsonSchemas } from "../packages/core/src/index.ts";
 
 const root = join(import.meta.dir, "..");
 const dir = join(root, "spec", "schemas");

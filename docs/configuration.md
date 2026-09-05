@@ -16,7 +16,7 @@
 | `principal.name` | 必須 | 表示名。1 から 200 文字 |
 | `profession.id` | 必須 | 職種の id。今は `generic` だけ。形式は `principal.id` と同じ |
 | `profession.instructions` | 必須 | model への指示。system prompt の先頭に入る。100,000 文字まで |
-| `model.provider` | 必須 | `anthropic` か `openai-compatible` |
+| `model.provider` | 必須 | `anthropic` か `openai-compatible`。SDK から使うときは登録した provider の id |
 | `model.model` | 必須 | model の名前。provider にそのまま渡す |
 | `model.api_key_env` | 必須 | API キーを入れる環境変数の名前。大文字の英字で始まり、英数字と `_`。値はここに書かない |
 | `model.base_url` | 任意 | API の root。openai-compatible では `/v1` まで含める(例 `http://localhost:11434/v1`)。省略時は各 provider の既定。`user:pass@` は書けない |
@@ -43,7 +43,7 @@ Work ごとに `work/<id>/events.jsonl`(正本)と `work.json`(状態の投影)�
 
 | ファイル | 内容 |
 |---|---|
-| `.mcp.json` | Claude Code のプロジェクト設定。`openshain mcp` を stdio の MCP server として登録する。`openshain` が PATH にあることが前提 |
+| `.mcp.json` | Claude Code のプロジェクト設定。`openshain mcp` を stdio の MCP server として登録する。`openshain` が PATH にあることが前提。Claude Code をアプリから起動して PATH が通らないときは、command に絶対パスを書く |
 | `AGENTS.md` | MCP 経由で入る外部 Agent への指示。会社のファイルは openshain の Tool で扱い、`work_create` から始めて `work_complete` で終える。`openshain run` の Runtime には当てはまらないと冒頭に書いてある |
 | `CLAUDE.md` | `@AGENTS.md` の 1 行。Claude Code に同じ指示を読ませる |
 

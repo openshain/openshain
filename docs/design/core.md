@@ -51,6 +51,8 @@ provider と Runtime の失敗は `OpenshainError`(code と message)で表す。
 
 `index.ts` から export したものが SDK。SDK という package は作らない。内部と公開面を分けるのは、外部の利用者から互換性の要求が来たときでよい。build はせず、TypeScript のソースをそのまま export している。今は契約を壊して直す時期で、固定した公開 API はまだ嘘になる。
 
+`jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作る。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを見る。正本は zod で、JSON Schema は他の言語や道具のための写し。refine で書いた条件はそこに出ない。
+
 捨てた案。公開 API を型定義ファイルで固定して semver を守る。守れない約束を先にしない。
 
 ## 変える条件

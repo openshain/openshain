@@ -30,6 +30,8 @@ cp dist/openshain ~/.local/bin/  # PATH の通った場所に置く
 openshain --help
 ```
 
+`~/.local/bin` が無ければ作るか、PATH の通った別の場所に置いてください。
+
 ### 2. 会社のフォルダを作る
 
 ```
@@ -53,7 +55,7 @@ export ANTHROPIC_API_KEY=...
 openshain run "receipt/2026-07.csv を category ごとに集計して summary.md に書いて"
 ```
 
-Tool の呼び出しが 1 行ずつ出て、最後に結果、使用量、次に動くのが誰かが出ます。記録は `work/<id>/` に残り、`openshain work list` と `openshain work show <id>` で読めます。途中で止まった Work は `openshain work resume <id>` で続けます。
+`receipt/2026-07.csv` は自分のフォルダにある CSV の名前に置き換えてください。Tool の呼び出しが 1 行ずつ出て、最後に結果、使用量、次に動くのが誰かが出ます。記録は `work/<id>/` に残り、`openshain work list` と `openshain work show <id>` で読めます。途中で止まった Work は `openshain work resume <id>` で続けます。
 
 ### 5. Claude Code から使う
 
