@@ -29,8 +29,8 @@ export interface RunWorkOptions {
    * unanswered, so a later run can resume from it.
    */
   onInput?: (question: string) => Promise<string>;
-  /** Called after every event is recorded, for progress reporting. */
-  onEvent?: (event: AnyEvent) => void;
+  /** Called after every event is recorded, for progress reporting. A returned promise is awaited. */
+  onEvent?: (event: AnyEvent) => void | Promise<void>;
   signal?: AbortSignal;
 }
 
@@ -360,18 +360,21 @@ async function complete(
   return handle.current();
 }
 
-/** A handle that reports every event it records. */
-function observed(handle: WorkHandle, onEvent: (event: AnyEvent) => void): WorkHandle {
+/** A handle that reports every event it records, waiting for the report before it goes on. */
+function observed(
+  handle: WorkHandle,
+  onEvent: (event: AnyEvent) => void | Promise<void>,
+): WorkHandle {
   return {
     ...handle,
     async append(event) {
       const recorded = await handle.append(event);
-      onEvent(recorded);
+      await onEvent(recorded);
       return recorded;
     },
     async transition(to, reason) {
       const recorded = await handle.transition(to, reason);
-      onEvent(recorded);
+      await onEvent(recorded);
       return recorded;
     },
   };

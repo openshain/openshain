@@ -125,7 +125,12 @@ export async function createController(options: ControllerOptions): Promise<Cont
     else waiting.resolve(answer);
   };
 
-  const onWorkEvent = (workId: WorkId, event: AnyEvent) => {
+  /** The lines the CLI prints when a work ends, shown among the progress lines. */
+  const closingLines = async (workId: WorkId) => {
+    for (const line of await workReport(runtime, workId)) push("progress", `  ${line}`);
+  };
+
+  const onWorkEvent = (workId: WorkId, event: AnyEvent): void | Promise<void> => {
     lastWorkId = workId;
     if (event.type === "work.status_changed") {
       state.status.work = {
@@ -138,6 +143,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
         id: workId,
         status: event.type === "work.completed" ? "completed" : "failed",
       };
+      return closingLines(workId);
     }
     const line = progressLine(event, names);
     if (line) push("progress", `  ${line}`);
@@ -300,11 +306,12 @@ export async function createController(options: ControllerOptions): Promise<Cont
   };
 }
 
-/** Lines that close a work in the screen, the same as the CLI prints. */
+/** Lines that close a work in the screen: the CLI's closing lines without the summary, which the clerk relays. */
 export async function workReport(runtime: Runtime, workId: WorkId): Promise<string[]> {
   const work = await runtime.works.get(workId);
   const events = await runtime.works.events(workId);
-  return report(work, events);
+  const lines = report(work, events);
+  return work.status === "completed" ? ["完了。", ...lines.slice(1)] : lines;
 }
 
 export { statusLabel };

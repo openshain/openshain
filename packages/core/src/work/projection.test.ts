@@ -88,6 +88,7 @@ describe("buildProjection", () => {
     expect(projection.system).toContain("Alice");
     expect(projection.system).toContain("alice");
     expect(projection.system).toContain("返事は要らない");
+    expect(projection.system).toContain("自分で数えたり足したりしない");
   });
 
   test("starts the conversation with the objective as a user message", () => {

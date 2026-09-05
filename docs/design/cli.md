@@ -32,7 +32,7 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 ## 画面は担当との会話で、作業は Work に出す
 
-決めたこと。`openshain` と打つと担当と話す画面が開く(spec/interactive-cli.md)。担当が持つ道具は `work_run`、`work_list`、`work_show` の 3 つで、ファイルを触るのは `work_run` が作る子 Work の中だけ。会話は `type: session` の Work として残り、子 Work は `parent` でそれを指す。画面は Ink で描く。Ctrl-C は動いているものを止める。子 Work なら `in_progress` のまま、質問を待っていれば質問を取り下げて `waiting_input` のまま残し、どちらも `/resume` で続く。閉じるとき(`/quit`、SIGHUP、SIGTERM)も同じ手順で止めてから記録を閉じる。セッションの lock は担当のターンが持っているので、止めずに閉じようとすると lock に阻まれて記録が `in_progress` のまま残る。
+決めたこと。`openshain` と打つと担当と話す画面が開く(spec/interactive-cli.md)。担当が持つ道具は `work_run`、`work_list`、`work_show` の 3 つで、ファイルを触るのは `work_run` が作る子 Work の中だけ。会話は `type: session` の Work として残り、子 Work は `parent` でそれを指す。画面は Ink で描く。子 Work が終わると、CLI と同じ締めの行(書いたファイル、使用量、次に動くのが誰か)を進捗行と同じ扱いで出し、要約は担当の返答に任せる。同じ文を 2 度読ませないため。Ctrl-C は動いているものを止める。子 Work なら `in_progress` のまま、質問を待っていれば質問を取り下げて `waiting_input` のまま残し、どちらも `/resume` で続く。閉じるとき(`/quit`、SIGHUP、SIGTERM)も同じ手順で止めてから記録を閉じる。セッションの lock は担当のターンが持っているので、止めずに閉じようとすると lock に阻まれて記録が `in_progress` のまま残る。
 
 理由。会話は続くが、記録が要るのは作業のほうで、作業は 1 つの依頼から終わりまでを単位にしたい。担当に作業を委ね、子 Work が自分の loop と Tool で動く形なら、担当は今どの Work の中かを持たずに済み、記録は Work ごとに閉じたままになる。Ink を選んだのは、採用例(Claude Code、Gemini CLI)が多く更新が続いていて、Bun で動き、単体バイナリにもできることを確かめたから。
 

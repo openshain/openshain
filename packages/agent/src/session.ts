@@ -71,15 +71,15 @@ const validators = new Map(
 );
 
 const ROLE =
-  "あなたは受付として、この人と話す。作業が要るときは work_run に objective を渡して Work にする。objective は人の言葉で書き、会話で分かった前提を添える。会社のファイルは自分では触らない。作業の結果は要約して伝える。過去の作業は work_list と work_show で答える。";
+  "あなたは受付として、この人と話す。作業が要るときは work_run に objective を渡して Work にする。objective は人の言葉で書き、会話で分かった前提を添える。会社のファイルは自分では触らない。作業の結果は要約して伝える。件数や金額は Work の結果の数字をそのまま書き、計算し直さない。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_show で答える。";
 
 export interface SessionOptions {
   /** Defaults to the runtime's model, for the session and for the works it starts. */
   model?: ModelProvider;
-  /** Called after every event the session records. */
-  onEvent?: (event: AnyEvent) => void;
-  /** Called after every event a work started from this session records. */
-  onWorkEvent?: (workId: WorkId, event: AnyEvent) => void;
+  /** Called after every event the session records. A returned promise is awaited before the next step. */
+  onEvent?: (event: AnyEvent) => void | Promise<void>;
+  /** Called after every event a work started from this session records. A returned promise is awaited. */
+  onWorkEvent?: (workId: WorkId, event: AnyEvent) => void | Promise<void>;
   /** Answers a question a work asks the person. Without it, the work waits for input. */
   onInput?: (workId: WorkId, question: string) => Promise<string>;
 }
@@ -469,17 +469,20 @@ function textOf(content: AssistantPart[]): string {
     .trim();
 }
 
-function observed(handle: WorkHandle, onEvent: (event: AnyEvent) => void): WorkHandle {
+function observed(
+  handle: WorkHandle,
+  onEvent: (event: AnyEvent) => void | Promise<void>,
+): WorkHandle {
   return {
     ...handle,
     async append(event) {
       const recorded = await handle.append(event);
-      onEvent(recorded);
+      await onEvent(recorded);
       return recorded;
     },
     async transition(to, reason) {
       const recorded = await handle.transition(to, reason);
-      onEvent(recorded);
+      await onEvent(recorded);
       return recorded;
     },
   };

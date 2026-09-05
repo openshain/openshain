@@ -47,7 +47,11 @@ describe("a session", () => {
   test("replies to the person and offers the model only the session's tools", async () => {
     const { model, runtime } = await setup([say("こんにちは。何をしましょう。")]);
     const events: AnyEvent[] = [];
-    const session = await createSession(runtime, { onEvent: (e) => events.push(e) });
+    const session = await createSession(runtime, {
+      onEvent: (e) => {
+        events.push(e);
+      },
+    });
 
     const result = await session.turn("やあ");
 
@@ -80,7 +84,9 @@ describe("a session", () => {
     ]);
     const childEvents: { workId: WorkId; type: string }[] = [];
     const session = await createSession(runtime, {
-      onWorkEvent: (workId, e) => childEvents.push({ workId, type: e.type }),
+      onWorkEvent: (workId, e) => {
+        childEvents.push({ workId, type: e.type });
+      },
     });
 
     const result = await session.turn("領収書を集計して");

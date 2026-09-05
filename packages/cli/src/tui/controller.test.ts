@@ -103,6 +103,12 @@ describe("the screen's controller", () => {
     await turn;
 
     expect(texts(controller, "progress")).toContain("  csv_read receipts/2026-07.csv");
+    expect(texts(controller, "progress")).toContain("  完了。");
+    expect(texts(controller, "progress").some((l) => l.startsWith("  model 呼び出し"))).toBe(true);
+    const settled = controller.state().settled;
+    expect(settled.findIndex((e) => e.text === "  完了。")).toBeLessThan(
+      settled.findIndex((e) => e.kind === "assistant"),
+    );
     expect(texts(controller, "question")[0]).toContain("何月ですか");
     expect(texts(controller, "user")).toEqual(["集計して", "7月"]);
     expect(texts(controller, "assistant")).toEqual(["7月分は 100 円でした。"]);
