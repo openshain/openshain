@@ -64,6 +64,7 @@
         "@openshain/core": "workspace:*",
         "csv-parse": "7.0.2",
         "csv-stringify": "6.8.3",
+        "safe-regex2": "5.1.1",
       },
     },
   },

@@ -123,6 +123,8 @@ Checkpoint 1(2026-09-03 完了)。次を保証する。WorkId の実行時検証
 
 `fs_list`、`fs_read`、`fs_write`、`csv_read`、`csv_write`、`markdown_read`。path guard を通す。mutate は `after` に sha256。
 
+追記(Phase 4 の後): 読む Tool は窓と件数を返す形に改め、`fs_search` と `csv_aggregate` を足した。CSV を丸ごと context に載せると入力トークンの大半をそれが占めたため。表は spec を正とする。
+
 - 受け入れ: 各 Tool が spec の表どおりに動く。予約パスと root 外は Tool が `reserved_path` などの OpenshainError を throw し、Runtime が `tool.rejected` として記録する(`isError` の結果ではない)。`fs_write` 後の `after.sha256` が実ファイルと一致する。CSV の引用符とカンマを含むセルが往復で崩れない。
 - 検証: `bun test packages/tools`
 - 依存: Task 5

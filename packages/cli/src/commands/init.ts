@@ -21,7 +21,7 @@ model:
   # options: { effort: high }             # provider にそのまま渡す
 tools:
   - provider: standard
-    # allow: [fs_list, fs_read, csv_read, markdown_read, fs_write, csv_write]   # 省略時は全部
+    # allow: [fs_list, fs_search, fs_read, csv_read, csv_aggregate, markdown_read, fs_write, csv_write]   # 省略時は全部
   # - module: ./tools/my-tool.ts   # ToolProvider を default export するモジュール
 limits:
   max_model_calls: 30      # 超えると Work は失敗(上限到達)で止まる

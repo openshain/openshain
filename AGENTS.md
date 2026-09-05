@@ -40,6 +40,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Before a non-trivial change, write down the assumptions you are making and what done looks like. If the change adds or alters a contract, put the spec under `spec/` first.
 - Work in thin vertical slices: one contract, one command or one tool at a time, each with its test, before widening.
 - Prefer the boring solution. A new abstraction needs two concrete uses.
+- A tool that observes returns a window and the counts around it, never a whole file. Counting, adding and searching happen in the tool, not in the model.
 - Touch only what the task needs. Do not reformat, rename or clean up unrelated code.
 - If the spec, the code and this file disagree, stop and ask. Do not pick one silently.
 - A change is done when `bun run typecheck`, `bun run lint` and `bun test` pass and the new behavior has a test. Run them; do not claim completion from reading alone.

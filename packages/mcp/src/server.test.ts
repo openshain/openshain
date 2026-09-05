@@ -86,10 +86,14 @@ describe("openshain over MCP", () => {
 
     const rows = await call("csv_read", { path: "receipts/2026-07.csv" });
     expect(rows.isError).toBe(false);
-    expect(rows.json()).toEqual([
-      { date: "2026-07-01", amount: "100" },
-      { date: "2026-07-02", amount: "250" },
-    ]);
+    expect(rows.json()).toMatchObject({
+      columns: ["date", "amount"],
+      rowCount: 2,
+      rows: [
+        { date: "2026-07-01", amount: "100" },
+        { date: "2026-07-02", amount: "250" },
+      ],
+    });
     const written = await call("fs_write", { path: "summary.md", content: "# 合計 350\n" });
     expect(written.isError).toBe(false);
 
