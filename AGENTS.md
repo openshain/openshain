@@ -35,7 +35,7 @@ An agent harness that turns a general agent into a professional employee of a co
 - Money, authority checks, state transitions and safety conditions are ordinary code, never model output.
 - Named exports only. Tests sit next to the source: `work.ts` has `work.test.ts`.
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first.
-- Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: インターフェース rather than 契約 for contract, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.
+- Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: インターフェース rather than 契約 for contract, 範囲 rather than 窓 for what a reading tool returns, 原本 rather than 正本 for the source of truth, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.
 - Commit messages follow Conventional Commits and say what changed in the product.
 - The project calls itself an agent harness (エージェントハーネス) wherever it describes itself. "Runtime" names the component that runs works, not the project.
 
