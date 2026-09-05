@@ -1,73 +1,125 @@
 # openshain
 
-Open Company Profession Runtime: turns any agent into a professional employee of your company.
+Turns a general agent into a professional employee of your company. Open Company Profession Runtime.
 
-General agents such as Claude, Codex and Gemini cannot work as employees of a company on their own. openshain gives them what is missing: knowledge specific to Japan and rules specific to the company, job duties and procedures, the ability to work with SaaS and Office files, authority, approval and escalation to experts, work state that survives a session, and evidence and cost per unit of work.
+[![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-The Japanese README is the primary one: [README.md](README.md). Reference for the configuration file: [docs/configuration.md](docs/configuration.md) (Japanese). Design notes per package: [docs/design/](docs/design/README.md) (Japanese).
+The Japanese [README.md](README.md) is the primary one; documentation is written in Japanese first.
 
-## Status
+```
+$ openshain run "Total receipt/2026-07.csv by category and write summary.md"
+fs_list .
+csv_read receipt/2026-07.csv
+csv_aggregate receipt/2026-07.csv
+fs_write summary.md
+Wrote the count and total per category to summary.md: 296 receipts, 3,258,930 yen in all.
+  wrote summary.md
+model calls 5, tool calls 7, input 20862 tokens (18953 cached), output 769 tokens
+Nobody needs to act next.
+```
 
-Early. `openshain run` works with an Anthropic or OpenAI-compatible API key; the only profession so far is `generic`. The first real profession will be an accounting employee.
+Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as a runtime.
 
-## Quickstart
+## Features
 
-You need an API key for Anthropic or an OpenAI-compatible API. Only the `generic` profession exists so far; the accounting employee is the first one being built.
+- A request becomes a work, fully recorded in `work/<id>/events.jsonl`; stop and resume at will
+- Swap the model in configuration: Anthropic and OpenAI-compatible APIs, with your own key
+- Standard tools for files, CSV and Markdown, confined to the workspace; results come as windows and aggregates, never whole files
+- Use the same runtime from Claude Code or Codex over MCP: the agent thinks, the runtime records
+- Add your own tool with one line of configuration, under the same contract as the official ones
+- Artifact hashes and usage recorded per work
 
-Grab a binary from [GitHub Releases](https://github.com/openshain/openshain/releases) and put it on your PATH as `openshain`. The macOS binaries are unsigned, so run `xattr -d com.apple.quarantine openshain` once. With Bun, `bun install -g openshain` works too. From source:
+Authority, approval, escalation to experts and profession packs are still to come. The only profession today is `generic`; the accounting employee is the first one being built.
+
+## Install
+
+Take a binary from [GitHub Releases](https://github.com/openshain/openshain/releases) and put it on your PATH as `openshain`. The macOS binaries are unsigned: run `xattr -d com.apple.quarantine openshain` once.
+
+With Bun:
+
+```
+bun install -g openshain
+```
+
+From source:
 
 ```
 git clone https://github.com/openshain/openshain.git
 cd openshain
 bun install
-bun run build
-cp dist/openshain ~/.local/bin/
+bun run build   # dist/openshain
 ```
 
-`openshain --help` should print the commands.
-
-Create a company folder and a workspace in it:
+## Usage
 
 ```
 mkdir my-company && cd my-company
-openshain init
+openshain init                       # writes openshain.yaml, .mcp.json, AGENTS.md, CLAUDE.md
+export ANTHROPIC_API_KEY=...         # the variable name is api_key_env in openshain.yaml
+openshain run "Total this month's receipts"
+openshain work list
+openshain work show <id>
 ```
 
-`openshain init` writes `openshain.yaml` (configuration), `.mcp.json` (for Claude Code), `AGENTS.md` (instructions for outside agents) and `CLAUDE.md`. Put your API key in the environment variable named by `api_key_env` in `openshain.yaml`, then:
+| Command | What it does |
+|---|---|
+| `openshain init` | Write the workspace configuration and the instruction files for agents |
+| `openshain run "<request>"` | Create a work and drive it to completion or a stop |
+| `openshain work list` / `work show <id>` | List works and show one, with usage totals and who acts next |
+| `openshain work resume <id>` | Continue a work that stopped on a question or an interruption |
+| `openshain tools list` | The tools available and whether each is allowed |
+| `openshain mcp` | Serve the workspace over MCP on stdio |
 
+`--workspace <dir>` names the company folder; otherwise it is found by walking up from the current directory to `openshain.yaml`.
+
+### From Claude Code
+
+Start `claude` in the company folder and trust it. The `.mcp.json` written by `openshain init` connects `openshain mcp`, and `/mcp` lists openshain. Write the request as usual: Claude Code thinks, openshain does the file work and keeps the record. `AGENTS.md` tells the agent to use openshain's tools for company files.
+
+Any other agent that speaks MCP over stdio, such as Codex, can register `openshain mcp` the same way.
+
+## Configuration
+
+The smallest `openshain.yaml`:
+
+```yaml
+version: 1
+company:
+  name: Sample Inc.
+principal:
+  id: alice
+  name: Alice
+profession:
+  id: generic
+  instructions: You are the back-office clerk of this company.
+model:
+  provider: anthropic          # anthropic | openai-compatible
+  model: claude-opus-5
+  api_key_env: ANTHROPIC_API_KEY
 ```
-export ANTHROPIC_API_KEY=...
-openshain run "Total receipt/2026-07.csv by category and write summary.md"
-```
 
-Every tool call prints a line; the run ends with the outcome, the usage and who acts next. Records live under `work/<id>/` and are read with `openshain work list` and `openshain work show <id>`.
+Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Schemas: [spec/schemas/](spec/schemas/).
 
-To use the same runtime from Claude Code, start `claude` in the same folder, trust the folder when asked, and check `/mcp`. Claude Code thinks; openshain does the file work and keeps the record. Other agents can register `openshain mcp` as a stdio MCP server.
-
-## Entry points
-
-- `openshain` CLI, the reference client. Bring your own model key.
-- MCP server: `openshain mcp`.
-- SDK: `@openshain/core` and `@openshain/agent`.
-
-## Principles
+## Design
 
 - Work, not answers.
 - Existing SaaS remains the system of record.
-- Official has no hidden privilege: the official implementation and third-party implementations use the same contracts.
-- Paid means easiest: a paid offering takes over operations, it does not unlock features.
+- Official has no hidden privilege: official and third-party implementations use the same contracts.
+- Paid means easiest: a paid offering takes over operations; it does not unlock features.
+
+Principles in full: [docs/principles.md](docs/principles.md). Why each package is shaped as it is: [docs/design/](docs/design/README.md). Specification: [spec/](spec/README.md).
 
 ## Development
 
 ```
 bun install
-bun run typecheck
-bun run lint
-bun test
+bun run typecheck && bun run lint && bun test
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Layout and conventions: [AGENTS.md](AGENTS.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache-2.0
+[Apache-2.0](LICENSE)
