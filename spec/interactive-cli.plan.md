@@ -45,3 +45,5 @@ README の使い方、docs/configuration.md、cli.md の設計ノート(REPL を
 
 - 本物の model で sample-client を擬似端末から回し、完了の条件 1 から 4 と 7 を目で確かめる
 - レビュー
+
+Checkpoint(2026-09-05 実走完了。レビューはこれから)。Task 1 から 5 は main に入った(944d41f、f55106c、a6f4e08、45dbf66、303a2e0)。単体バイナリを擬似端末から動かし、claude-haiku-4-5-20251001 で「receipt/2026-07.csv を category ごとに集計して summary-tui.md に書いて」を頼んだ。担当が work_run で子 Work を作り、csv_read と csv_aggregate の進捗が画面に流れた。実走の台本の都合で子 Work を途中で止め、別のプロセスから `/resume <id>` で続けたところ fs_write まで進んで完了し、10 カテゴリの数字は CSV と一致した。続けて「ありがとう。何をしましたか?」に担当が返答した。子 Work の `parent` はセッションを指し、`work show` でセッションの使用量が出る。止め方の実験で `in_progress` のまま残ったセッションがあったので、SIGHUP と SIGTERM でセッションを閉じるようにした。
