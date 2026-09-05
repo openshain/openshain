@@ -1,6 +1,6 @@
 # `openshain` CLI の設計
 
-CLI は Runtime の参照実装のクライアント。汎用の Agent 製品ではない。MCP Server と同格の入口で、model は利用者の API キーで呼ぶ。
+CLI は Runtime の参照実装のクライアント。汎用のエージェント製品ではない。MCP Server と同格の入口で、model は利用者の API キーで呼ぶ。
 
 ## 見せるのは進捗と結果だけ
 
@@ -46,11 +46,11 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 ## `init` は 4 つのファイルを書く
 
-決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部 Agent への指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書く。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書く。
+決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部エージェントへの指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書く。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書く。
 
 理由。Claude Code からの接続テストで詰まったのは、`.mcp.json` を手で書くことと、依頼文で自前の Tool を使わないよう言わないと Runtime を通らないことの 2 つだった。どちらも会社フォルダにファイルを 1 つ置けば済む。`.mcp.json` の command が `openshain` で済むのは、配布をバイナリにして PATH に置く形にしたから。
 
-捨てた案。指示を `openshain.yaml` の `profession.instructions` に入れる。あれは Runtime が model に渡す文で、外部 Agent は読まない。
+捨てた案。指示を `openshain.yaml` の `profession.instructions` に入れる。あれは Runtime が model に渡す文で、外部エージェントは読まない。
 
 ## `openshain mcp` を同梱する
 

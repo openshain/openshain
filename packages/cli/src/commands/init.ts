@@ -39,9 +39,9 @@ export const MCP_TEMPLATE = `${JSON.stringify(
 )}\n`;
 
 /** What an outside agent reads before working in the folder. Codex reads AGENTS.md; Claude Code reads it through CLAUDE.md. */
-export const AGENTS_TEMPLATE = `# この会社フォルダで働く Agent へ
+export const AGENTS_TEMPLATE = `# この会社フォルダで働くエージェントへ
 
-このフォルダは openshain の Company Workspace です。この指示は、Claude Code や Codex のような外部の Agent が MCP 経由でこのフォルダを扱うときのものです。\`openshain run\` で Runtime 自身が動くときは、Work の作成と完了を Runtime が行うので、下の work_* の手順は当てはまりません。
+このフォルダは openshain の Company Workspace です。この指示は、Claude Code や Codex のような外部のエージェントが MCP 経由でこのフォルダを扱うときのものです。\`openshain run\` で Runtime 自身が動くときは、Work の作成と完了を Runtime が行うので、下の work_* の手順は当てはまりません。
 
 会社のファイルの読み書きと集計は openshain の MCP tool で行います。Claude Code や Codex 自身の Read、Write、Bash は会社のファイルには使いません。Runtime を通らなかった操作は記録に残らないためです。
 

@@ -244,7 +244,7 @@ CLI の `mcp` コマンド(stdio)。`examples/tools/echo/tool.ts`(ToolProvider �
 - 完了条件 2、3 のテストが通る。maintainer が Claude Code から `openshain mcp` に接続して 1 件通す
 - レビュー
 
-Checkpoint 4(2026-09-05 完了)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通した。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致した。詰まったのは 2 点。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと(quickstart に書く。Task 19)と、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと(mcp.md に「外部 Agent の自前の Tool は塞がない」として書いた)。レビューから、Agent が挙げただけの成果物に `claimed` の印を付け、model 呼び出しのない Work の使用量の表示を直した。
+Checkpoint 4(2026-09-05 完了)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通した。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致した。詰まったのは 2 点。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと(quickstart に書く。Task 19)と、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと(mcp.md に「外部エージェントの自前の Tool は塞がない」として書いた)。レビューから、エージェントが挙げただけの成果物に `claimed` の印を付け、model 呼び出しのない Work の使用量の表示を直した。
 
 ### Phase 5: schema の生成と quickstart
 
@@ -260,7 +260,7 @@ zod から config と event の JSON Schema を `spec/schemas/` に生成する 
 
 #### Task 19: quickstart
 
-README の「状態」を quickstart に置き換える(インストール、`openshain init`、API キーの環境変数、`run`、Claude Code からの MCP 接続)。`docs/` に設定ファイルの説明。MCP 接続の手順には `.mcp.json` の書き方(バイナリなら `openshain mcp`)と、Claude Code がフォルダを信頼するまで `.mcp.json` を読まないことを含める。会社フォルダに置く Agent 向けの指示(CLAUDE.md、AGENTS.md)のひな型を `openshain init` が書くかは、配布の形と一緒にここで決める。
+README の「状態」を quickstart に置き換える(インストール、`openshain init`、API キーの環境変数、`run`、Claude Code からの MCP 接続)。`docs/` に設定ファイルの説明。MCP 接続の手順には `.mcp.json` の書き方(バイナリなら `openshain mcp`)と、Claude Code がフォルダを信頼するまで `.mcp.json` を読まないことを含める。会社フォルダに置くエージェント向けの指示(CLAUDE.md、AGENTS.md)のひな型を `openshain init` が書くかは、配布の形と一緒にここで決める。
 
 - 受け入れ: 初めての人が README だけで `init` → `run` まで辿れる。設定ファイルの全項目に説明がある。
 - 検証: 新しい一時ディレクトリで README の手順を上から実行する
@@ -273,7 +273,7 @@ README の「状態」を quickstart に置き換える(インストール、`op
 - 完了条件 1 から 10 が、それぞれどのテストで確認されるか対応表を spec に足す
 - レビュー
 
-Checkpoint 5(2026-09-05 完了)。Task 18 は zod から config、events、work の JSON Schema を生成し、CI が最新かを見る。Task 19 は README の quickstart(バイナリを作って PATH に置く)、docs/configuration.md、`openshain init` が書く 4 ファイル。quickstart は新しいディレクトリで上から実行し、`run` と `.mcp.json` 経由の MCP 接続まで通した。Runtime の model が AGENTS.md を読んで work_* を探す挙動が出たので、AGENTS.md の冒頭で MCP 経由の Agent 向けだと断った。対応表は spec の「条件とテストの対応」。レビューでは、架空の会社の 4 Work の記録 136 行が生成した schema を通ることを確かめ、core.md に jsonSchemas の節、format の注記、quickstart の補足を入れ、spec の Status を v0.3 に上げた。
+Checkpoint 5(2026-09-05 完了)。Task 18 は zod から config、events、work の JSON Schema を生成し、CI が最新かを見る。Task 19 は README の quickstart(バイナリを作って PATH に置く)、docs/configuration.md、`openshain init` が書く 4 ファイル。quickstart は新しいディレクトリで上から実行し、`run` と `.mcp.json` 経由の MCP 接続まで通した。Runtime の model が AGENTS.md を読んで work_* を探す挙動が出たので、AGENTS.md の冒頭で MCP 経由のエージェント向けだと断った。対応表は spec の「条件とテストの対応」。レビューでは、架空の会社の 4 Work の記録 136 行が生成した schema を通ることを確かめ、core.md に jsonSchemas の節、format の注記、quickstart の補足を入れ、spec の Status を v0.3 に上げた。
 
 ## 並行できるもの
 

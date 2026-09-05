@@ -99,7 +99,7 @@ export function report(work: Work, events: AnyEvent[]): string[] {
       lines.push(`完了。${work.outcome?.summary ?? ""}`.trimEnd());
       for (const artifact of work.outcome?.artifacts ?? []) {
         lines.push(
-          `  書き込み ${artifact.path}${artifact.missing ? "  完了時には読めなかった" : ""}${artifact.claimed ? "  Agent の申告(この Work の Tool は書いていない)" : ""}`,
+          `  書き込み ${artifact.path}${artifact.missing ? "  完了時には読めなかった" : ""}${artifact.claimed ? "  エージェントの申告(この Work の Tool は書いていない)" : ""}`,
         );
       }
       break;

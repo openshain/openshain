@@ -7,7 +7,7 @@ spec は何を作るかを決め、このディレクトリはなぜその形に
 | `@openshain/core` | [core.md](core.md) | インターフェースとイベントログ。判断はコードが持つ |
 | `@openshain/agent` | [agent.md](agent.md) | イベントログの上で回る tool loop と、インターフェースに揃える provider |
 | `@openshain/tools` | [tools.md](tools.md) | 標準 Tool。結果は観測であって転送ではない |
-| `@openshain/mcp` | [mcp.md](mcp.md) | 外部 Agent が考え、Runtime が状態と記録を持つ |
+| `@openshain/mcp` | [mcp.md](mcp.md) | 外部エージェントが考え、Runtime が状態と記録を持つ |
 | `openshain` CLI | [cli.md](cli.md) | 参照実装のクライアント。見せるのは進捗と結果だけ |
 
 ## package をまたいで守ること

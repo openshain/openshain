@@ -1,6 +1,6 @@
 # openshain
 
-汎用の Agent を、あなたの会社で働く専門社員にするエージェントハーネス。
+汎用のエージェントを、あなたの会社で働く専門社員にするエージェントハーネス。
 
 [![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
@@ -22,7 +22,7 @@ model 呼び出し 5 回、Tool 呼び出し 7 回、入力 20862 トークン(�
 集計しました。category ごとの件数と合計を summary.md に書きました。
 ```
 
-Claude や Codex のような Agent は、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれをエージェントハーネスとして足す。
+Claude や Codex のようなエージェントは、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれをエージェントハーネスとして足す。
 
 ## できること
 
@@ -30,7 +30,7 @@ Claude や Codex のような Agent は、そのままでは会社の社員と�
 - 依頼を Work として進め、`work/<id>/events.jsonl` に全部残す。途中で止めても再開できる
 - Model は設定で切り替える。Anthropic と OpenAI 互換 API。キーは自分のもの
 - 標準 Tool はファイル、CSV、Markdown。workspace の外には出ない。結果は頼まれた範囲と集計で返し、ファイルを丸ごと model に渡さない
-- Claude Code や Codex から MCP で同じ Runtime を使う。思考は Agent、記録は Runtime
+- Claude Code や Codex から MCP で同じ Runtime を使う。思考はエージェント、記録は Runtime
 - 自作の Tool は設定に 1 行足すだけ。公式の Tool と同じインターフェース
 - 成果物のハッシュと使用量を Work ごとに記録する
 
@@ -72,7 +72,7 @@ openshain work show <id>
 | コマンド | 動き |
 |---|---|
 | `openshain` | 担当と話す画面。作業は Work にして進める |
-| `openshain init` | 会社フォルダの設定と、Agent 向けの指示ファイルを書く |
+| `openshain init` | 会社フォルダの設定と、エージェント向けの指示ファイルを書く |
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進める |
 | `openshain work list` / `work show <id>` | Work の一覧と詳細。使用量の合計と、次に動くのが誰か |
 | `openshain work resume <id>` | 質問や中断で止まった Work を続ける |
@@ -83,9 +83,9 @@ openshain work show <id>
 
 ### Claude Code から
 
-会社フォルダで `claude` を起動し、フォルダを信頼する。`openshain init` が書いた `.mcp.json` で `openshain mcp` がつながり、`/mcp` に openshain が出る。あとは依頼を書くだけ。Claude Code が考え、ファイルの読み書きと記録は openshain がやる。`AGENTS.md` が、会社のファイルは openshain の Tool で扱うと Agent に伝える。
+会社フォルダで `claude` を起動し、フォルダを信頼する。`openshain init` が書いた `.mcp.json` で `openshain mcp` がつながり、`/mcp` に openshain が出る。あとは依頼を書くだけ。Claude Code が考え、ファイルの読み書きと記録は openshain がやる。`AGENTS.md` が、会社のファイルは openshain の Tool で扱うとエージェントに伝える。
 
-Codex など他の Agent も、`openshain mcp` を stdio の MCP server として登録すれば同じ。
+Codex など他のエージェントも、`openshain mcp` を stdio の MCP server として登録すれば同じ。
 
 ## 設定
 

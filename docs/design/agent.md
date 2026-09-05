@@ -1,6 +1,6 @@
 # `@openshain/agent` の設計
 
-agent は tool loop と、model provider の実装 2 つ(Anthropic、OpenAI 互換)を持つ。core の上に載り、CLI が使う。MCP Server は外部の Agent が考えるので、この loop を使わない。
+agent は tool loop と、model provider の実装 2 つ(Anthropic、OpenAI 互換)を持つ。core の上に載り、CLI が使う。MCP Server は外部のエージェントが考えるので、この loop を使わない。
 
 ## loop はイベントログの上の状態機械
 
@@ -48,13 +48,13 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 
 ## セッションは Work の上に載る
 
-決めたこと。`createSession` は `type: session` の Work を開き、`turn(text)` ごとに人の発言(`human.message`)を記録して担当の model を回す。担当の道具は `work_run`、`work_list`、`work_show` で、`work_run` は子 Work を作って `runWork` で進める。1 ターンの上限は model 5 回、道具 10 回で、超えたらターンを打ち切って人に返す。Ctrl-C は子 Work を `in_progress` のまま止め、後で `resume` できる。`session` は予約した type で、`work_run`、MCP の `work_create`、`runWork` は受け付けない。投影は type で振る舞いを変える(objective を入れない)ので、model や外の Agent が選べる値に置かない。
+決めたこと。`createSession` は `type: session` の Work を開き、`turn(text)` ごとに人の発言(`human.message`)を記録して担当の model を回す。担当の道具は `work_run`、`work_list`、`work_show` で、`work_run` は子 Work を作って `runWork` で進める。1 ターンの上限は model 5 回、道具 10 回で、超えたらターンを打ち切って人に返す。Ctrl-C は子 Work を `in_progress` のまま止め、後で `resume` できる。`session` は予約した type で、`work_run`、MCP の `work_create`、`runWork` は受け付けない。投影は type で振る舞いを変える(objective を入れない)ので、model や外のエージェントが選べる値に置かない。
 
 理由。担当の loop と Work の loop を分けると、作業の記録は Work に閉じ、担当は会話だけを持つ。上限をターン単位にしたのは、会話全体に上限を置くと長い会話が途中で死ぬから。人が居るので止められる。
 
 ## `ask_user` は Runtime の Tool
 
-質問は Work の状態(`waiting_input`)に直結するので、Tool provider に任せず Runtime が持つ。provider は `runtime`、名前は予約。入力は他の Tool と同じく schema で検証し、外れたら同じターンで拒否を返し、待たない。MCP では登録しない。外部 Agent が利用者に聞くから。
+質問は Work の状態(`waiting_input`)に直結するので、Tool provider に任せず Runtime が持つ。provider は `runtime`、名前は予約。入力は他の Tool と同じく schema で検証し、外れたら同じターンで拒否を返し、待たない。MCP では登録しない。外部エージェントが利用者に聞くから。
 
 ## 公開 API
 

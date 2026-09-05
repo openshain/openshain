@@ -9,7 +9,7 @@ openshain が判断に迷ったときに立ち返るもの。README には利用
 | Existing SaaS remains the system of record | 既存の SaaS をそのまま使う |
 | Progressive automation | API がなくても働ける。API があればもっと働ける |
 | Need-to-Know before retrieval | 知らなくてよい情報は LLM に渡さない |
-| Agent acts on behalf of a principal | Agent は誰かの代理として、委任された権限の範囲で動く |
+| Agent acts on behalf of a principal | エージェントは誰かの代理として、委任された権限の範囲で動く |
 | Know when not to act | 止まれることは能力 |
 | Knowledge is authored, compiled, executed | Knowledge は人が書き、build し、Runtime が使う |
 | Open by default | Model、Knowledge、Expert、Profession、Tool を交換できる |

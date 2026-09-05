@@ -4,7 +4,7 @@ Status: v0.3(実装済み。完了の条件 1 から 10 を満たし、対応す
 
 ## 目的
 
-openshain で最初に作る部分。Model、Tool、Agent の入口を交換できる Runtime を作る。
+openshain で最初に作る部分。Model、Tool、エージェントの入口を交換できる Runtime を作る。
 
 利用者は、会社のフォルダで `openshain run "<依頼>"` と打つか、Claude Code や Codex から MCP 経由で同じ Runtime を使う。どちらの経路でも、Work の状態、Tool の呼び出し、model の使用量が同じ形式で `work/<id>/` に残る。
 
@@ -60,7 +60,7 @@ Company Workspace の manifest。root の印であり、この会社に属する
 
 持つもの:
 
-- 会社の事実(`company`)と、Agent が代理する人(`principal`)
+- 会社の事実(`company`)と、エージェントが代理する人(`principal`)
 - 使う職能(`profession`)。いまは指示文を直接書く。Profession Pack が入ったら `pack:` で参照する
 - 社員が使ってよい Tool(`tools`)と、その許可リスト(`allow`)
 - 呼び出し回数の上限(`limits`)
@@ -72,7 +72,7 @@ Company Workspace の manifest。root の印であり、この会社に属する
 
 ### Principal
 
-Agent が代理する人。この段階では設定ファイルに 1 人書く。すべての Work は principal を持つ。
+エージェントが代理する人。この段階では設定ファイルに 1 人書く。すべての Work は principal を持つ。
 
 ### Work
 
@@ -133,7 +133,7 @@ outcome:
 
 `usage.recorded` が原典の CostEvent。model のときの `usage` は `input_tokens`、`output_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens` を持ち、Work ごとに合計できる。SpendEvent はこの段階では発生させない。
 
-`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。ハッシュは Runtime がそのときのファイルから計算する。読めなかった成果物には `missing: true` を付け、sha256 は Tool の申告のまま残す。検証できた値ではない。Agent が挙げただけで、この Work の Tool が書いていないファイルには `claimed: true` を付ける。ハッシュは Runtime の値だが、その Work の作業の結果だという裏付けは記録にない。
+`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。ハッシュは Runtime がそのときのファイルから計算する。読めなかった成果物には `missing: true` を付け、sha256 は Tool の申告のまま残す。検証できた値ではない。エージェントが挙げただけで、この Work の Tool が書いていないファイルには `claimed: true` を付ける。ハッシュは Runtime の値だが、その Work の作業の結果だという裏付けは記録にない。
 
 ### 投影(Projection)
 
@@ -300,7 +300,7 @@ Tool の結果は観測であって転送ではない。ファイルを丸ごと
 - 1 MiB を超えるファイルは開かない(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばす)。書き込みも同じ 1 MiB で止める。Tool が書いたものは Tool が開ける。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返す。グループはグループの値の順に並べ、同じ入力には同じ出力を返す。
 - すべてのパスは workspace root からの相対パス。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否する。予約パスの判定は大文字小文字を区別しない。symlink は 1 段ずつ読んで行き先で判定する。行き先がまだ存在しなくても同じ。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開く。
-- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部 Agent 側が利用者に聞くので登録しない。
+- Runtime 自身が 1 つ Tool を足す。`ask_user`(effect: observe)。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾く(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になる。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答える。CLI では利用者に質問を表示して答えを受け取り、続行する。MCP では外部エージェント側が利用者に聞くので登録しない。
 
 ## Runtime の振る舞い(`packages/agent`)
 
@@ -355,7 +355,7 @@ provider が throw → model.failed → work.failed(model_error)
 
 ### MCP Server(`packages/mcp`)
 
-外部 Agent が思考し、Runtime は Work の状態と Tool と記録を提供する。
+外部エージェントが思考し、Runtime は Work の状態と Tool と記録を提供する。
 
 MCP tool:
 
@@ -368,14 +368,14 @@ MCP tool:
 | `work_fail` | reason を受けて `work.failed` を残す |
 | 登録された全 Tool | CLI と同じ名前、同じ schema。呼び出しは現在の Work に記録される |
 
-現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返す。外部 Agent の model 使用量は Runtime から見えないので、この経路では `usage.recorded` は Tool 実行の分だけになる。
+現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返す。外部エージェントの model 使用量は Runtime から見えないので、この経路では `usage.recorded` は Tool 実行の分だけになる。
 
 - `work_create` は Work を作って `in_progress` にする(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を断る。`work_get` は id を省くと現在の Work
-- `work_complete` の artifacts は任意。Tool が書いたファイル(`after` 付きの `tool.completed`)に Agent の申告を合わせ、パスごとに Runtime がハッシュを計算する。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付ける。`refs` は `after` 付きの `tool.completed` の id
-- `work_fail` の reason は Agent の自由な短い語。CLI の見出し表にない語はそのまま表示される
+- `work_complete` の artifacts は任意。Tool が書いたファイル(`after` 付きの `tool.completed`)にエージェントの申告を合わせ、パスごとに Runtime がハッシュを計算する。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付ける。`refs` は `after` 付きの `tool.completed` の id
+- `work_fail` の reason はエージェントの自由な短い語。CLI の見出し表にない語はそのまま表示される
 - Tool 呼び出しの call id は Runtime が `call_` で始まる id を振る。結果の content は text にし、json は JSON 文字列にする。`isError` はそのまま
-- MCP tool の説明とエラー文は Agent が読むので英語
-- 呼び出しは接続ごとに 1 つずつ処理する。Agent が並列に呼んでも lock を奪い合わない
+- MCP tool の説明とエラー文はエージェントが読むので英語
+- 呼び出しは接続ごとに 1 つずつ処理する。エージェントが並列に呼んでも lock を奪い合わない
 - `work_*` の入力も他の Tool と同じく schema で検証し、外れたら schema_mismatch の文で返す。`work_complete` の artifacts のパスは path guard を通し、workspace の外なら何も記録せずに断る
 - 終わった Work への呼び出しは断り、接続の現在の Work を空にする。未完了の現在の Work があるときの `work_create` は断り、先に work_complete か work_fail を求める
 
