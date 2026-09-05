@@ -49,6 +49,25 @@ describe("WorkStore", () => {
     ).toBe(session.id);
   });
 
+  test("create records the agent's name, and the events and work.json both carry it", async () => {
+    const { root, store } = await freshStore();
+
+    const work = await store.create({ ...request, agentName: "みなと" });
+
+    expect(work.agentName).toBe("みなと");
+    expect((await store.get(work.id)).agentName).toBe("みなと");
+    const first = (await store.events(work.id))[0];
+    expect((first?.payload as { agentName?: string }).agentName).toBe("みなと");
+    expect(
+      JSON.parse(await readFile(join(root, "work", work.id, "work.json"), "utf8")).agent_name,
+    ).toBe("みなと");
+    expect(
+      JSON.parse(
+        (await readFile(join(root, "work", work.id, "events.jsonl"), "utf8")).split("\n")[0] ?? "",
+      ).payload.agent_name,
+    ).toBe("みなと");
+  });
+
   test("get rebuilds the work from its events", async () => {
     const { store } = await freshStore();
     const created = await store.create({ ...request, type: "month_end_close" });

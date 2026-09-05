@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { AGENT_NAMES } from "@openshain/agent";
 import { callTools, FakeModelProvider, type FakeStep, say } from "@openshain/agent/testing";
 import {
   createRuntime,
@@ -88,6 +89,7 @@ describe("the screen's controller", () => {
     ]);
     expect(controller.state().busy).toBe(false);
     expect(controller.state().status.usage.modelCalls).toBe(1);
+    expect(AGENT_NAMES).toContain(controller.state().status.agentName ?? "");
   });
 
   test("streams a work's progress and routes its question to the person", async () => {

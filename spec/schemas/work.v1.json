@@ -22,6 +22,9 @@
     "parent": {
       "type": "string"
     },
+    "agent_name": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
       "enum": [

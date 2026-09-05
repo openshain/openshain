@@ -80,6 +80,20 @@ const created = event("work.created", {
 });
 
 describe("buildProjection", () => {
+  test("tells the model its name when the work's record has one", () => {
+    const named = event("work.created", {
+      objective: "receipts/ を集計して",
+      principal: "alice",
+      profession: "generic",
+      type: "request",
+      agentName: "みなと",
+    });
+
+    const projection = buildProjection(input([named]));
+
+    expect(projection.system).toContain("あなたの名前は みなと。");
+  });
+
   test("puts the instructions, company and principal in the system prompt", () => {
     const projection = buildProjection(input([created]));
 
@@ -89,6 +103,7 @@ describe("buildProjection", () => {
     expect(projection.system).toContain("あなた自身は Alice ではなく");
     expect(projection.system).toContain("返事は要らない");
     expect(projection.system).toContain("自分で数えたり足したりしない");
+    expect(projection.system).not.toContain("あなたの名前は");
   });
 
   test("starts the conversation with the objective as a user message", () => {

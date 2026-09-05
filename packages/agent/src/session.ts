@@ -19,6 +19,7 @@ import {
   type WorkId,
 } from "@openshain/core";
 import { countToolCalls, pendingQuestions, RUNTIME_PROVIDER_ID, runWork } from "./loop.ts";
+import { pickAgentName } from "./names.ts";
 
 /** How much one turn of a session may do before the person hears back. */
 export const TURN_LIMITS = { modelCalls: 5, toolCalls: 10 } as const;
@@ -76,6 +77,8 @@ const ROLE =
 export interface SessionOptions {
   /** Defaults to the runtime's model, for the session and for the works it starts. */
   model?: ModelProvider;
+  /** The name the agent goes by. Picked from the list, avoiding open sessions' names, when omitted. */
+  agentName?: string;
   /** Called after every event the session records. A returned promise is awaited before the next step. */
   onEvent?: (event: AnyEvent) => void | Promise<void>;
   /** Called after every event a work started from this session records. A returned promise is awaited. */
@@ -96,6 +99,8 @@ export interface TurnResult {
 
 export interface Session {
   readonly id: WorkId;
+  /** The name the agent goes by in this conversation and in the works it starts. */
+  readonly agentName: string;
   /** Records what the person said and runs the model until it replies or the turn stops. */
   turn(text: string, options?: { signal?: AbortSignal }): Promise<TurnResult>;
   /** Ends the conversation. The record stays. */
@@ -109,11 +114,13 @@ export async function createSession(
 ): Promise<Session> {
   const model = options.model ?? runtime.model;
   const { principal, profession } = runtime.config;
+  const agentName = options.agentName ?? pickAgentName(await namesInUse(runtime));
   const created = await runtime.works.create({
     objective: "会話",
     principal: principal.id,
     profession: profession.id,
     type: SESSION_WORK_TYPE,
+    agentName,
   });
   await withHandle(runtime, created.id, options, (handle) =>
     handle.transition("in_progress", "session opened"),
@@ -121,6 +128,7 @@ export async function createSession(
 
   return {
     id: created.id,
+    agentName,
     turn: (text, turnOptions = {}) =>
       withHandle(runtime, created.id, options, async (handle) => {
         await handle.append({ type: "human.message", payload: { text } });
@@ -137,6 +145,14 @@ export async function createSession(
         return handle.current();
       }),
   };
+}
+
+/** The names of the sessions still open, so two people talking at once do not get the same one. */
+async function namesInUse(runtime: Runtime): Promise<string[]> {
+  const { works } = await runtime.works.list();
+  return works
+    .filter((w) => w.type === SESSION_WORK_TYPE && !isTerminal(w.status))
+    .flatMap((w) => (w.agentName ? [w.agentName] : []));
 }
 
 async function withHandle<T>(
@@ -365,12 +381,14 @@ async function runSessionTool(
           isError: true,
         };
       }
+      const agentName = (await handle.current()).agentName;
       const child = await runtime.works.create({
         objective: String(input.objective),
         principal: runtime.config.principal.id,
         profession: runtime.config.profession.id,
         type,
         parent: handle.id,
+        ...(agentName !== undefined && { agentName }),
       });
       const done = await runWork(runtime, child.id, {
         model,

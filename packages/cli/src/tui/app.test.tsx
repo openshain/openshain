@@ -17,6 +17,7 @@ function fakeController(entries?: Entry[]) {
     status: {
       company: "サンプル株式会社",
       model: "fake/fake-1",
+      agentName: "みなと",
       usage: { modelCalls: 1, inputTokens: 10, outputTokens: 5 },
     },
   };
@@ -52,7 +53,7 @@ describe("the screen", () => {
     const { lastFrame } = render(<App controller={controller} />);
 
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("openshain · サンプル株式会社 · fake/fake-1");
+    expect(frame).toContain("openshain · サンプル株式会社 · 社員エージェント みなと · fake/fake-1");
     expect(frame).toContain("> やあ");
     expect(frame).toContain("⏺ こんにちは");
     expect(frame).toContain("⎿ csv_read receipts/2026-07.csv");

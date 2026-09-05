@@ -53,6 +53,8 @@ export interface EventPayloads {
     type: string;
     /** The work this one was started from, such as the session that asked for it. */
     parent?: string;
+    /** The name the model goes by in this work. A session picks it; the works it starts carry the same one. */
+    agentName?: string;
   };
   "work.status_changed": { from: string; to: string; reason: string };
   "model.requested": { provider: string; model: string; messageCount: number; toolNames: string[] };
@@ -140,6 +142,7 @@ export const payloadFileSchemas = {
     profession: z.string(),
     type: z.string(),
     parent: z.string().optional(),
+    agent_name: z.string().optional(),
   }),
   "work.status_changed": z.looseObject({ from: z.string(), to: z.string(), reason: z.string() }),
   "model.requested": z.looseObject({
@@ -349,6 +352,18 @@ function usageFromFile(usage: ModelUsageFile): ModelUsage {
  * payload uses the same names on both sides and needs no codec.
  */
 const codecs: { [T in EventType]?: Codec<T> } = {
+  "work.created": {
+    // Only agent_name changes its name; every other field, known or not, passes through.
+    toFile: ({ agentName, ...rest }) => ({
+      ...rest,
+      ...(agentName !== undefined && { agent_name: agentName }),
+    }),
+    fromFile: ({ agent_name, parent, ...rest }) => ({
+      ...rest,
+      ...(parent !== undefined && { parent }),
+      ...(agent_name !== undefined && { agentName: agent_name }),
+    }),
+  },
   "model.requested": {
     toFile: (p) => ({
       provider: p.provider,

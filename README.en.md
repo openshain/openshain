@@ -10,7 +10,7 @@ The Japanese [README.md](README.md) is the primary one; documentation is written
 
 ```
 $ openshain
-openshain · サンプル株式会社 · anthropic/claude-haiku-4-5-20251001
+openshain · サンプル株式会社 · 社員エージェント みなと · anthropic/claude-haiku-4-5-20251001
 > Total July's receipts by category and write the counts and sums to summary.md
 
   ⎿ fs_list .
@@ -55,7 +55,7 @@ openshain · サンプル株式会社 · anthropic/claude-haiku-4-5-20251001
 work_01a0720c… completed · model calls 3, input 5350, output 454 tokens · /help
 ```
 
-The screen speaks Japanese; this is the same conversation translated. The employee agent, the one you talk to on the screen, turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the employee agent reports back. The conversation and the work are both kept under `work/`.
+The screen speaks Japanese; this is the same conversation translated. The employee agent, the one you talk to on the screen, goes by a name for the session (みなと here), turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the employee agent reports back. The conversation and the work are both kept under `work/`.
 
 Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as an agent harness.
 

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AnyEvent, createRuntime, type WorkId } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
+import { AGENT_NAMES } from "./names.ts";
 import { createSession, SESSION_TOOLS, type SessionOptions } from "./session.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
 
@@ -234,6 +235,37 @@ describe("a session", () => {
     const value = payload?.content[0]?.value;
     expect(value?.works).toHaveLength(1);
     expect(value?.works[0]?.type).toBe("request");
+  });
+
+  test("goes by a name, tells the model, and hands the name to the works it starts", async () => {
+    const { runtime, model } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
+      say("済み"),
+      say("済みました"),
+    ]);
+    const session = await createSession(runtime, { agentName: "みなと" });
+
+    await session.turn("集計して");
+
+    expect(session.agentName).toBe("みなと");
+    expect((await runtime.works.get(session.id)).agentName).toBe("みなと");
+    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
+    expect(child?.agentName).toBe("みなと");
+    for (const request of model.requests)
+      expect(request.system).toContain("あなたの名前は みなと。");
+  });
+
+  test("picks a name from the list and avoids the ones open sessions use", async () => {
+    const { runtime } = await setup([]);
+
+    const first = await createSession(runtime);
+    const second = await createSession(runtime);
+    await first.close();
+    const third = await createSession(runtime, { agentName: first.agentName });
+
+    expect(AGENT_NAMES).toContain(first.agentName);
+    expect(second.agentName).not.toBe(first.agentName);
+    expect(third.agentName).toBe(first.agentName);
   });
 
   test("close ends the conversation and keeps the record", async () => {

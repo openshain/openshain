@@ -18,6 +18,8 @@ export interface CreateWorkInput {
   type?: string;
   /** The work this one is started from, such as a session. */
   parent?: string;
+  /** The name the model goes by in this work. */
+  agentName?: string;
 }
 
 export interface ListResult {
@@ -58,6 +60,7 @@ export class WorkStore {
           profession: input.profession,
           type: input.type ?? "request",
           ...(input.parent !== undefined && { parent: input.parent }),
+          ...(input.agentName !== undefined && { agentName: input.agentName }),
         },
       });
       return await this.snapshot(id, await log.read());

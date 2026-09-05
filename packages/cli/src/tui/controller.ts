@@ -34,6 +34,8 @@ export interface ControllerState {
   status: {
     company: string;
     model: string;
+    /** The name the agent goes by in this conversation. */
+    agentName?: string;
     work?: { id: string; status: string };
     usage: { modelCalls: number; inputTokens: number; outputTokens: number };
   };
@@ -160,6 +162,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     onWorkEvent,
     onInput: ask,
   });
+  state.status.agentName = session.agentName;
 
   const stopped = (workId: string | undefined) =>
     workId

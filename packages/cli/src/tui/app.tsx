@@ -107,10 +107,14 @@ export function App({ controller }: { controller: Controller }) {
     : statusText(state, scrolled);
   return (
     <Box flexDirection="column" width={width} height={height}>
-      <Text
-        dimColor
-        wrap="truncate"
-      >{`openshain · ${state.status.company} · ${state.status.model}`}</Text>
+      <Text dimColor wrap="truncate">
+        {[
+          "openshain",
+          state.status.company,
+          ...(state.status.agentName ? [`社員エージェント ${state.status.agentName}`] : []),
+          state.status.model,
+        ].join(" · ")}
+      </Text>
       <Box flexDirection="column" height={paneRows}>
         {visible.map((line) => {
           const color = COLORS[line.kind];

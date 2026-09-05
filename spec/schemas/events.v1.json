@@ -52,6 +52,9 @@
             },
             "parent": {
               "type": "string"
+            },
+            "agent_name": {
+              "type": "string"
             }
           },
           "required": [

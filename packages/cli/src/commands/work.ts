@@ -59,6 +59,7 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
     `依頼      ${work.objective}`,
     `作成      ${work.createdAt}`,
   ];
+  if (work.agentName) lines.push(`名前      ${work.agentName}(社員エージェント)`);
   if (work.startedAt) lines.push(`開始      ${work.startedAt}`);
   if (work.completedAt) lines.push(`終了      ${work.completedAt}`);
   if (work.outcome) {

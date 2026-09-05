@@ -56,6 +56,8 @@ export interface Work {
   objective: string;
   /** The work this one was started from, if any. */
   parent?: string;
+  /** The name the model goes by in this work, when a session gave it one. */
+  agentName?: string;
   status: WorkStatus;
   createdAt: string;
   startedAt?: string;
@@ -78,6 +80,7 @@ export function reduceWork(events: readonly AnyEvent[]): Work {
     type: created.payload.type,
     objective: created.payload.objective,
     ...(created.payload.parent !== undefined && { parent: created.payload.parent }),
+    ...(created.payload.agentName !== undefined && { agentName: created.payload.agentName }),
     status: "queued",
     createdAt: created.occurredAt,
   };
@@ -158,6 +161,7 @@ export const WorkFileSchema = z.strictObject({
   type: z.string(),
   objective: z.string(),
   parent: z.string().optional(),
+  agent_name: z.string().optional(),
   status: WorkStatus,
   created_at: z.iso.datetime(),
   started_at: z.iso.datetime().optional(),
@@ -176,6 +180,7 @@ export function workToFile(work: Work): WorkFile {
     type: work.type,
     objective: work.objective,
     ...(work.parent !== undefined && { parent: work.parent }),
+    ...(work.agentName !== undefined && { agent_name: work.agentName }),
     status: work.status,
     created_at: work.createdAt,
     ...(work.startedAt !== undefined && { started_at: work.startedAt }),
