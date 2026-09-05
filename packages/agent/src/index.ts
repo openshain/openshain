@@ -10,6 +10,7 @@ export {
   type RunWorkOptions,
   runWork,
 } from "./loop.ts";
+export { AGENT_NAMES, pickAgentName } from "./names.ts";
 export {
   ANTHROPIC_PROVIDER_ID,
   AnthropicProvider,
@@ -22,7 +23,6 @@ export {
   type OpenAICompatibleProviderOptions,
   openaiCompatibleProvider,
 } from "./providers/openai-compatible.ts";
-export { AGENT_NAMES, pickAgentName } from "./names.ts";
 export {
   createSession,
   SESSION_TOOLS,

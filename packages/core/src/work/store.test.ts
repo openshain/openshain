@@ -57,7 +57,7 @@ describe("WorkStore", () => {
     expect(work.agentName).toBe("みなと");
     expect((await store.get(work.id)).agentName).toBe("みなと");
     const first = (await store.events(work.id))[0];
-    expect((first?.payload as { agentName?: string }).agentName).toBe("みなと");
+    expect((first?.payload as { agentName?: string } | undefined)?.agentName).toBe("みなと");
     expect(
       JSON.parse(await readFile(join(root, "work", work.id, "work.json"), "utf8")).agent_name,
     ).toBe("みなと");
