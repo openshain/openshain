@@ -10,6 +10,7 @@ import {
 import { progressLine, report } from "../commands/run.ts";
 import { toolsList } from "../commands/tools.ts";
 import { workList, workResume, workShow } from "../commands/work.ts";
+import { plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
 
 export type EntryKind = "user" | "assistant" | "progress" | "notice" | "question" | "line";
@@ -90,7 +91,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     for (const listener of listeners) listener();
   };
   const push = (kind: EntryKind, text: string, where: "settled" | "live" = "live") => {
-    state[where].push({ id: nextId++, kind, text });
+    state[where].push({ id: nextId++, kind, text: plain(text) });
     notify();
   };
   const settle = () => {

@@ -217,6 +217,14 @@ describe("the screen's controller", () => {
     expect(texts(controller, "notice").at(-1)).toBe("止めました。");
   });
 
+  test("keeps control characters out of what the screen shows", async () => {
+    const { controller } = await setup([say("\x1b[2J\x1b]0;x\x07こんにちは")]);
+
+    await controller.submit("やあ");
+
+    expect(texts(controller, "assistant")).toEqual(["こんにちは"]);
+  });
+
   test("slash commands print the CLI's own lines, and /quit closes the session", async () => {
     const { controller, runtime } = await setup([]);
 

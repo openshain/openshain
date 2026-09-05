@@ -9,6 +9,7 @@ import { mcp } from "./commands/mcp.ts";
 import { run } from "./commands/run.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workResume, workShow } from "./commands/work.ts";
+import { plain } from "./format.ts";
 import { errorLabel } from "./labels.ts";
 import { startTui } from "./tui/index.ts";
 import { findWorkspace } from "./workspace.ts";
@@ -36,7 +37,7 @@ const providers: RuntimeProviders = {
 };
 
 async function main(argv: string[]): Promise<number> {
-  const write = (line: string) => console.log(line);
+  const write = (line: string) => console.log(plain(line));
   let values: { workspace?: string; help?: boolean };
   let positionals: string[];
   try {
@@ -126,7 +127,7 @@ async function withTerminal(
   if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) return fn();
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return await fn((question) => rl.question(`${question}\n> `));
+    return await fn((question) => rl.question(`${plain(question)}\n> `));
   } finally {
     rl.close();
   }
@@ -137,7 +138,7 @@ main(process.argv.slice(2)).then(
   (err: unknown) => {
     if (isOpenshainError(err)) {
       const heading = errorLabel(err.code);
-      console.error(`エラー(${err.code}) ${heading ? `${heading}。` : ""}${err.message}`);
+      console.error(plain(`エラー(${err.code}) ${heading ? `${heading}。` : ""}${err.message}`));
     } else {
       console.error(err);
     }

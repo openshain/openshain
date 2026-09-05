@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeInput, displayWidth, padDisplay, truncate } from "./format.ts";
+import { describeInput, displayWidth, padDisplay, plain, truncate } from "./format.ts";
 
 describe("display width", () => {
   test("counts Japanese characters as two columns", () => {
@@ -21,5 +21,17 @@ describe("tool inputs on one line", () => {
     expect(describeInput({ question: "どの月?" })).toBe("");
     expect(describeInput({ rows: [1, 2] })).toBe('{"rows":[1,2]}');
     expect(truncate("x".repeat(100))).toHaveLength(80);
+  });
+});
+
+describe("text for the terminal", () => {
+  test("drops escape sequences and other control characters, keeping newlines and tabs", () => {
+    expect(plain("\x1b[2J\x1b]0;title\x07完了\r")).toBe("完了");
+    expect(plain("\x1b[31m赤\x1b[0m \x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\")).toBe(
+      "赤 link",
+    );
+    expect(plain("\x1b(B\x1b7a\x9b1;2Hb\x1b")).toBe("ab");
+    expect(plain("a\tb\nc\x7f\x9b")).toBe("a\tb\nc");
+    expect(plain("受領書 2026-07.csv")).toBe("受領書 2026-07.csv");
   });
 });
