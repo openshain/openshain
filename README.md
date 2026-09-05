@@ -19,25 +19,23 @@ Claude や Codex、Gemini のような汎用 Agent は、そのままでは会�
 
 ## はじめる
 
-必要なものは Anthropic か OpenAI 互換 API のキーです。職種は今 generic だけで、次に足すのは経理(Accounting Employee)です。
+Anthropic か OpenAI 互換 API のキーを用意してください。職種はいまのところ generic だけです。最初の職種として経理を作っています。
 
 ### 1. インストール
 
-入れ方は 3 つあります。
+[GitHub Releases](https://github.com/openshain/openshain/releases) からバイナリを取り、`openshain` という名前で PATH の通った場所に置きます。macOS のバイナリは署名していないので、初回に `xattr -d com.apple.quarantine openshain` が要ります。
 
-- [GitHub Releases](https://github.com/openshain/openshain/releases) のバイナリを、PATH の通った場所に `openshain` という名前で置く。macOS のものは署名していないので、`xattr -d com.apple.quarantine openshain` で隔離属性を外す
-- Bun があるなら `bun install -g openshain`
-- ソースから作る
+Bun を使っているなら `bun install -g openshain` でも入ります。ソースから作るなら次のとおりです。
 
 ```
 git clone https://github.com/openshain/openshain.git
 cd openshain
 bun install
-bun run build                    # dist/openshain ができる
-cp dist/openshain ~/.local/bin/  # PATH の通った場所に置く
+bun run build
+cp dist/openshain ~/.local/bin/
 ```
 
-`openshain --help` で使い方が出れば準備完了です。
+`openshain --help` が通れば OK です。
 
 ### 2. 会社のフォルダを作る
 
