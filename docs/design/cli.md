@@ -45,6 +45,14 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 変える条件。並行して作業を進めたくなったら、すぐ返る `work_start` と後で見る `work_status` を社員エージェントの道具に足します。閉じたセッションを再開したくなったら、そのときに spec を切ります。
 
+## スラッシュコマンドは 2 種類
+
+決めたこと。組み込みコマンド(`/work …`、`/tools`、`/help`、`/quit`)は CLI が解釈して model を通しません。それ以外は prompt コマンド `/{名前} {文}` で、`{文}` は自由な文のまま社員エージェントに渡し、解釈は model に任せます。prompt コマンドは職種 Pack のスキル、workspace の `skills/`(Agent Skills の形式)、MCP server の prompt から集めます(spec/interactive-cli.md)。
+
+理由。記録の状態を変える操作(Work の再開)は、どの Work かを正確に取りたいので、CLI が引数を解釈します。一方、拡張できるコマンドは Claude Code の custom command、Agent Skills、MCP の prompt がどれも「名前と文」の形で、文の解釈を model に任せています。同じ形にしておけば、それらをそのまま載せられます。MCP の prompt だけは引数に名前があるので、語順で当ててから server に展開させます。
+
+捨てた案。組み込みコマンドの引数も model に解釈させる案。「さっきの集計のやつ」と言えるのは便利ですが、取り違えた再開は記録に残ります。id の一覧を見せて選ばせるほうが確実です。
+
 ## `init` は 4 つのファイルを書く
 
 決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部エージェントへの指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書きます。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書きます。

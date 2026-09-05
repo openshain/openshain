@@ -59,9 +59,29 @@ Runtime が提供します。名前は予約で、Tool provider は同じ名前�
 - 履歴は画面の中でスクロールします。PageUp と PageDown で 1 画面、上下の矢印で 1 行、Home で先頭、End で最新です。端末が対応していればマウスホイールも矢印として届きます。上を見ている間は状態行にその旨を出し、発言を送ると最新に戻ります
 - 入力欄は 1 行です。貼り付けた文に改行が含まれていれば、最初の改行までを送り、残りは入力欄に残します
 - 終了すると元の画面に戻り、会話は端末に残りません。記録の読み方(`openshain work show <セッションの id>`)を 1 行出します
-- スラッシュコマンドは `/work list`、`/work show <id>`、`/work resume <id>`(止まった Work を続けます。質問は画面で答えます)、`/tools`、`/help`、`/quit` です。`/resume` はセッションの再開のために空けてあり、今はその旨を返します
+- スラッシュコマンドは次の節のとおりです
 - Ctrl-C は、子 Work が動いていれば中断します(Work は `in_progress` で残り、`/work resume` で続きます)。子 Work が質問を待っていれば質問を取り下げます(Work は `waiting_input` で残り、`/work resume` でもう一度聞きます)。`/work resume` で動かしている Work も同じです。動いていなければセッションを閉じます
 - 文言は日本語です。CLI の既存の表を使います。注意の行と質問には色を付けます
+
+## スラッシュコマンド
+
+2 種類あります。
+
+- 組み込みコマンド。CLI が解釈し、model を通しません。記録の状態を変えるものは引数を正確に取ります。`/work list`、`/work show <id>`、`/work resume <id>`(止まった Work を続けます。質問は画面で答えます)、`/tools`、`/help`、`/quit` です。`/resume <セッションの id>` はセッションの再開のために空けてあり、今はその旨を返します
+- prompt コマンド(未実装)。`/{名前} {文}` の形で、`{文}` は自由な文です。CLI は `{名前}` に対応する prompt の本文と `{文}` を社員エージェントに渡し、何をするかは model が決めます。Claude Code の custom command や Agent Skills と同じ形です
+
+prompt コマンドの出どころは 3 つです。
+
+| 出どころ | 名前 | `{文}` の渡し方 |
+|---|---|---|
+| 職種 Pack のスキル | Pack が決めた名前 | 本文の `$ARGUMENTS` に入れます |
+| workspace の `skills/<名前>/SKILL.md`(Agent Skills の形式) | ディレクトリ名 | 本文の `$ARGUMENTS` に入れます |
+| MCP server の prompt | `{server}:{prompt}` | 宣言された引数に語順で当て、server が展開した文を渡します |
+
+- 組み込みと同じ名前の prompt コマンドは読み込まず、起動時に注意を出します。出どころをまたいで同じ名前があれば、上の表の順で先のものを使います
+- `/help` は組み込みの後に prompt コマンドを出どころつきで並べます
+- 記録には、人が打った行を `human.message` で残し、展開して model に渡した文を新しいイベント `prompt.expanded`(payload は name、source、text)で残します。投影は `prompt.expanded` の text を user message にします
+- `skills/` は Runtime の予約パスにし、Tool からは読み書きできません。model が自分のスキルを書き換える経路を作らないためです
 
 ## 設定
 
