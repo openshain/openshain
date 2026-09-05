@@ -19,7 +19,7 @@ Claude や Codex、Gemini のような汎用 Agent は、そのままでは会�
 
 ## はじめる
 
-必要なものは Bun 1.3、git、Anthropic か OpenAI 互換 API のキー。職種はまだ generic だけで、最初の職種は Accounting Employee(経理)の予定です。
+必要なものは Anthropic か OpenAI 互換 API のキーです。職種は今 generic だけで、次に足すのは経理(Accounting Employee)です。
 
 ### 1. インストール
 
