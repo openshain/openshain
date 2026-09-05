@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, readdir, readFile, stat } from "node:fs/promises";
+import { type FileHandle, mkdir, open, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import {
   RESERVED_PATHS,
@@ -332,12 +332,13 @@ async function fsSearch(
       truncated = true;
       break;
     }
-    if ((await stat(file)).size > MAX_READ_BYTES || (await looksBinary(file))) {
+    const content = await readSearchable(file);
+    if (content === undefined) {
       filesSkipped += 1;
       continue;
     }
     filesSearched += 1;
-    const lines = splitLines(await readFile(file, "utf8"));
+    const lines = splitLines(content);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i] ?? "";
       if (!test(line)) continue;
@@ -581,18 +582,27 @@ async function readCsv(
   return { columns, rows };
 }
 
+/**
+ * Reads a text file through one descriptor: the size check and the read see the same file,
+ * so a swap between the two cannot slip a larger file past the limit.
+ */
 async function readText(ctx: ToolContext, path: string): Promise<string> {
   const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
-  let size: number;
+  let handle: FileHandle;
   try {
-    size = (await stat(resolved)).size;
+    handle = await open(resolved, "r");
   } catch (err) {
     throw new Error(`cannot read "${path}": ${(err as NodeJS.ErrnoException).code ?? "error"}`);
   }
-  if (size > MAX_READ_BYTES) {
-    throw new Error(`"${path}" is too large to read (${size} bytes, limit ${MAX_READ_BYTES})`);
+  try {
+    const { size } = await handle.stat();
+    if (size > MAX_READ_BYTES) {
+      throw new Error(`"${path}" is too large to read (${size} bytes, limit ${MAX_READ_BYTES})`);
+    }
+    return await handle.readFile("utf8");
+  } finally {
+    await handle.close();
   }
-  return readFile(resolved, "utf8");
 }
 
 /** Writes through a descriptor opened with O_NOFOLLOW, so the final component may not be a symlink. */
@@ -689,13 +699,18 @@ function wildcardMatcher(pattern: string): (subject: string) => boolean {
   };
 }
 
-/** A NUL byte in the first 8 KiB marks a file the search skips. */
-async function looksBinary(file: string): Promise<boolean> {
+/**
+ * The text of a file the search may read, or undefined for one it skips: over 1 MiB, or with
+ * a NUL byte in the first 8 KiB. Size, head and content all come from one descriptor.
+ */
+async function readSearchable(file: string): Promise<string | undefined> {
   const handle = await open(file, "r");
   try {
+    if ((await handle.stat()).size > MAX_READ_BYTES) return undefined;
     const head = Buffer.alloc(8192);
     const { bytesRead } = await handle.read(head, 0, head.length, 0);
-    return head.subarray(0, bytesRead).includes(0);
+    if (head.subarray(0, bytesRead).includes(0)) return undefined;
+    return await handle.readFile("utf8");
   } finally {
     await handle.close();
   }
