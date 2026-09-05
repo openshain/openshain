@@ -117,7 +117,8 @@ On the screen, the employee agent turns what you ask into a work and drives it, 
 | `/tools`, `/help`, `/quit` | The tools available, the help, leave |
 | Ctrl-C | Stop the running work, withdrawing a question it waits on; leave when nothing runs |
 | ↑ ↓ | Recall the lines sent before; the bottom is the new line |
-| Mouse wheel, PageUp and PageDown, End | Scroll back through the conversation; End returns to the newest rows |
+| ← → Home End | Move the cursor in the input; Backspace and Delete act where it is |
+| Mouse wheel, PageUp and PageDown | Scroll back through the conversation; sending a line returns to the newest rows |
 
 | Command | What it does |
 |---|---|

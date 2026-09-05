@@ -105,9 +105,41 @@ describe("the screen", () => {
     expect(lastFrame()).toContain("行上を表示中");
     expect(lastFrame()).not.toContain("行40");
 
-    stdin.write("\x1b[F");
+    stdin.write("\x1b[6~");
     await tick();
     expect(lastFrame()).toContain("行40");
+  });
+
+  test("the cursor moves in the input, and typing, Backspace and Delete act where it is", async () => {
+    const { controller, submitted } = fakeController();
+
+    const { stdin, lastFrame } = render(<App controller={controller} />);
+    await tick();
+    stdin.write("abc");
+    await tick();
+    stdin.write("\x1b[D");
+    await tick();
+    stdin.write("\x1b[D");
+    await tick();
+    stdin.write("X");
+    await tick();
+    expect(lastFrame()).toContain("> aXbc");
+    stdin.write("\x1b[H");
+    await tick();
+    stdin.write("Y");
+    await tick();
+    stdin.write("\x1b[F");
+    await tick();
+    stdin.write("\x7f");
+    await tick();
+    stdin.write("\x1b[H");
+    await tick();
+    stdin.write("\x1b[3~");
+    await tick();
+    stdin.write("\r");
+    await tick();
+
+    expect(submitted).toEqual(["aXb"]);
   });
 
   test("the up and down arrows recall the lines sent before, with the new line at the bottom", async () => {
