@@ -28,7 +28,7 @@ Status: v0.1(実装済み。完了の条件 1 から 7 を満たす)
 - 新しいイベント `human.message`。payload は `text`。人の発言で、投影では user message になる
 - `work.created` の payload に任意の `parent`(親 Work の id)を足す。無ければ今までどおり
 - 担当の返答は `model.completed`、担当の道具の呼び出しは `tool.called` と `tool.completed`(provider `runtime`)、使用量は `usage.recorded`。すべて既存の形
-- セッションの終了は `work.completed`(summary は `会話を終了`)。端末が閉じたとき(SIGHUP)と停止の信号(SIGTERM)でも閉じてから終わる。それ以外でプロセスが落ちたセッションは `in_progress` のまま残る
+- セッションの終了は `work.completed`(summary は `会話を終了`)。端末が閉じたとき(SIGHUP)と停止の信号(SIGTERM、SIGINT)では、動いている Work を止めてから閉じて終わる。それ以外でプロセスが落ちたセッションは `in_progress` のまま残る
 
 ## 担当の道具
 
@@ -55,7 +55,7 @@ Runtime が提供する。名前は予約で、Tool provider は同じ名前を�
 - `openshain`(引数なし)で、stdin と stdout が端末なら対話を始める。端末でなければ今までどおり使い方を出す
 - Ink で描く。上から、会話(人の発言、担当の返答、子 Work の進捗行と結果、質問)、状態行(会社名、model、進行中の Work、セッションの使用量)、入力欄
 - スラッシュコマンド。`/work list`、`/work show <id>`、`/resume <id>`(止まった Work を続ける。質問は画面で答える)、`/tools`、`/help`、`/quit`
-- Ctrl-C。子 Work が動いていれば中断する(Work は `in_progress` で残り、`/resume` で続く)。動いていなければセッションを閉じる
+- Ctrl-C。子 Work が動いていれば中断する(Work は `in_progress` で残り、`/resume` で続く)。子 Work が質問を待っていれば質問を取り下げる(Work は `waiting_input` で残り、`/resume` でもう一度聞く)。`/resume` で動かしている Work も同じ。動いていなければセッションを閉じる
 - 文言は日本語。CLI の既存の表を使う。注意の行と質問には色を付ける
 
 ## 設定

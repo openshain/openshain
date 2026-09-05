@@ -43,8 +43,9 @@ export interface Controller {
   subscribe(listener: () => void): () => void;
   /** A line the person typed: an answer, a slash command, or something to say. */
   submit(line: string): Promise<void>;
-  /** Ctrl-C: stops the running work and says so; false when nothing was running. */
+  /** Ctrl-C: stops the running work, taking back a question it waits on; false when nothing was running. */
   interrupt(): boolean;
+  /** Stops whatever is running, then ends the session. A second call waits for the same close. */
   close(): Promise<void>;
 }
 
@@ -60,8 +61,12 @@ const HELP = [
   "/resume <id>       止まった Work を続ける",
   "/tools             使える Tool",
   "/quit              終わる",
-  "Ctrl-C             動いている Work を止める。何も動いていなければ終わる",
+  "Ctrl-C             動いている Work を止める。質問待ちなら質問を取り下げる。何も動いていなければ終わる",
 ];
+
+/** What the session's model hears when the person stops a work that waits for their answer. */
+const QUESTION_WITHDRAWN =
+  "the person stopped the work while it waited for their answer; the question is still pending and the work can be resumed";
 
 /** The state behind the screen: a session, the works it starts, and the lines to show. */
 export async function createController(options: ControllerOptions): Promise<Controller> {
@@ -94,21 +99,29 @@ export async function createController(options: ControllerOptions): Promise<Cont
     notify();
   };
 
-  let pendingAnswer: ((text: string) => void) | undefined;
+  let pending: { resolve: (text: string) => void; reject: (reason: Error) => void } | undefined;
   let aborter: AbortController | undefined;
+  let running: Promise<void> | undefined;
+  let closing: Promise<void> | undefined;
+  /** The child work of the current turn while it is unfinished. */
   let lastWorkId: WorkId | undefined;
   const names = new Map<string, string>();
 
   const ask = (workId: WorkId, question: string): Promise<string> => {
     state.question = question;
     push("question", `${question}(${workId})`);
-    return new Promise((resolve) => {
-      pendingAnswer = (text) => {
-        pendingAnswer = undefined;
-        delete state.question;
-        resolve(text);
-      };
+    return new Promise((resolve, reject) => {
+      pending = { resolve, reject };
     });
+  };
+  /** Answers the pending question, or takes it back when there is no answer. */
+  const settleQuestion = (answer?: string) => {
+    const waiting = pending;
+    pending = undefined;
+    delete state.question;
+    if (!waiting) return;
+    if (answer === undefined) waiting.reject(new Error(QUESTION_WITHDRAWN));
+    else waiting.resolve(answer);
   };
 
   const onWorkEvent = (workId: WorkId, event: AnyEvent) => {
@@ -119,6 +132,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
         status: (event as Event<"work.status_changed">).payload.to,
       };
     } else if (event.type === "work.completed" || event.type === "work.failed") {
+      lastWorkId = undefined;
       state.status.work = {
         id: workId,
         status: event.type === "work.completed" ? "completed" : "failed",
@@ -145,14 +159,17 @@ export async function createController(options: ControllerOptions): Promise<Cont
     onInput: ask,
   });
 
+  const stopped = (workId: string | undefined) =>
+    workId
+      ? `止めました。${workId} は途中のまま残っています。/resume ${workId} で続けられます。`
+      : "止めました。";
+
   const explain = (result: TurnResult) => {
     switch (result.stopped) {
       case "turn_limit":
         return "担当が 1 回の返答でできる回数を超えたので、ここで止めました。続きを頼めます。";
       case "aborted":
-        return lastWorkId
-          ? `止めました。${lastWorkId} は途中のまま残っています。/resume ${lastWorkId} で続けられます。`
-          : "止めました。";
+        return stopped(lastWorkId);
       case "max_tokens":
         return "返答が長さの上限で切れました。";
       case "refusal":
@@ -164,11 +181,29 @@ export async function createController(options: ControllerOptions): Promise<Cont
     }
   };
 
+  const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+  /** Runs one thing the person can stop with Ctrl-C, and keeps the screen busy meanwhile. */
+  const stoppable = async (fn: (signal: AbortSignal) => Promise<void>) => {
+    const stopper = new AbortController();
+    aborter = stopper;
+    state.busy = true;
+    notify();
+    running = fn(stopper.signal);
+    try {
+      await running;
+    } finally {
+      running = undefined;
+      aborter = undefined;
+      state.busy = false;
+    }
+  };
+
   const capture = async (fn: (write: (line: string) => void) => Promise<unknown>) => {
     try {
       await fn((line) => push("line", line));
     } catch (err) {
-      push("notice", err instanceof Error ? err.message : String(err));
+      push("notice", message(err));
     }
   };
 
@@ -184,29 +219,37 @@ export async function createController(options: ControllerOptions): Promise<Cont
     else if (name === "work" && sub === "show" && id)
       await capture((write) => workShow({ workspaceRoot: options.workspaceRoot, id, write }));
     else if (name === "resume" && id) {
-      state.busy = true;
-      notify();
-      await capture((write) =>
-        workResume({
-          workspaceRoot: options.workspaceRoot,
-          providers: options.providers,
-          id,
-          write,
-          ask: (q) => ask(id as WorkId, q),
-        }),
-      );
-      state.busy = false;
+      await stoppable(async (signal) => {
+        try {
+          await workResume({
+            workspaceRoot: options.workspaceRoot,
+            providers: options.providers,
+            id,
+            signal,
+            write: (text) => push("line", text),
+            ask: (q) => ask(id as WorkId, q),
+          });
+        } catch (err) {
+          if (!signal.aborted) push("notice", message(err));
+        }
+        if (signal.aborted) push("notice", stopped(id));
+      });
     } else {
       push("notice", `分からないコマンドです。/help で一覧が出ます。`);
     }
     settle();
   };
 
-  async function close() {
-    if (state.closed) return;
-    state.closed = true;
-    await session.close();
-    notify();
+  function close(): Promise<void> {
+    closing ??= (async () => {
+      aborter?.abort();
+      settleQuestion();
+      await running;
+      await session.close();
+      state.closed = true;
+      notify();
+    })();
+    return closing;
   }
 
   return {
@@ -218,10 +261,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
     },
     async submit(line) {
       const text = line.trim();
-      if (text === "") return;
-      if (pendingAnswer) {
+      if (text === "" || closing) return;
+      if (pending) {
         push("user", text);
-        pendingAnswer(text);
+        settleQuestion(text);
         return;
       }
       if (state.busy) {
@@ -233,20 +276,23 @@ export async function createController(options: ControllerOptions): Promise<Cont
         await command(text);
         return;
       }
-      state.busy = true;
       push("user", text);
-      aborter = new AbortController();
-      const result = await session.turn(text, { signal: aborter.signal });
-      aborter = undefined;
-      if (result.reply) push("assistant", result.reply);
-      const note = explain(result);
-      if (note) push("notice", note);
-      state.busy = false;
+      await stoppable(async (signal) => {
+        try {
+          const result = await session.turn(text, { signal });
+          if (result.reply) push("assistant", result.reply);
+          const note = explain(result);
+          if (note) push("notice", note);
+        } catch (err) {
+          push("notice", message(err));
+        }
+      });
       settle();
     },
     interrupt() {
       if (!aborter) return false;
       aborter.abort();
+      settleQuestion();
       return true;
     },
     close,

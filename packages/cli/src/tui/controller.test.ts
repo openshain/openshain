@@ -3,11 +3,30 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { callTools, FakeModelProvider, type FakeStep, say } from "@openshain/agent/testing";
-import { createRuntime, type RuntimeProviders } from "@openshain/core";
+import {
+  createRuntime,
+  type ModelProvider,
+  type ModelRequest,
+  type ModelResponse,
+  type RuntimeProviders,
+} from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { type Controller, createController } from "./controller.ts";
 
-async function setup(steps: FakeStep[]) {
+/** A model that never answers, until the call is stopped. */
+class HangingModel implements ModelProvider {
+  readonly id = "fake";
+  describe() {
+    return { provider: "fake", model: "fake-1", capabilities: { tools: true } };
+  }
+  generate(_request: ModelRequest, signal?: AbortSignal): Promise<ModelResponse> {
+    return new Promise((_, reject) => {
+      signal?.addEventListener("abort", () => reject(new Error("stopped")), { once: true });
+    });
+  }
+}
+
+async function setup(steps: FakeStep[], given?: ModelProvider) {
   const root = await mkdtemp(join(tmpdir(), "openshain-tui-"));
   await writeFile(
     join(root, "openshain.yaml"),
@@ -30,7 +49,7 @@ tools:
   );
   await mkdir(join(root, "receipts"));
   await writeFile(join(root, "receipts", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
-  const model = new FakeModelProvider(steps);
+  const model = given ?? new FakeModelProvider(steps);
   const providers: RuntimeProviders = {
     models: { fake: () => model },
     tools: { standard: () => standardTools() },
@@ -117,6 +136,85 @@ describe("the screen's controller", () => {
     expect((await runtime.works.get(child?.id as never)).status).toBe("completed");
     expect(texts(controller, "line").some((l) => l.includes("続きをやりました"))).toBe(true);
     expect(controller.interrupt()).toBe(false);
+  });
+
+  test("Ctrl-C while a work waits for an answer takes the question back, and /resume asks again", async () => {
+    const { controller, runtime } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
+      callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
+      say("7月分は 100 円"),
+    ]);
+
+    const turn = controller.submit("集計して");
+    await waitFor(() => controller.state().question !== undefined);
+    expect(controller.interrupt()).toBe(true);
+    await turn;
+
+    expect(controller.state().question).toBeUndefined();
+    expect(controller.state().busy).toBe(false);
+    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
+    expect(child?.status).toBe("waiting_input");
+    expect(texts(controller, "notice").at(-1)).toContain(`/resume ${child?.id}`);
+
+    const resumed = controller.submit(`/resume ${child?.id}`);
+    await waitFor(() => controller.state().question !== undefined);
+    await controller.submit("7月");
+    await resumed;
+
+    expect((await runtime.works.get(child?.id as never)).status).toBe("completed");
+    expect(texts(controller, "line").some((l) => l.includes("7月分は 100 円"))).toBe(true);
+  });
+
+  test("Ctrl-C stops a work that /resume is driving", async () => {
+    const { controller, runtime } = await setup([
+      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
+      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
+      callTools({ id: "c2", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
+      say("never reached"),
+    ]);
+    // Stop at the first line about a tool call, inside the notification, before the model answers again.
+    const stopAtToolLine = () => {
+      let stopped: boolean | undefined;
+      const unsubscribe = controller.subscribe(() => {
+        if (
+          stopped === undefined &&
+          controller.state().live.some((e) => e.text.includes("csv_read"))
+        )
+          stopped = controller.interrupt();
+      });
+      return () => {
+        unsubscribe();
+        return stopped;
+      };
+    };
+
+    let result = stopAtToolLine();
+    await controller.submit("集計して");
+    expect(result()).toBe(true);
+    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
+    expect(child?.status).toBe("in_progress");
+
+    result = stopAtToolLine();
+    await controller.submit(`/resume ${child?.id}`);
+
+    expect(result()).toBe(true);
+    expect((await runtime.works.get(child?.id as never)).status).toBe("in_progress");
+    expect(texts(controller, "notice").at(-1)).toContain(`/resume ${child?.id}`);
+    expect(controller.state().busy).toBe(false);
+    expect(controller.interrupt()).toBe(false);
+  });
+
+  test("closing during a turn stops the turn first, then ends the session", async () => {
+    const { controller, runtime } = await setup([], new HangingModel());
+
+    const turn = controller.submit("やあ");
+    await waitFor(() => controller.state().busy);
+    const closed = controller.close();
+    await Promise.all([closed, controller.close(), turn]);
+
+    expect(controller.state().closed).toBe(true);
+    expect((await runtime.works.get(controller.sessionId)).status).toBe("completed");
+    expect(texts(controller, "notice").at(-1)).toBe("止めました。");
   });
 
   test("slash commands print the CLI's own lines, and /quit closes the session", async () => {

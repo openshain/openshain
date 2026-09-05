@@ -17,6 +17,8 @@ export interface DriveOptions {
   write: (line: string) => void;
   /** Answers the model's questions. Without it, a question leaves the work waiting and the run ends. */
   ask?: (question: string) => Promise<string>;
+  /** Stops the run. The work stays where it is and can be resumed. */
+  signal?: AbortSignal;
 }
 
 export interface RunOptions extends DriveOptions {
@@ -49,6 +51,7 @@ export async function drive(
   const names = new Map<string, string>();
   const done = await runWork(runtime, workId, {
     ...(options.ask && { onInput: options.ask }),
+    ...(options.signal && { signal: options.signal }),
     onEvent: (event) => {
       const line = progressLine(event, names);
       if (line) options.write(line);
