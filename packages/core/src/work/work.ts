@@ -134,7 +134,12 @@ function move(work: Work, to: WorkStatus, at: string): void {
   if (isTerminal(to)) work.completedAt = at;
 }
 
-const artifactFile = z.strictObject({ path: z.string(), sha256: z.string() });
+const artifactFile = z.strictObject({
+  path: z.string(),
+  sha256: z.string(),
+  missing: z.literal(true).optional(),
+  claimed: z.literal(true).optional(),
+});
 
 /** Shape of work.json. A projection of the event log, never the source of truth. */
 export const WorkFileSchema = z.strictObject({

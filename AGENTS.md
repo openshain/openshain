@@ -14,6 +14,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Type check: `bun run typecheck`
 - Lint / format: `bun run lint`, `bun run format`
 - Test: `bun test`
+- Schemas: `bun run schemas` regenerates `spec/schemas/` from the zod schemas in `packages/core`; CI fails when the committed files are stale
 
 ## Layout
 

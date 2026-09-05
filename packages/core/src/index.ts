@@ -33,6 +33,7 @@ export {
   type RuntimeProviders,
   type ToolSummary,
 } from "./runtime.ts";
+export { jsonSchemas, type SchemaName } from "./schemas.ts";
 export { loadToolModule } from "./tool/load-module.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export {

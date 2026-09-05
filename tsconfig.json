@@ -21,5 +21,5 @@
       "@openshain/*": ["./packages/*/src/index.ts"]
     }
   },
-  "include": ["packages/*/src", "examples", "test"]
+  "include": ["packages/*/src", "examples", "test", "scripts"]
 }

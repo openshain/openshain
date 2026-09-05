@@ -37,6 +37,11 @@ jobs:
       - name: Test
         run: bun test
 
+      - name: Schemas are current
+        run: |
+          bun run schemas
+          test -z "$(git status --porcelain -- spec/schemas)" || { git --no-pager diff -- spec/schemas; echo 'spec/schemas is out of date: run bun run schemas and commit'; exit 1; }
+
       - name: Audit dependencies
         # The registry sometimes drops the audit connection from a hosted runner and
         # bun waits minutes before giving up; on other days it answers slowly. Give

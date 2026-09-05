@@ -12,3 +12,15 @@
 |---|---|---|
 | [open-runtime.md](open-runtime.md) | draft v0.2 | Model、Tool、入口を交換できる Runtime。ModelProvider と ToolProvider の契約、Work とイベント、CLI と MCP |
 | [open-runtime.plan.md](open-runtime.plan.md) | draft | 上の spec の実装計画。19 タスク、5 checkpoint |
+
+## JSON Schema(`schemas/`)
+
+`bun run schemas` が `packages/core` の zod schema から生成する。draft 2020-12。手で編集せず、CI が最新かを確かめる。
+
+| ファイル | 内容 |
+|---|---|
+| `schemas/config.v1.json` | `openshain.yaml` |
+| `schemas/events.v1.json` | `work/<id>/events.jsonl` の 1 行。envelope は厳密、payload は知らない項目を通す。知らない type は payload を問わず通す |
+| `schemas/work.v1.json` | `work/<id>/work.json` |
+
+zod の refine で書いた条件(`tools` の項目は `provider` か `module` のどちらか 1 つ、`base_url` に認証情報を含めない)は JSON Schema に出ない。JSON Schema で通っても Runtime が拒むことはある。
