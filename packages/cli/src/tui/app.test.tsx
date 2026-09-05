@@ -61,6 +61,21 @@ describe("the screen", () => {
     expect(frame).toContain("model 1 回、入力 10、出力 5 トークン");
   });
 
+  test("draws the wordmark with its gradient and the banner rows", () => {
+    const { controller } = fakeController([
+      { id: 1, kind: "logo", text: " ╔═╗ ╔═╗" },
+      { id: 2, kind: "banner", text: "openshain 0.1.0" },
+      { id: 3, kind: "banner", text: "/home/alice/sample-company" },
+    ]);
+
+    const { lastFrame } = render(<App controller={controller} />);
+
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain(" ╔═╗ ╔═╗");
+    expect(frame).toContain("openshain 0.1.0");
+    expect(frame).toContain("/home/alice/sample-company");
+  });
+
   test("shows a line that arrives after the first render, such as the reply", async () => {
     const { controller, add } = fakeController();
 

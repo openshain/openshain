@@ -12,6 +12,7 @@ import {
   type RuntimeProviders,
 } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
+import { LOGO_ROWS, VERSION } from "./banner.ts";
 import { type Controller, createController } from "./controller.ts";
 
 /** A model that never answers, until the call is stopped. */
@@ -74,16 +75,23 @@ const texts = (c: Controller, kind?: string) =>
     .entries.filter((e) => !kind || e.kind === kind)
     .map((e) => e.text);
 
+/** The entries of the conversation itself, without the rows the screen shows when it opens. */
+const conversation = (c: Controller) =>
+  c.state().entries.filter((e) => e.kind !== "logo" && e.kind !== "banner");
+
 describe("the screen's controller", () => {
   test("shows what the person says and what the model replies", async () => {
-    const { controller } = await setup([say("こんにちは")]);
+    const { controller, root } = await setup([say("こんにちは")]);
     const before = controller.state().entries;
+
+    expect(texts(controller, "logo")).toEqual([...LOGO_ROWS]);
+    expect(texts(controller, "banner")).toEqual([`openshain ${VERSION}`, root]);
 
     await controller.submit("やあ");
 
-    // A new array each time: the screen's Static only draws items when the array changes.
+    // A new array each time: the screen redraws from the array it is handed.
     expect(controller.state().entries).not.toBe(before);
-    expect(controller.state().entries.map((e) => [e.kind, e.text])).toEqual([
+    expect(conversation(controller).map((e) => [e.kind, e.text])).toEqual([
       ["user", "やあ"],
       ["assistant", "こんにちは"],
     ]);
@@ -311,7 +319,7 @@ describe("the screen's controller", () => {
     ]);
 
     await controller.submit("   ");
-    expect(controller.state().entries).toHaveLength(0);
+    expect(conversation(controller)).toHaveLength(0);
 
     const turn = controller.submit("集計して");
     await waitFor(() => controller.state().busy);

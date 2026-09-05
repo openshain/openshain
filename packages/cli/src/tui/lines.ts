@@ -1,9 +1,12 @@
 import { displayWidth } from "../format.ts";
+import { logoSegments, type Segment } from "./banner.ts";
 import type { Entry, EntryKind } from "./controller.ts";
 
 export interface ScreenLine {
   kind: EntryKind | "blank";
   text: string;
+  /** Colored pieces of a logo row; the other rows are one color. */
+  segments?: Segment[];
 }
 
 /** What starts a line of each kind. The continuation lines of a wrapped entry are indented to match. */
@@ -14,6 +17,8 @@ const MARKERS: Record<EntryKind, string> = {
   notice: "! ",
   question: "? ",
   line: "  ",
+  logo: "",
+  banner: "",
 };
 
 /** Breaks text into lines no wider than `width` display columns, counting East Asian wide characters as two. */
@@ -40,6 +45,7 @@ export function wrapText(text: string, width: number): string[] {
 /** A blank row goes before an entry that starts something new: a message, a reply, a notice, a question. */
 function startsBlock(kind: EntryKind, previous: EntryKind | undefined): boolean {
   if (previous === undefined) return false;
+  if (kind === "logo" || kind === "banner") return false;
   if (kind === "progress") return previous === "user";
   if (kind === "line") return previous !== "line";
   return true;
@@ -51,6 +57,12 @@ export function screenLines(entries: readonly Entry[], width: number): ScreenLin
   let previous: EntryKind | undefined;
   for (const entry of entries) {
     if (startsBlock(entry.kind, previous)) lines.push({ kind: "blank", text: "" });
+    if (entry.kind === "logo") {
+      // Never wrapped: a cut row of the wordmark reads better than a broken one.
+      lines.push({ kind: "logo", text: entry.text, segments: logoSegments(entry.text) });
+      previous = entry.kind;
+      continue;
+    }
     const marker = MARKERS[entry.kind];
     const indent = " ".repeat(displayWidth(marker));
     const body = wrapText(entry.text, Math.max(8, width - displayWidth(marker)));

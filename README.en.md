@@ -11,6 +11,12 @@ The Japanese [README.md](README.md) is the primary one; documentation is written
 ```
 $ openshain
 openshain · サンプル株式会社 · 社員エージェント みなと · anthropic/claude-haiku-4-5-20251001
+ ╔═╗ ╔═╗ ╔═╗ ╔╗╔ ╔═╗ ╦ ╦ ╔═╗ ╦ ╔╗╔
+ ║ ║ ╠═╝ ║╣  ║║║ ╚═╗ ╠═╣ ╠═╣ ║ ║║║
+ ╚═╝ ╩   ╚═╝ ╝╚╝ ╚═╝ ╩ ╩ ╩ ╩ ╩ ╝╚╝
+openshain 0.1.0
+/home/alice/sample-company
+
 > Total July's receipts by category and write the counts and sums to summary.md
 
   ⎿ fs_list .

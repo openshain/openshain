@@ -36,6 +36,34 @@ describe("wrapping for the screen", () => {
     expect(lines[5]?.kind).toBe("assistant");
   });
 
+  test("keeps a logo row whole and colors it from the left edge to the right", () => {
+    const [row] = screenLines([{ id: 1, kind: "logo", text: " ╔═╗ ╔═╗" }], 4);
+
+    expect(row?.text).toBe(" ╔═╗ ╔═╗");
+    expect(row?.segments?.[0]).toEqual({ text: " ", color: "#4ea8ff", at: 0 });
+    expect(row?.segments?.at(-1)).toEqual({ text: "╗", color: "#7f88ff", at: 7 });
+  });
+
+  test("shows the banner rows without markers or blank rows between them", () => {
+    const lines = screenLines(
+      [
+        { id: 1, kind: "logo", text: "╔╗" },
+        { id: 2, kind: "banner", text: "openshain 0.1.0" },
+        { id: 3, kind: "banner", text: "/home/alice/sample-company" },
+        { id: 4, kind: "user", text: "やあ" },
+      ],
+      40,
+    );
+
+    expect(lines.map((l) => l.text)).toEqual([
+      "╔╗",
+      "openshain 0.1.0",
+      "/home/alice/sample-company",
+      "",
+      "> やあ",
+    ]);
+  });
+
   test("wraps a long entry after its marker", () => {
     const lines = screenLines([{ id: 1, kind: "assistant", text: "a".repeat(30) }], 20);
 

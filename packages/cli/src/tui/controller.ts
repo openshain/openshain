@@ -12,8 +12,18 @@ import { toolsList } from "../commands/tools.ts";
 import { workList, workResume, workShow } from "../commands/work.ts";
 import { plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
+import { LOGO_ROWS, VERSION } from "./banner.ts";
 
-export type EntryKind = "user" | "assistant" | "progress" | "notice" | "question" | "line";
+/** logo and banner are the rows shown once when the screen opens: the wordmark, the version, the folder. */
+export type EntryKind =
+  | "user"
+  | "assistant"
+  | "progress"
+  | "notice"
+  | "question"
+  | "line"
+  | "logo"
+  | "banner";
 
 export interface Entry {
   id: number;
@@ -183,6 +193,9 @@ export async function createController(options: ControllerOptions): Promise<Cont
     onInput: ask,
   });
   state.status.agentName = session.agentName;
+  for (const row of LOGO_ROWS) push("logo", row);
+  push("banner", `openshain ${VERSION}`);
+  push("banner", runtime.workspaceRoot);
 
   const stopped = (workId: string | undefined) =>
     workId

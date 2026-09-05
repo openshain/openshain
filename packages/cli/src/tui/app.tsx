@@ -10,6 +10,8 @@ const COLORS: Record<ScreenLine["kind"], string | undefined> = {
   notice: "yellow",
   question: "magenta",
   line: undefined,
+  logo: undefined,
+  banner: undefined,
   blank: undefined,
 };
 
@@ -152,8 +154,24 @@ export function App({ controller }: { controller: Controller }) {
       <Box flexDirection="column" height={paneRows}>
         {visible.map((line) => {
           const color = COLORS[line.kind];
+          if (line.segments) {
+            return (
+              <Text key={line.row} wrap="truncate">
+                {line.segments.map((s) => (
+                  <Text key={s.at} color={s.color}>
+                    {s.text}
+                  </Text>
+                ))}
+              </Text>
+            );
+          }
           return (
-            <Text key={line.row} wrap="truncate" {...(color && { color })}>
+            <Text
+              key={line.row}
+              wrap="truncate"
+              dimColor={line.kind === "banner"}
+              {...(color && { color })}
+            >
               {line.text || " "}
             </Text>
           );

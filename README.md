@@ -11,6 +11,12 @@ English: [README.en.md](README.en.md)
 ```
 $ openshain
 openshain · サンプル株式会社 · 社員エージェント みなと · anthropic/claude-haiku-4-5-20251001
+ ╔═╗ ╔═╗ ╔═╗ ╔╗╔ ╔═╗ ╦ ╦ ╔═╗ ╦ ╔╗╔
+ ║ ║ ╠═╝ ║╣  ║║║ ╚═╗ ╠═╣ ╠═╣ ║ ║║║
+ ╚═╝ ╩   ╚═╝ ╝╚╝ ╚═╝ ╩ ╩ ╩ ╩ ╩ ╝╚╝
+openshain 0.1.0
+/home/alice/sample-company
+
 > 7月の領収書を category ごとに集計して、件数と合計を summary.md に書いて
 
   ⎿ fs_list .
