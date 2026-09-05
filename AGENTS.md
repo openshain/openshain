@@ -5,7 +5,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 ## Tech stack
 
 - Bun 1.3 as runtime, package manager and test runner. TypeScript strict. Biome for lint and format.
-- Bun workspaces monorepo. Packages export TypeScript source directly (`exports: ./src/index.ts`); there is no build step yet.
+- Bun workspaces monorepo. Packages export TypeScript source directly (`exports: ./src/index.ts`); the packages have no build step. `bun run build` compiles the CLI into one binary, `dist/openshain`, for distribution.
 - One root `tsconfig.json` covers every package.
 
 ## Commands
@@ -14,6 +14,7 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Type check: `bun run typecheck`
 - Lint / format: `bun run lint`, `bun run format`
 - Test: `bun test`
+- Build the CLI binary: `bun run build`
 - Schemas: `bun run schemas` regenerates `spec/schemas/` from the zod schemas in `packages/core`; CI fails when the committed files are stale
 
 ## Layout
