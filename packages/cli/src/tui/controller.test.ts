@@ -70,16 +70,19 @@ async function waitFor(check: () => boolean, ms = 3000): Promise<void> {
 const texts = (c: Controller, kind?: string) =>
   c
     .state()
-    .settled.filter((e) => !kind || e.kind === kind)
+    .entries.filter((e) => !kind || e.kind === kind)
     .map((e) => e.text);
 
 describe("the screen's controller", () => {
   test("shows what the person says and what the model replies", async () => {
     const { controller } = await setup([say("こんにちは")]);
+    const before = controller.state().entries;
 
     await controller.submit("やあ");
 
-    expect(controller.state().settled.map((e) => [e.kind, e.text])).toEqual([
+    // A new array each time: the screen's Static only draws items when the array changes.
+    expect(controller.state().entries).not.toBe(before);
+    expect(controller.state().entries.map((e) => [e.kind, e.text])).toEqual([
       ["user", "やあ"],
       ["assistant", "こんにちは"],
     ]);
@@ -105,9 +108,9 @@ describe("the screen's controller", () => {
     expect(texts(controller, "progress")).toContain("  csv_read receipts/2026-07.csv");
     expect(texts(controller, "progress")).toContain("  完了。");
     expect(texts(controller, "progress").some((l) => l.startsWith("  model 呼び出し"))).toBe(true);
-    const settled = controller.state().settled;
-    expect(settled.findIndex((e) => e.text === "  完了。")).toBeLessThan(
-      settled.findIndex((e) => e.kind === "assistant"),
+    const entries = controller.state().entries;
+    expect(entries.findIndex((e) => e.text === "  完了。")).toBeLessThan(
+      entries.findIndex((e) => e.kind === "assistant"),
     );
     expect(texts(controller, "question")[0]).toContain("何月ですか");
     expect(texts(controller, "user")).toEqual(["集計して", "7月"]);
@@ -125,7 +128,7 @@ describe("the screen's controller", () => {
     // Stop at the first progress line, inside the notification, before the fake model can answer again.
     let stopped: boolean | undefined;
     const unsubscribe = controller.subscribe(() => {
-      if (stopped === undefined && controller.state().live.some((e) => e.kind === "progress")) {
+      if (stopped === undefined && controller.state().entries.some((e) => e.kind === "progress")) {
         stopped = controller.interrupt();
       }
     });
@@ -178,13 +181,14 @@ describe("the screen's controller", () => {
       callTools({ id: "c2", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
       say("never reached"),
     ]);
-    // Stop at the first line about a tool call, inside the notification, before the model answers again.
+    // Stop at the next line about a tool call, inside the notification, before the model answers again.
     const stopAtToolLine = () => {
+      const seen = controller.state().entries.filter((e) => e.text.includes("csv_read")).length;
       let stopped: boolean | undefined;
       const unsubscribe = controller.subscribe(() => {
         if (
           stopped === undefined &&
-          controller.state().live.some((e) => e.text.includes("csv_read"))
+          controller.state().entries.filter((e) => e.text.includes("csv_read")).length > seen
         )
           stopped = controller.interrupt();
       });
@@ -258,7 +262,7 @@ describe("the screen's controller", () => {
     ]);
 
     await controller.submit("   ");
-    expect(controller.state().settled).toHaveLength(0);
+    expect(controller.state().entries).toHaveLength(0);
 
     const turn = controller.submit("集計して");
     await waitFor(() => controller.state().busy);

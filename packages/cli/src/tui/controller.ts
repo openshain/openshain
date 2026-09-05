@@ -22,10 +22,11 @@ export interface Entry {
 }
 
 export interface ControllerState {
-  /** Finished entries, in order. They never change once added. */
-  settled: Entry[];
-  /** What the current turn has produced so far. */
-  live: Entry[];
+  /**
+   * Everything shown so far, in order. An entry never changes once added, and the array is
+   * replaced rather than mutated: the screen tells new entries apart by the array's identity.
+   */
+  entries: Entry[];
   busy: boolean;
   /** A question a work is asking; the next line the person types answers it. */
   question?: string;
@@ -77,8 +78,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
   const listeners = new Set<() => void>();
   let nextId = 1;
   const state: ControllerState = {
-    settled: [],
-    live: [],
+    entries: [],
     busy: false,
     closed: false,
     status: {
@@ -90,13 +90,8 @@ export async function createController(options: ControllerOptions): Promise<Cont
   const notify = () => {
     for (const listener of listeners) listener();
   };
-  const push = (kind: EntryKind, text: string, where: "settled" | "live" = "live") => {
-    state[where].push({ id: nextId++, kind, text: plain(text) });
-    notify();
-  };
-  const settle = () => {
-    state.settled.push(...state.live);
-    state.live = [];
+  const push = (kind: EntryKind, text: string) => {
+    state.entries = [...state.entries, { id: nextId++, kind, text: plain(text) }];
     notify();
   };
 
@@ -244,7 +239,6 @@ export async function createController(options: ControllerOptions): Promise<Cont
     } else {
       push("notice", `分からないコマンドです。/help で一覧が出ます。`);
     }
-    settle();
   };
 
   function close(): Promise<void> {
@@ -294,7 +288,6 @@ export async function createController(options: ControllerOptions): Promise<Cont
           push("notice", message(err));
         }
       });
-      settle();
     },
     interrupt() {
       if (!aborter) return false;

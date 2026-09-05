@@ -46,9 +46,12 @@ export function App({ controller }: { controller: Controller }) {
       if (!controller.interrupt()) void controller.close();
       return;
     }
-    if (key.return) {
-      const line = input;
-      setInput("");
+    // Ink hands a pasted or quickly typed chunk over whole, and a newline inside it does not set
+    // key.return. The line ends at the first newline; what follows stays in the input.
+    const newline = key.return ? 0 : ch.search(/[\r\n]/);
+    if (newline >= 0) {
+      const line = input + ch.slice(0, newline);
+      setInput(ch.slice(newline + 1).replace(/^\n/, ""));
       void controller.submit(line);
       return;
     }
@@ -61,12 +64,11 @@ export function App({ controller }: { controller: Controller }) {
     if (!key.ctrl && !key.meta) setInput((v) => v + ch);
   });
 
+  // The conversation goes to the terminal's scrollback through Static; only the status line and
+  // the input stay on screen, at the bottom.
   return (
     <Box flexDirection="column">
-      <Static items={state.settled}>{(entry) => <Line key={entry.id} entry={entry} />}</Static>
-      {state.live.map((entry) => (
-        <Line key={entry.id} entry={entry} />
-      ))}
+      <Static items={state.entries}>{(entry) => <Line key={entry.id} entry={entry} />}</Static>
       <Box borderStyle="single" borderColor="gray" paddingX={1}>
         <Text dimColor>{statusText(state)}</Text>
       </Box>
