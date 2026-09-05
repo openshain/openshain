@@ -126,13 +126,13 @@ outcome:
 | `human.input_requested` | call_id(`ask_user` の呼び出し)、question |
 | `human.input_provided` | call_id、answer。答えは同じ call_id の `tool.completed` としても記録し、投影はそちらを使う |
 | `usage.recorded` | kind(`model_inference` か `tool_execution`)、provider、model、usage。`tool_execution` のときは `duration_ms` だけ |
-| `evidence.recorded` | claim、refs(event id)、artifacts(path、sha256、完了時に読めなかったときは missing) |
+| `evidence.recorded` | claim、refs(event id)、artifacts(path、sha256、完了時に読めなかったときは missing、この Work の Tool が書いていない申告だけのものは claimed) |
 | `work.completed` | summary |
 | `work.failed` | reason、detail |
 
 `usage.recorded` が原典の CostEvent。model のときの `usage` は `input_tokens`、`output_tokens`、`cached_input_tokens`、`cache_write_tokens`、`reasoning_tokens` を持ち、Work ごとに合計できる。SpendEvent はこの段階では発生させない。
 
-`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。ハッシュは Runtime がそのときのファイルから計算する。読めなかった成果物には `missing: true` を付け、sha256 は Tool の申告のまま残す。検証できた値ではない。
+`evidence.recorded` は完了時に 1 件残す。成果物のパスとハッシュ、根拠にしたイベントの id を結びつける。ハッシュは Runtime がそのときのファイルから計算する。読めなかった成果物には `missing: true` を付け、sha256 は Tool の申告のまま残す。検証できた値ではない。Agent が挙げただけで、この Work の Tool が書いていないファイルには `claimed: true` を付ける。ハッシュは Runtime の値だが、その Work の作業の結果だという裏付けは記録にない。
 
 ### 投影(Projection)
 
@@ -369,7 +369,7 @@ MCP tool:
 現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返す。外部 Agent の model 使用量は Runtime から見えないので、この経路では `usage.recorded` は Tool 実行の分だけになる。
 
 - `work_create` は Work を作って `in_progress` にする(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を断る。`work_get` は id を省くと現在の Work
-- `work_complete` の artifacts は任意。Tool が書いたファイル(`after` 付きの `tool.completed`)に Agent の申告を合わせ、パスごとに Runtime がハッシュを計算する。読めなければ `missing: true` で申告値を残す。`refs` は `after` 付きの `tool.completed` の id
+- `work_complete` の artifacts は任意。Tool が書いたファイル(`after` 付きの `tool.completed`)に Agent の申告を合わせ、パスごとに Runtime がハッシュを計算する。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付ける。`refs` は `after` 付きの `tool.completed` の id
 - `work_fail` の reason は Agent の自由な短い語。CLI の見出し表にない語はそのまま表示される
 - Tool 呼び出しの call id は Runtime が `call_` で始まる id を振る。結果の content は text にし、json は JSON 文字列にする。`isError` はそのまま
 - MCP tool の説明とエラー文は Agent が読むので英語

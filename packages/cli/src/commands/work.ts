@@ -64,7 +64,7 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
     lines.push(`結果      ${work.outcome.summary}`);
     for (const artifact of work.outcome.artifacts)
       lines.push(
-        `  書き込み ${artifact.path}  ${artifact.sha256.slice(0, 12)}${artifact.missing ? "  完了時には読めなかった" : ""}`,
+        `  書き込み ${artifact.path}  ${artifact.sha256.slice(0, 12)}${artifact.missing ? "  完了時には読めなかった" : ""}${artifact.claimed ? "  Agent の申告(この Work の Tool は書いていない)" : ""}`,
       );
   }
   if (work.failure) {

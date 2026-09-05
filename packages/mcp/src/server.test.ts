@@ -128,7 +128,7 @@ describe("openshain over MCP", () => {
 
     expect(done.json().outcome.artifacts).toEqual([
       { path: "summary.md", sha256: sha256("a") },
-      { path: "ghost.md", sha256: "1".repeat(64), missing: true },
+      { path: "ghost.md", sha256: "1".repeat(64), missing: true, claimed: true },
     ]);
   });
 
@@ -241,5 +241,24 @@ describe("openshain over MCP, under pressure", () => {
 
     expect(second.isError).toBe(true);
     expect(second.text).toContain("work_complete or work_fail");
+  });
+
+  test("marks a file the agent names but no tool of the work wrote as claimed, with the runtime's hash", async () => {
+    const { root, call } = await connected();
+    await call("work_create", { objective: "x" });
+    await call("fs_write", { path: "summary.md", content: "a" });
+
+    const done = await call("work_complete", {
+      summary: "done",
+      artifacts: [{ path: "receipts/2026-07.csv", sha256: "0".repeat(64) }],
+    });
+
+    const csv = new Bun.CryptoHasher("sha256")
+      .update(await readFile(join(root, "receipts", "2026-07.csv")))
+      .digest("hex");
+    expect(done.json().outcome.artifacts).toEqual([
+      { path: "summary.md", sha256: expect.any(String) },
+      { path: "receipts/2026-07.csv", sha256: csv, claimed: true },
+    ]);
   });
 });

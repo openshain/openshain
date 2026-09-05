@@ -15,8 +15,12 @@ export type AssistantPart =
 
 export type ToolContent = { type: "text"; text: string } | { type: "json"; value: unknown };
 
-/** A file a work produced. `missing` means the runtime could not read it when the work ended; the hash is then the tool's report. */
-export type Artifact = { path: string; sha256: string; missing?: true };
+/**
+ * A file a work produced. `missing` means the runtime could not read it when the work ended; the
+ * hash is then the tool's report. `claimed` means an agent named it but no tool of this work wrote
+ * it; the hash is the runtime's, but nothing in the record ties the file to this work's calls.
+ */
+export type Artifact = { path: string; sha256: string; missing?: true; claimed?: true };
 
 export interface ModelUsage {
   /** Every input token, including the ones read from or written to a prompt cache. */
@@ -109,6 +113,7 @@ const artifact = z.looseObject({
   path: z.string(),
   sha256: z.string(),
   missing: z.literal(true).optional(),
+  claimed: z.literal(true).optional(),
 });
 const modelUsageFile = z.looseObject({
   input_tokens: z.int().nonnegative(),

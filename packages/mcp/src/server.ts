@@ -263,7 +263,8 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
 
 /**
  * Records the evidence and the completion. Artifacts named by the agent join the ones the tools
- * wrote; every path must be inside the workspace, and the runtime hashes them all.
+ * wrote; every path must be inside the workspace, and the runtime hashes them all. A path no tool
+ * of this work wrote is marked claimed, so a reader can tell the agent's word from the record.
  */
 async function complete(
   works: WorkStore,
@@ -282,10 +283,12 @@ async function complete(
       refs.push(event.id);
       for (const { path, sha256 } of event.payload.after ?? []) byPath.set(path, sha256);
     }
+    const written = new Set(byPath.keys());
     for (const { path, sha256 } of claimed) if (!byPath.has(path)) byPath.set(path, sha256 ?? "");
     const artifacts: Artifact[] = [];
     for (const [path, reported] of byPath) {
-      artifacts.push(await verifyArtifact(workspaceRoot, path, reported));
+      const artifact = await verifyArtifact(workspaceRoot, path, reported);
+      artifacts.push(written.has(path) ? artifact : { ...artifact, claimed: true });
     }
     await opened.append({
       type: "evidence.recorded",
