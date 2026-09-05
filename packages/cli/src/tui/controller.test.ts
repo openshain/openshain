@@ -89,7 +89,7 @@ describe("the screen's controller", () => {
     ]);
     expect(controller.state().busy).toBe(false);
     expect(controller.state().status.usage.modelCalls).toBe(1);
-    expect(AGENT_NAMES).toContain(controller.state().status.agentName ?? "");
+    expect(AGENT_NAMES.ja).toContain(controller.state().status.agentName ?? "");
   });
 
   test("streams a work's progress and routes its question to the person", async () => {

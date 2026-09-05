@@ -1,10 +1,19 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CONFIG_FILE_NAME, OpenshainError } from "@openshain/core";
+import { CONFIG_FILE_NAME, type Language, OpenshainError } from "@openshain/core";
 
-export const CONFIG_TEMPLATE = `version: 1
+/** The company's language for the template: from the OS locale, Japanese unless the locale says otherwise. */
+export function detectLanguage(env: Record<string, string | undefined>): Language {
+  const raw = env.LC_ALL || env.LC_MESSAGES || env.LANG || "";
+  const code = raw.toLowerCase().split(/[_.@-]/)[0] ?? "";
+  if (code === "ja" || code === "" || code === "c" || code === "posix") return "ja";
+  return "en";
+}
+
+export const configTemplate = (language: Language) => `version: 1
 company:
   name: サンプル株式会社   # 会社名。model に伝わる
+  language: ${language}             # ja | en。社員エージェントの名前の言語。init が OS の locale から埋める
 principal:
   id: alice                # 依頼する人の id。小文字の英数字、_ と -
   name: Alice
@@ -30,6 +39,8 @@ limits:
 # debug:
 #   persist_raw: true      # provider の生の応答を記録に残す
 `;
+
+export const CONFIG_TEMPLATE = configTemplate("ja");
 
 /** Registers the runtime as a project MCP server for Claude Code. `openshain` must be on PATH. */
 export const MCP_TEMPLATE = `${JSON.stringify(
@@ -67,7 +78,7 @@ export interface InitOptions {
 export async function init({ workspaceRoot, write }: InitOptions): Promise<void> {
   const configPath = join(workspaceRoot, CONFIG_FILE_NAME);
   try {
-    await writeFile(configPath, CONFIG_TEMPLATE, { flag: "wx" });
+    await writeFile(configPath, configTemplate(detectLanguage(process.env)), { flag: "wx" });
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "EEXIST") {

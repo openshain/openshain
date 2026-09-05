@@ -12,6 +12,7 @@
 |---|---|---|
 | `version` | 必須 | `1` |
 | `company.name` | 必須 | 会社名です。model に伝わります。1 から 200 文字 |
+| `company.language` | 任意 | 会社の言語です。`ja` か `en`。社員エージェントの名前をこの言語の一覧から選びます。省略時は `ja`。`openshain init` が OS の locale を見て埋めます |
 | `principal.id` | 必須 | 依頼する人の id です。小文字の英字で始まり、英数字と `_` と `-` が使えます。記録に残ります |
 | `principal.name` | 必須 | 表示名です。1 から 200 文字 |
 | `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じです |

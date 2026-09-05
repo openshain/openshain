@@ -34,9 +34,16 @@ function isLoopback(hostname: string): boolean {
 }
 
 /** Shape of openshain.yaml as written on disk (snake_case). */
+/** The languages the product has words and names for. */
+export const LANGUAGES = ["ja", "en"] as const;
+export type Language = (typeof LANGUAGES)[number];
+
 export const ConfigFileSchema = z.strictObject({
   version: z.literal(1),
-  company: z.strictObject({ name: z.string().min(1).max(200) }),
+  company: z.strictObject({
+    name: z.string().min(1).max(200),
+    language: z.enum(LANGUAGES).default("ja"),
+  }),
   principal: z.strictObject({ id: identifier, name: z.string().min(1).max(200) }),
   profession: z.strictObject({ id: identifier, instructions: z.string().min(1).max(100_000) }),
   model: z.strictObject({
@@ -76,7 +83,7 @@ export type ToolProviderRef =
 /** Configuration as used in code (camelCase). */
 export interface Config {
   version: 1;
-  company: { name: string };
+  company: { name: string; language: Language };
   principal: { id: string; name: string };
   profession: { id: string; instructions: string };
   model: {
@@ -94,7 +101,7 @@ export interface Config {
 export function toConfig(file: ConfigFile): Config {
   return {
     version: file.version,
-    company: { name: file.company.name },
+    company: { name: file.company.name, language: file.company.language },
     principal: { id: file.principal.id, name: file.principal.name },
     profession: { id: file.profession.id, instructions: file.profession.instructions },
     model: {

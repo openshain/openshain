@@ -60,7 +60,7 @@ describe("parseConfig", () => {
     const config = parseConfig(example);
 
     expect(config.version).toBe(1);
-    expect(config.company).toEqual({ name: "サンプル株式会社" });
+    expect(config.company).toEqual({ name: "サンプル株式会社", language: "ja" });
     expect(config.principal).toEqual({ id: "alice", name: "Alice" });
     expect(config.profession.instructions).toBe("あなたはこの会社の事務担当です。\n");
     expect(config.model).toEqual({
@@ -76,6 +76,18 @@ describe("parseConfig", () => {
     ]);
     expect(config.limits).toEqual({ maxModelCalls: 30, maxToolCalls: 100, maxOutputTokens: 16000 });
     expect(config.debug).toEqual({ persistRaw: false });
+  });
+
+  test("the company's language defaults to Japanese and accepts only the languages the product has", () => {
+    const withLanguage = (language: string) =>
+      example.replace(
+        "company:\n  name: サンプル株式会社",
+        `company:\n  name: サンプル株式会社\n  language: ${language}`,
+      );
+
+    expect(parseConfig(example).company.language).toBe("ja");
+    expect(parseConfig(withLanguage("en")).company.language).toBe("en");
+    expect(() => parseConfig(withLanguage("fr"))).toThrow(/language/);
   });
 
   test("fills defaults for tools, limits and debug when they are omitted", () => {

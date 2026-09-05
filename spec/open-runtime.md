@@ -404,6 +404,7 @@ await runWork(runtime, work.id, { onInput: async (question) => "…" });
 version: 1
 company:
   name: サンプル株式会社
+  language: ja                   # ja | en。社員エージェントの名前の言語
 principal:
   id: alice
   name: Alice
@@ -432,6 +433,7 @@ limits:
 - 設定の検証は起動時に行い、不備は行番号つきで報告します。
 - `model` を書き換えるだけで provider が切り替わります。コードは変えません。
 - `allow` に書かれていない Tool は model に定義を渡しません。呼ばれたら `tool.rejected`(code: `not_allowed`)です。
+- `company.language` は `ja` か `en` で、省略時は `ja` です。`openshain init` が OS の locale から初期値を埋めます。値の出どころは設定で、OS ではありません。
 - `principal.id`、`profession.id`、`model.provider` は `^[a-z][a-z0-9_-]*$` です。`profession.instructions` は 100,000 文字までです。`base_url` に資格情報(`user:pass@`)は書けません。`base_url` は https か、この機械を指す http(localhost、127.0.0.0/8、::1)だけです。`tools` を省略すると `[{ provider: standard }]` になります。
 - `api_key_env`、`base_url`、`options`、`debug` は環境の節です。それ以外は会社の manifest です(「openshain.yaml の責務」を参照してください)。
 

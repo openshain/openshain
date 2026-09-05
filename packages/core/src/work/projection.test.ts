@@ -61,7 +61,7 @@ function input(events: AnyEvent[], overrides: Partial<ProjectionInput> = {}): Pr
   return {
     events,
     config: {
-      company: { name: "サンプル株式会社" },
+      company: { name: "サンプル株式会社", language: "ja" },
       principal: { id: "alice", name: "Alice" },
       profession: { id: "generic", instructions: "事務担当として働く。" },
     },

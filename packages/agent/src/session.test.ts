@@ -263,7 +263,7 @@ describe("a session", () => {
     await first.close();
     const third = await createSession(runtime, { agentName: first.agentName });
 
-    expect(AGENT_NAMES).toContain(first.agentName);
+    expect(AGENT_NAMES.ja).toContain(first.agentName);
     expect(second.agentName).not.toBe(first.agentName);
     expect(third.agentName).toBe(first.agentName);
   });

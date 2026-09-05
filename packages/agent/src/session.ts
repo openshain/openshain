@@ -114,7 +114,8 @@ export async function createSession(
 ): Promise<Session> {
   const model = options.model ?? runtime.model;
   const { principal, profession } = runtime.config;
-  const agentName = options.agentName ?? pickAgentName(await namesInUse(runtime));
+  const agentName =
+    options.agentName ?? pickAgentName(runtime.config.company.language, await namesInUse(runtime));
   const created = await runtime.works.create({
     objective: "会話",
     principal: principal.id,

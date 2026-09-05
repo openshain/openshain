@@ -2,18 +2,26 @@ import { describe, expect, test } from "bun:test";
 import { AGENT_NAMES, pickAgentName } from "./names.ts";
 
 describe("agent names", () => {
-  test("picks from the list, skipping the names open sessions use", () => {
-    const first = AGENT_NAMES[0] as string;
-    const second = AGENT_NAMES[1] as string;
+  test("picks from the company's language, skipping the names open sessions use", () => {
+    const [first, second] = AGENT_NAMES.ja as [string, string];
 
-    expect(pickAgentName([], () => 0)).toBe(first);
-    expect(pickAgentName([first], () => 0)).toBe(second);
-    expect(pickAgentName(AGENT_NAMES, () => 0)).toBe(first);
-    expect(pickAgentName([], () => 0.999)).toBe(AGENT_NAMES[AGENT_NAMES.length - 1] as string);
+    expect(pickAgentName("ja", [], () => 0)).toBe(first);
+    expect(pickAgentName("ja", [first], () => 0)).toBe(second);
+    expect(pickAgentName("ja", AGENT_NAMES.ja, () => 0)).toBe(first);
+    expect(pickAgentName("ja", [], () => 0.999)).toBe(
+      AGENT_NAMES.ja[AGENT_NAMES.ja.length - 1] as string,
+    );
+    expect(pickAgentName("en", [], () => 0)).toBe(AGENT_NAMES.en[0] as string);
   });
 
-  test("the names are distinct and cannot be changed", () => {
-    expect(new Set(AGENT_NAMES).size).toBe(AGENT_NAMES.length);
-    expect(Object.isFrozen(AGENT_NAMES)).toBe(true);
+  test("thirty distinct names per language, kana for Japanese and letters for English, frozen", () => {
+    for (const language of ["ja", "en"] as const) {
+      const names = AGENT_NAMES[language];
+      expect(names).toHaveLength(30);
+      expect(new Set(names).size).toBe(30);
+      expect(Object.isFrozen(names)).toBe(true);
+    }
+    for (const name of AGENT_NAMES.ja) expect(name).toMatch(/^[ぁ-ん]+$/);
+    for (const name of AGENT_NAMES.en) expect(name).toMatch(/^[A-Z][a-z]+$/);
   });
 });

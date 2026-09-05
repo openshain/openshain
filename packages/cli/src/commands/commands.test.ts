@@ -6,7 +6,7 @@ import { callTools, FakeModelProvider, say } from "@openshain/agent/testing";
 import { OpenshainError, parseConfig, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { findWorkspace } from "../workspace.ts";
-import { init } from "./init.ts";
+import { configTemplate, detectLanguage, init } from "./init.ts";
 import { run } from "./run.ts";
 import { toolsList } from "./tools.ts";
 
@@ -68,6 +68,16 @@ describe("init", () => {
     await expect(init({ workspaceRoot: root, write: out.write })).rejects.toBeInstanceOf(
       OpenshainError,
     );
+  });
+
+  test("reads the company's language for the template from the OS locale", () => {
+    expect(detectLanguage({ LANG: "ja_JP.UTF-8" })).toBe("ja");
+    expect(detectLanguage({ LANG: "en_US.UTF-8" })).toBe("en");
+    expect(detectLanguage({ LANG: "de_DE.UTF-8", LC_ALL: "ja_JP.UTF-8" })).toBe("ja");
+    expect(detectLanguage({ LANG: "C.UTF-8" })).toBe("ja");
+    expect(detectLanguage({})).toBe("ja");
+    expect(detectLanguage({ LANG: "fr_FR.UTF-8" })).toBe("en");
+    expect(configTemplate("en")).toContain("language: en");
   });
 
   test("keeps an AGENTS.md that is already there", async () => {
