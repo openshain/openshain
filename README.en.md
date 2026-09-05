@@ -48,13 +48,13 @@ The largest category is fees.
 Its total is 1,170,950 yen, the highest of all categories.
 ```
 
-The screen speaks Japanese; this is the same conversation translated. The clerk turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the clerk reports back. The conversation and the work are both kept under `work/`.
+The screen speaks Japanese; this is the same conversation translated. The employee agent, the one you talk to on the screen, turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the employee agent reports back. The conversation and the work are both kept under `work/`.
 
 Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as an agent harness.
 
 ## Features
 
-- Type `openshain` and talk to your clerk; when there is work to do, the clerk turns it into a work and reports back
+- Type `openshain` and talk to your employee agent; when there is work to do, it turns it into a work and reports back
 - A request becomes a work, fully recorded in `work/<id>/events.jsonl`; stop and resume at will
 - Swap the model in configuration: Anthropic and OpenAI-compatible APIs, with your own key
 - Standard tools for files, CSV and Markdown, confined to the workspace; results come as windows and aggregates, never whole files
@@ -89,13 +89,13 @@ bun run build   # dist/openshain
 mkdir my-company && cd my-company
 openshain init                       # writes openshain.yaml, .mcp.json, AGENTS.md, CLAUDE.md
 export ANTHROPIC_API_KEY=...         # the variable name is api_key_env in openshain.yaml
-openshain                            # talk to the clerk; /help lists the screen's commands
+openshain                            # talk to the employee agent; /help lists the screen's commands
 openshain run "Total this month's receipts"   # one request without the screen
 openshain work list
 openshain work show <id>
 ```
 
-On the screen, the clerk turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/resume <id>`. The conversation itself is kept as a work.
+On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/resume <id>`. The conversation itself is kept as a work.
 
 | Command | What it does |
 |---|---|
