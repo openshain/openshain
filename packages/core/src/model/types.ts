@@ -18,6 +18,8 @@ export interface ModelRequest {
   providerOptions?: Record<string, unknown>;
   /** How many model and tool calls the work may still make. Providers may ignore it. */
   budget?: { modelCallsLeft: number; toolCallsLeft: number };
+  /** How many leading messages will be sent unchanged next turn. A provider may anchor a prompt cache after them. */
+  stableMessages?: number;
 }
 
 export interface ModelResponse {

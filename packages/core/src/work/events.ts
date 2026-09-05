@@ -19,10 +19,14 @@ export type ToolContent = { type: "text"; text: string } | { type: "json"; value
 export type Artifact = { path: string; sha256: string; missing?: true };
 
 export interface ModelUsage {
+  /** Every input token, including the ones read from or written to a prompt cache. */
   inputTokens: number;
   outputTokens: number;
+  /** The part of inputTokens served from a prompt cache. */
   cachedInputTokens?: number;
+  /** The part of inputTokens written to a prompt cache. */
   cacheWriteTokens?: number;
+  /** The part of outputTokens spent on reasoning. */
   reasoningTokens?: number;
 }
 
