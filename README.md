@@ -1,6 +1,6 @@
 # openshain
 
-汎用のエージェントを、あなたの会社で働く専門社員にするエージェントハーネス。
+汎用のエージェントを、あなたの会社で働く専門社員にする対話型のエージェントハーネス。
 
 [![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
@@ -10,17 +10,45 @@ English: [README.en.md](README.en.md)
 
 ```
 $ openshain
-> receipt/2026-07.csv を category ごとに集計して summary.md に書いて
-fs_list .
-csv_read receipt/2026-07.csv
-csv_aggregate receipt/2026-07.csv
-fs_write summary.md
-category ごとの件数と合計を summary.md に書きました。全 296 件、合計 3,258,930 円です。
-  書き込み summary.md
-model 呼び出し 5 回、Tool 呼び出し 7 回、入力 20862 トークン(うちキャッシュ 18953)、出力 769 トークン
-次に動く人はいません。
-集計しました。category ごとの件数と合計を summary.md に書きました。
+> 7月の領収書を category ごとに集計して、件数と合計を summary.md に書いて
+  fs_list .
+  fs_list receipt
+  csv_read receipt/2026-07.csv
+  csv_aggregate receipt/2026-07.csv
+  fs_write summary.md
+  完了。
+    書き込み summary.md
+  model 呼び出し 6 回、Tool 呼び出し 5 回、入力 22738 トークン(うちキャッシュ 4602)、出力 1077 トークン
+  次に動く人はいません。
+完了しました。
+
+7月の領収書をcategoryごとに集計して、summary.mdに書きました。
+
+集計結果は以下の通りです。
+
+総件数：296件
+総合計金額：3,258,930円
+
+categoryごとの内訳：
+- 会議費：18件、23,370円
+- 広告宣伝費：31件、793,220円
+- 支払手数料：31件、1,170,950円
+- 新聞図書費：24件、104,580円
+- 旅費交通費：66件、132,980円
+- 水道光熱費：31件、585,690円
+- 消耗品費：28件、99,300円
+- 福利厚生費：18件、38,570円
+- 荷造運賃：20件、137,900円
+- 通信費：29件、172,370円
+
+summary.mdファイルに作成されています。
+> いちばん大きい category はどれ?
+いちばん大きいcategoryは支払手数料です。
+
+合計金額が1,170,950円で、全categoryの中で最も多いです。
 ```
+
+担当が依頼を Work にして進め、子 Work が Tool でファイルを読み書きし、締めの行に書いたファイルと使用量が出て、担当が結果を伝える。会話も Work も `work/` に記録として残る。
 
 Claude や Codex のようなエージェントは、そのままでは会社の社員として働けない。会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストが足りない。openshain はそれをエージェントハーネスとして足す。
 

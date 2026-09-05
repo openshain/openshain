@@ -1,6 +1,6 @@
 # openshain
 
-An agent harness that turns a general agent into a professional employee of your company.
+An interactive agent harness that turns a general agent into a professional employee of your company.
 
 [![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
@@ -10,16 +10,45 @@ The Japanese [README.md](README.md) is the primary one; documentation is written
 
 ```
 $ openshain
-> Total receipt/2026-07.csv by category and write summary.md
-fs_list .
-csv_read receipt/2026-07.csv
-csv_aggregate receipt/2026-07.csv
-fs_write summary.md
-Wrote the count and total per category to summary.md: 296 receipts, 3,258,930 yen in all.
-  wrote summary.md
-model calls 5, tool calls 7, input 20862 tokens (18953 cached), output 769 tokens
-Nobody needs to act next.
+> Total July's receipts by category and write the counts and sums to summary.md
+  fs_list .
+  fs_list receipt
+  csv_read receipt/2026-07.csv
+  csv_aggregate receipt/2026-07.csv
+  fs_write summary.md
+  Completed.
+    wrote summary.md
+  model calls 6, tool calls 5, input 22738 tokens (4602 cached), output 1077 tokens
+  Nobody needs to act next.
+Done.
+
+I totalled July's receipts by category and wrote summary.md.
+
+The results:
+
+Receipts: 296
+Grand total: 3,258,930 yen
+
+By category:
+- Meetings: 18 receipts, 23,370 yen
+- Advertising: 31 receipts, 793,220 yen
+- Fees: 31 receipts, 1,170,950 yen
+- Books and subscriptions: 24 receipts, 104,580 yen
+- Travel: 66 receipts, 132,980 yen
+- Utilities: 31 receipts, 585,690 yen
+- Supplies: 28 receipts, 99,300 yen
+- Welfare: 18 receipts, 38,570 yen
+- Shipping: 20 receipts, 137,900 yen
+- Communications: 29 receipts, 172,370 yen
+
+They are in summary.md.
+> Which category is the largest?
+The largest category is fees.
+
+Its total is 1,170,950 yen, the highest of all categories.
 ```
+
+The screen speaks Japanese; this is the same conversation translated. The clerk turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the clerk reports back. The conversation and the work are both kept under `work/`.
 
 Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as an agent harness.
 
