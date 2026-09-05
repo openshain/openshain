@@ -105,11 +105,11 @@ describe("the screen's controller", () => {
     await controller.submit("7月");
     await turn;
 
-    expect(texts(controller, "progress")).toContain("  csv_read receipts/2026-07.csv");
-    expect(texts(controller, "progress")).toContain("  完了。");
-    expect(texts(controller, "progress").some((l) => l.startsWith("  model 呼び出し"))).toBe(true);
+    expect(texts(controller, "progress")).toContain("csv_read receipts/2026-07.csv");
+    expect(texts(controller, "progress")).toContain("完了。");
+    expect(texts(controller, "progress").some((l) => l.startsWith("model 呼び出し"))).toBe(true);
     const entries = controller.state().entries;
-    expect(entries.findIndex((e) => e.text === "  完了。")).toBeLessThan(
+    expect(entries.findIndex((e) => e.text === "完了。")).toBeLessThan(
       entries.findIndex((e) => e.kind === "assistant"),
     );
     expect(texts(controller, "question")[0]).toContain("何月ですか");

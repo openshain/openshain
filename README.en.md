@@ -10,42 +10,49 @@ The Japanese [README.md](README.md) is the primary one; documentation is written
 
 ```
 $ openshain
+openshain · サンプル株式会社 · anthropic/claude-haiku-4-5-20251001
 > Total July's receipts by category and write the counts and sums to summary.md
-  fs_list .
-  fs_list receipt
-  csv_read receipt/2026-07.csv
-  csv_aggregate receipt/2026-07.csv
-  fs_write summary.md
-  Completed.
-    wrote summary.md
-  model calls 6, tool calls 5, input 22738 tokens (4602 cached), output 1077 tokens
-  Nobody needs to act next.
-Done.
 
-I totalled July's receipts by category and wrote summary.md.
+  ⎿ fs_list .
+  ⎿ fs_list receipt
+  ⎿ csv_read receipt/2026-07.csv
+  ⎿ csv_aggregate receipt/2026-07.csv
+  ⎿ fs_write summary.md
+  ⎿ Completed.
+  ⎿ wrote summary.md
+  ⎿ model calls 6, tool calls 5, input 22738 tokens (4602 cached), output 1077 tokens
+  ⎿ Nobody needs to act next.
 
-The results:
+⏺ Done.
+  
+  I totalled July's receipts by category and wrote summary.md.
+  
+  Receipts: 296
+  Grand total: 3,258,930 yen
+  
+  By category:
+  - Meetings: 18 receipts, 23,370 yen
+  - Advertising: 31 receipts, 793,220 yen
+  - Fees: 31 receipts, 1,170,950 yen
+  - Books and subscriptions: 24 receipts, 104,580 yen
+  - Travel: 66 receipts, 132,980 yen
+  - Utilities: 31 receipts, 585,690 yen
+  - Supplies: 28 receipts, 99,300 yen
+  - Welfare: 18 receipts, 38,570 yen
+  - Shipping: 20 receipts, 137,900 yen
+  - Communications: 29 receipts, 172,370 yen
+  
+  They are in summary.md.
 
-Receipts: 296
-Grand total: 3,258,930 yen
-
-By category:
-- Meetings: 18 receipts, 23,370 yen
-- Advertising: 31 receipts, 793,220 yen
-- Fees: 31 receipts, 1,170,950 yen
-- Books and subscriptions: 24 receipts, 104,580 yen
-- Travel: 66 receipts, 132,980 yen
-- Utilities: 31 receipts, 585,690 yen
-- Supplies: 28 receipts, 99,300 yen
-- Welfare: 18 receipts, 38,570 yen
-- Shipping: 20 receipts, 137,900 yen
-- Communications: 29 receipts, 172,370 yen
-
-They are in summary.md.
 > Which category is the largest?
-The largest category is fees.
 
-Its total is 1,170,950 yen, the highest of all categories.
+⏺ The largest category is fees.
+  
+  Its total is 1,170,950 yen, the highest of all categories.
+╭────────────────────────────────────────────────────────────────────────────╮
+│ > ▌                                                                       │
+╰────────────────────────────────────────────────────────────────────────────╯
+work_01a0720c… completed · model calls 3, input 5350, output 454 tokens · /help
 ```
 
 The screen speaks Japanese; this is the same conversation translated. The employee agent, the one you talk to on the screen, turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the employee agent reports back. The conversation and the work are both kept under `work/`.
@@ -95,7 +102,7 @@ openshain work list
 openshain work show <id>
 ```
 
-On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/resume <id>`. The conversation itself is kept as a work.
+On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. PageUp and PageDown scroll back through the conversation. Ctrl-C stops the running work, withdrawing the question if it was waiting for one; a stopped work continues with `/resume <id>`. The conversation itself is kept as a work.
 
 | Command | What it does |
 |---|---|

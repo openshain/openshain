@@ -122,7 +122,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
 
   /** The lines the CLI prints when a work ends, shown among the progress lines. */
   const closingLines = async (workId: WorkId) => {
-    for (const line of await workReport(runtime, workId)) push("progress", `  ${line}`);
+    for (const line of await workReport(runtime, workId)) push("progress", line.trimStart());
   };
 
   const onWorkEvent = (workId: WorkId, event: AnyEvent): void | Promise<void> => {
@@ -141,7 +141,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       return closingLines(workId);
     }
     const line = progressLine(event, names);
-    if (line) push("progress", `  ${line}`);
+    if (line) push("progress", line);
     else notify();
   };
 

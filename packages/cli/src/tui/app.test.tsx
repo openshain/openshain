@@ -3,14 +3,14 @@ import { render } from "ink-testing-library";
 import { App } from "./app.tsx";
 import type { Controller, ControllerState, Entry } from "./controller.ts";
 
-function fakeController() {
+function fakeController(entries?: Entry[]) {
   const submitted: string[] = [];
   const listeners = new Set<() => void>();
   const state: ControllerState = {
-    entries: [
+    entries: entries ?? [
       { id: 1, kind: "user", text: "やあ" },
       { id: 2, kind: "assistant", text: "こんにちは" },
-      { id: 3, kind: "progress", text: "  csv_read receipts/2026-07.csv" },
+      { id: 3, kind: "progress", text: "csv_read receipts/2026-07.csv" },
     ],
     busy: false,
     closed: false,
@@ -46,28 +46,52 @@ function fakeController() {
 const tick = () => new Promise((r) => setTimeout(r, 30));
 
 describe("the screen", () => {
-  test("shows the conversation, the progress and the status line", () => {
+  test("shows the header, the conversation with its markers, the input box and the status line", () => {
     const { controller } = fakeController();
 
     const { lastFrame } = render(<App controller={controller} />);
 
     const frame = lastFrame() ?? "";
+    expect(frame).toContain("openshain · サンプル株式会社 · fake/fake-1");
     expect(frame).toContain("> やあ");
-    expect(frame).toContain("こんにちは");
-    expect(frame).toContain("csv_read receipts/2026-07.csv");
-    expect(frame).toContain("サンプル株式会社 | fake/fake-1");
+    expect(frame).toContain("⏺ こんにちは");
+    expect(frame).toContain("⎿ csv_read receipts/2026-07.csv");
+    expect(frame).toContain("╭");
     expect(frame).toContain("model 1 回、入力 10、出力 5 トークン");
   });
 
   test("shows a line that arrives after the first render, such as the reply", async () => {
     const { controller, add } = fakeController();
 
-    const { frames } = render(<App controller={controller} />);
+    const { lastFrame } = render(<App controller={controller} />);
     await tick();
     add({ id: 4, kind: "assistant", text: "集計しました。" });
     await tick();
 
-    expect(frames.join("\n")).toContain("集計しました。");
+    expect(lastFrame()).toContain("⏺ 集計しました。");
+  });
+
+  test("keeps the newest rows in view when the conversation overflows, and PageUp scrolls back", async () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: i + 1,
+      kind: "line" as const,
+      text: `行${i + 1}`,
+    }));
+    const { controller } = fakeController(many);
+
+    const { stdin, lastFrame } = render(<App controller={controller} />);
+    await tick();
+    expect(lastFrame()).toContain("行40");
+    expect(lastFrame()).not.toMatch(/行1(?!\d)/);
+
+    stdin.write("\x1b[5~");
+    await tick();
+    expect(lastFrame()).toContain("行上を表示中");
+    expect(lastFrame()).not.toContain("行40");
+
+    stdin.write("\x1b[F");
+    await tick();
+    expect(lastFrame()).toContain("行40");
   });
 
   test("echoes what is typed and hands the line to the controller on Enter", async () => {
