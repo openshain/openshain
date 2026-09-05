@@ -61,9 +61,25 @@ describe("init", () => {
     expect(config.model.apiKeyEnv).toBe("ANTHROPIC_API_KEY");
     expect(config.limits.maxModelCalls).toBe(30);
     expect(out.lines.join("\n")).toContain("openshain.yaml");
+    const mcp = JSON.parse(await readFile(join(root, ".mcp.json"), "utf8"));
+    expect(mcp.mcpServers.openshain).toEqual({ command: "openshain", args: ["mcp"] });
+    expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain("work_create");
+    expect(await readFile(join(root, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
     await expect(init({ workspaceRoot: root, write: out.write })).rejects.toBeInstanceOf(
       OpenshainError,
     );
+  });
+
+  test("keeps an AGENTS.md that is already there", async () => {
+    const root = await tmp();
+    await writeFile(join(root, "AGENTS.md"), "# mine\n");
+    const out = io();
+
+    await init({ workspaceRoot: root, write: out.write });
+
+    expect(await readFile(join(root, "AGENTS.md"), "utf8")).toBe("# mine\n");
+    expect(out.lines.join("\n")).toContain("AGENTS.md はすでにあるので触りません");
+    expect(await readFile(join(root, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
   });
 
   test("names the directory when it does not exist", async () => {

@@ -338,7 +338,7 @@ provider が throw → model.failed → work.failed(model_error)
 
 | コマンド | 動き |
 |---|---|
-| `openshain init` | カレントディレクトリに `openshain.yaml` のひな型を書く |
+| `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書く。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書く |
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進める。Tool 呼び出しごとに 1 行出す。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を出す |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)。読めない Work は別枠で示す |
 | `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰か |
@@ -417,7 +417,7 @@ model:
   # options: { effort: high }             # providerOptions にそのまま渡す
 tools:
   - provider: standard
-    allow: [fs_list, fs_read, csv_read, markdown_read, fs_write, csv_write]  # 省略時は全部
+    allow: [fs_list, fs_search, fs_read, csv_read, csv_aggregate, markdown_read, fs_write, csv_write]  # 省略時は全部
   - module: ./tools/my-tool.ts   # ToolProvider を default export するモジュール
 limits:
   max_model_calls: 30
