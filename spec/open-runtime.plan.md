@@ -212,7 +212,7 @@ Checkpoint 2(2026-09-04 完了)。4 面のレビュー(敵対、spec と code、
 
 ### Checkpoint 3
 
-- 完了条件 1 のテストが通る。中谷が実キーで live smoke を 1 回回す
+- 完了条件 1 のテストが通る。maintainer が実キーで live smoke を 1 回回す
 - レビュー
 
 Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認。1 回目に見えた「予算の通知に model が返事をする」挙動は system prompt の一文で直した。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映した。
@@ -241,7 +241,7 @@ CLI の `mcp` コマンド(stdio)。`examples/tools/echo/tool.ts`(ToolProvider �
 
 ### Checkpoint 4
 
-- 完了条件 2、3 のテストが通る。中谷が Claude Code から `openshain mcp` に接続して 1 件通す
+- 完了条件 2、3 のテストが通る。maintainer が Claude Code から `openshain mcp` に接続して 1 件通す
 - レビュー
 
 Checkpoint 4(2026-09-05 完了)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通した。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致した。詰まったのは 2 点。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと(quickstart に書く。Task 19)と、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと(mcp.md に「外部 Agent の自前の Tool は塞がない」として書いた)。レビューから、Agent が挙げただけの成果物に `claimed` の印を付け、model 呼び出しのない Work の使用量の表示を直した。

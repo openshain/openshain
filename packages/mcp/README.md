@@ -1,0 +1,7 @@
+# @openshain/mcp
+
+MCP server that exposes an openshain workspace to Claude Code and other agents.
+
+Part of [openshain](https://github.com/openshain/openshain). Requires Bun 1.3 or later: the package ships TypeScript source. Documentation, in Japanese, lives in the repository.
+
+License: Apache-2.0

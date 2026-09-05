@@ -1,5 +1,7 @@
 # openshain
 
+English: [README.en.md](README.en.md)
+
 任意の Agent を、あなたの会社で働く専門社員に変える Open Company Profession Runtime。
 
 Claude や Codex、Gemini のような汎用 Agent は、そのままでは会社の社員として働けません。openshain はそこに次のものを与えます。
@@ -30,7 +32,7 @@ cp dist/openshain ~/.local/bin/  # PATH の通った場所に置く
 openshain --help
 ```
 
-`~/.local/bin` が無ければ作るか、PATH の通った別の場所に置いてください。
+`~/.local/bin` が無ければ作るか、PATH の通った別の場所に置いてください。build せずに [GitHub Releases](https://github.com/openshain/openshain/releases) のバイナリを取ることもできます(macOS のものは署名していないので、`xattr -d com.apple.quarantine` で隔離属性を外します)。Bun があるなら `bunx openshain --help` でも動きます。
 
 ### 2. 会社のフォルダを作る
 

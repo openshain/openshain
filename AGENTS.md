@@ -54,3 +54,4 @@ Open Company Profession Runtime. TypeScript on Bun. Apache-2.0.
 - Examples, fixtures and tests use fictional companies and fictional data only. Never commit real company data, credentials or personal data.
 - Do not add a dependency without saying why in the commit message.
 - Ask before changing a public contract in `packages/core` or a file under `spec/`.
+- How contributions arrive, for people: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).

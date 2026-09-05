@@ -1,12 +1,40 @@
 {
   "name": "@openshain/agent",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Tool loop and model providers (bring your own key)",
-  "type": "module",
+  "keywords": [
+    "openshain",
+    "agent",
+    "runtime",
+    "mcp",
+    "accounting",
+    "japan"
+  ],
+  "author": "Hiroki Nakatani",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/openshain/openshain",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openshain/openshain.git",
+    "directory": "packages/agent"
+  },
+  "bugs": "https://github.com/openshain/openshain/issues",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.3"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.ts",
+    "README.md",
+    "LICENSE"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./testing": "./src/testing/index.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.123.0",
