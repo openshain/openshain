@@ -19,7 +19,8 @@
     "types": ["bun"],
     "paths": {
       "@openshain/*": ["./packages/*/src/index.ts"]
-    }
+    },
+    "jsx": "react-jsx"
   },
   "include": ["packages/*/src", "examples", "test", "scripts"]
 }

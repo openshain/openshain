@@ -50,7 +50,7 @@ export async function drive(
   const done = await runWork(runtime, workId, {
     ...(options.ask && { onInput: options.ask }),
     onEvent: (event) => {
-      const line = describe(event, names);
+      const line = progressLine(event, names);
       if (line) options.write(line);
     },
   });
@@ -60,7 +60,7 @@ export async function drive(
 }
 
 /** One line for a tool call, a rejection or a failure; nothing for the other events. `names` maps call ids to tool names. */
-function describe(event: AnyEvent, names: Map<string, string>): string | undefined {
+export function progressLine(event: AnyEvent, names: Map<string, string>): string | undefined {
   switch (event.type) {
     case "tool.called": {
       const { callId, name, input } = (event as Event<"tool.called">).payload;

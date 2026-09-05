@@ -10,9 +10,11 @@ import { run } from "./commands/run.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workResume, workShow } from "./commands/work.ts";
 import { errorLabel } from "./labels.ts";
+import { startTui } from "./tui/index.ts";
 import { findWorkspace } from "./workspace.ts";
 
 const USAGE = `使い方:
+  openshain                      端末で対話を始める
   openshain init                 openshain.yaml のひな型を書く
   openshain run "<依頼>"          依頼を Work として進める
   openshain tools list           使える Tool の一覧
@@ -52,6 +54,10 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
   const [command, ...rest] = positionals;
+  if (!command && !values.help && process.stdin.isTTY === true && process.stdout.isTTY === true) {
+    const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+    return startTui({ workspaceRoot, providers });
+  }
   if (values.help || !command) {
     write(USAGE);
     return values.help ? 0 : 2;

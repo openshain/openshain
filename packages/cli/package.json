@@ -40,6 +40,12 @@
     "@openshain/agent": "workspace:*",
     "@openshain/core": "workspace:*",
     "@openshain/mcp": "workspace:*",
-    "@openshain/tools": "workspace:*"
+    "@openshain/tools": "workspace:*",
+    "ink": "7.1.1",
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "ink-testing-library": "4.0.0"
   }
 }
