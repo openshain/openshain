@@ -48,6 +48,8 @@ export interface Work {
   profession: string;
   type: string;
   objective: string;
+  /** The work this one was started from, if any. */
+  parent?: string;
   status: WorkStatus;
   createdAt: string;
   startedAt?: string;
@@ -69,6 +71,7 @@ export function reduceWork(events: readonly AnyEvent[]): Work {
     profession: created.payload.profession,
     type: created.payload.type,
     objective: created.payload.objective,
+    ...(created.payload.parent !== undefined && { parent: created.payload.parent }),
     status: "queued",
     createdAt: created.occurredAt,
   };
@@ -148,6 +151,7 @@ export const WorkFileSchema = z.strictObject({
   profession: z.string(),
   type: z.string(),
   objective: z.string(),
+  parent: z.string().optional(),
   status: WorkStatus,
   created_at: z.iso.datetime(),
   started_at: z.iso.datetime().optional(),
@@ -165,6 +169,7 @@ export function workToFile(work: Work): WorkFile {
     profession: work.profession,
     type: work.type,
     objective: work.objective,
+    ...(work.parent !== undefined && { parent: work.parent }),
     status: work.status,
     created_at: work.createdAt,
     ...(work.startedAt !== undefined && { started_at: work.startedAt }),

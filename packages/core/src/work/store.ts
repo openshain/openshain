@@ -16,6 +16,8 @@ export interface CreateWorkInput {
   profession: string;
   /** Kind of work, for example "request" or "month_end_close". Defaults to "request". */
   type?: string;
+  /** The work this one is started from, such as a session. */
+  parent?: string;
 }
 
 export interface ListResult {
@@ -55,6 +57,7 @@ export class WorkStore {
           principal: input.principal,
           profession: input.profession,
           type: input.type ?? "request",
+          ...(input.parent !== undefined && { parent: input.parent }),
         },
       });
       return await this.snapshot(id, await log.read());

@@ -36,6 +36,19 @@ describe("WorkStore", () => {
     });
   });
 
+  test("create records the parent when a work is started from another", async () => {
+    const { root, store } = await freshStore();
+    const session = await store.create({ ...request, type: "session", objective: "会話" });
+
+    const child = await store.create({ ...request, parent: session.id });
+
+    expect(child.parent).toBe(session.id);
+    expect((await store.get(child.id)).parent).toBe(session.id);
+    expect(
+      JSON.parse(await readFile(join(root, "work", child.id, "work.json"), "utf8")).parent,
+    ).toBe(session.id);
+  });
+
   test("get rebuilds the work from its events", async () => {
     const { store } = await freshStore();
     const created = await store.create({ ...request, type: "month_end_close" });

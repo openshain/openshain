@@ -106,6 +106,7 @@ async function logWithEveryType() {
       payload: { callId: "c3", question: "どの月?" },
     });
     await handle.append({ type: "human.input_provided", payload: { callId: "c3", answer: "7月" } });
+    await handle.append({ type: "human.message", payload: { text: "続きもお願い" } });
     await handle.append({ type: "model.failed", payload: { code: "network", message: "down" } });
     await handle.append({
       type: "evidence.recorded",

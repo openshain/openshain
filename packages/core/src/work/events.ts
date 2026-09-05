@@ -46,7 +46,14 @@ export const TOOL_REJECTION_CODES = [
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];
 
 export interface EventPayloads {
-  "work.created": { objective: string; principal: string; profession: string; type: string };
+  "work.created": {
+    objective: string;
+    principal: string;
+    profession: string;
+    type: string;
+    /** The work this one was started from, such as the session that asked for it. */
+    parent?: string;
+  };
   "work.status_changed": { from: string; to: string; reason: string };
   "model.requested": { provider: string; model: string; messageCount: number; toolNames: string[] };
   "model.completed": { stopReason: StopReason; content: AssistantPart[]; raw?: unknown };
@@ -62,6 +69,8 @@ export interface EventPayloads {
   "tool.rejected": { callId: string; name: string; code: ToolRejectionCode; reason: string };
   "human.input_requested": { callId: string; question: string };
   "human.input_provided": { callId: string; answer: string };
+  /** What the person said in a session. Becomes a user message in the projection. */
+  "human.message": { text: string };
   "usage.recorded":
     | { kind: "model_inference"; provider: string; model: string; usage: ModelUsage }
     | { kind: "tool_execution"; provider: string; usage: { durationMs: number } };
@@ -130,6 +139,7 @@ export const payloadFileSchemas = {
     principal: z.string(),
     profession: z.string(),
     type: z.string(),
+    parent: z.string().optional(),
   }),
   "work.status_changed": z.looseObject({ from: z.string(), to: z.string(), reason: z.string() }),
   "model.requested": z.looseObject({
@@ -165,6 +175,7 @@ export const payloadFileSchemas = {
   }),
   "human.input_requested": z.looseObject({ call_id: z.string(), question: z.string() }),
   "human.input_provided": z.looseObject({ call_id: z.string(), answer: z.string() }),
+  "human.message": z.looseObject({ text: z.string() }),
   "usage.recorded": z.discriminatedUnion("kind", [
     z.looseObject({
       kind: z.literal("model_inference"),

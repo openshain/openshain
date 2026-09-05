@@ -19,6 +19,9 @@
     "objective": {
       "type": "string"
     },
+    "parent": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
       "enum": [
