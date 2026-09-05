@@ -244,6 +244,8 @@ CLI の `mcp` コマンド(stdio)。`examples/tools/echo/tool.ts`(ToolProvider �
 - 完了条件 2、3 のテストが通る。中谷が Claude Code から `openshain mcp` に接続して 1 件通す
 - レビュー
 
+Checkpoint 4(2026-09-05 接続テスト完了。レビューはこれから)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通した。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致した。詰まったのは 2 点。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと。後者は外部 Agent の自前 Tool をどう扱うかの設計の問いとして、レビューで mcp.md に書く。
+
 ### Phase 5: schema の生成と quickstart
 
 #### Task 18: JSON Schema の生成
