@@ -130,7 +130,7 @@ export function nextActor(work: Work): string {
     case "waiting_approval":
       return "次は利用者の番です。承認が要ります。";
     case "failed":
-      return "次は利用者の番です。原因を直して、もう一度依頼してください。";
+      return "次は利用者の番です。原因を修正して、もう一度依頼してください。";
     default:
       return "次は model の番です。";
   }

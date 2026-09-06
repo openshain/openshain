@@ -4,7 +4,7 @@
 
 ## 置き場所と探し方
 
-`openshain` のコマンドはカレントディレクトリから上に向かって `openshain.yaml` を探し、見つかったディレクトリを workspace の root にします。`--workspace <dir>` で起点を変えられます。Tool が触れるのは root の中だけで、`openshain.yaml`、`work/`、先頭が `.` の項目には触れません。
+`openshain` のコマンドはカレントディレクトリから上に向かって `openshain.yaml` を探し、見つかったディレクトリを workspace の root にします。`--workspace <dir>` で起点を変えられます。Tool がアクセスできるのは root の中だけで、`openshain.yaml`、`work/`、先頭が `.` の項目にはアクセスできません。
 
 ## 項目
 
@@ -32,15 +32,15 @@
 
 ## 標準 Tool
 
-`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read の 8 つが使えます。`openshain tools list` が、登録された Tool と許可の有無を出します。自分の Tool を足すには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
+`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read の 8 つが使えます。`openshain tools list` が、登録された Tool と許可の有無を表示します。自分の Tool を追加するには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
 
 ## 記録
 
-Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから頼んだ Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で読めます。
+Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから依頼した Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で読めます。
 
 ## Claude Code から使うためのファイル
 
-`openshain init` は設定のほかに 3 つのファイルを書きます。既にあるものは上書きしません。`.mcp.json` が既にあれば、他のサーバーの項目を残したまま openshain の項目だけを足します(JSON として読めないときは触らず、その旨を出します)。`AGENTS.md` と `CLAUDE.md` は既にあれば触りません。
+`openshain init` は設定のほかに 3 つのファイルを書きます。既にあるものは上書きしません。`.mcp.json` が既にあれば、他のサーバーの項目を残したまま openshain の項目だけを追加します(JSON として読めないときは変更せず、その旨を表示します)。`AGENTS.md` と `CLAUDE.md` は既にあれば変更しません。
 
 | ファイル | 内容 |
 |---|---|

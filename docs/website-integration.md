@@ -37,8 +37,8 @@
 
 ## 変更の規則
 
-- 表にある path の移動、改名、削除は breaking change です。`CHANGELOG.md` の Changed に書き、この表を同じ commit で直します。サイト側は、表の版に合わせて追従します
-- ファイルを足すこと(新しい図、新しい文書)は breaking ではありません
+- 表にある path の移動、改名、削除は breaking change です。`CHANGELOG.md` の Changed に書き、この表を同じ commit で修正します。サイト側は、表の版に合わせて追従します
+- ファイルを追加すること(新しい図、新しい文書)は breaking ではありません
 - 版は `packages/cli/package.json` の `version` から読みます。tag `vX.Y.Z` の `X.Y.Z` と同じで、Release workflow が一致を確かめてから Release を作ります
 - `docs/` と `spec/` は Markdown のままです。表示の形はサイト側が決めます。文書の中の相対リンクは、この repo の中の path です
 - サイト側は特定の commit SHA で checkout して build します。SHA は最新の stable release の tag が指す commit です。main の HEAD を使うのは、stable release がまだ 1 件もないときだけです
@@ -56,7 +56,7 @@ Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub
 
 - event type: `openshain-release`
 - payload(`client_payload`): `tag`(`v0.1.0`)、`version`(`0.1.0`)、`sha`(tag が指す commit の 40 桁の SHA)、`release_url`(GitHub Release の URL)
-- 送る条件: tag が `vX.Y.Z` の形で、repository variable `WEBSITE_REPOSITORY` と secret `WEBSITE_DISPATCH_TOKEN` の両方があるときです。どちらかが無ければ送らず、その旨をログに出して成功で終わります。dispatch が失敗しても Release は残ります
+- 送る条件: tag が `vX.Y.Z` の形で、repository variable `WEBSITE_REPOSITORY` と secret `WEBSITE_DISPATCH_TOKEN` の両方があるときです。どちらかが無ければ送らず、その旨をログに出力して成功で終わります。dispatch が失敗しても Release は残ります
 
 必要な設定(Settings > Secrets and variables > Actions):
 
@@ -83,17 +83,17 @@ jobs:
       # build --docs ./openshain
 ```
 
-dispatch は早く更新するための合図で、何を出すかの基準は GitHub Release です。dispatch が届かなかったとき(設定前、失敗)は、サイト側が `releases/latest` を読んで同じ結果になります。
+dispatch は早く更新するための合図で、何を公開するかの基準は GitHub Release です。dispatch が届かなかったとき(設定前、失敗)は、サイト側が `releases/latest` を読んで同じ結果になります。
 
 ## URL
 
 - 正規の URL は `https://openshain.jp` です。`www.openshain.jp` と `openshain.com` はそこへ転送します
 - `packages/*/package.json` の `homepage` は `https://openshain.jp` です。README の先頭の案内にもサイトへのリンクがあります。ソースコード、Issue、Release へのリンクは GitHub のままです
-- `security.txt`: サイトが `/.well-known/security.txt` を出します。`Contact` は SECURITY.md と同じ窓口で、GitHub の Report a vulnerability(`https://github.com/openshain/openshain/security/advisories/new`)です。`Policy` は SECURITY.md の URL です。`security@openshain.jp` を窓口に足すときは、SECURITY.md と security.txt を同じ日に直します
+- `security.txt`: サイトが `/.well-known/security.txt` を公開します。`Contact` は SECURITY.md と同じ窓口で、GitHub の Report a vulnerability(`https://github.com/openshain/openshain/security/advisories/new`)です。`Policy` は SECURITY.md の URL です。`security@openshain.jp` を窓口に追加するときは、SECURITY.md と security.txt を同じ日に修正します
 
 ## 検査
 
-`test/website-contract.test.ts` が、この文書の表にある path がすべて存在すること、`version` が semver で 5 つの package で一致することを見ます。`bun test` と CI で走ります。表に path を足したら、ファイルも同じ commit で足します。
+`test/website-contract.test.ts` が、この文書の表にある path がすべて存在すること、`version` が semver で 5 つの package で一致することを確認します。`bun test` と CI で実行されます。表に path を追加したら、ファイルも同じ commit で追加します。
 
 ## English summary
 

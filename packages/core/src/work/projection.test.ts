@@ -102,7 +102,7 @@ describe("buildProjection", () => {
     expect(projection.system).toContain("依頼する人は Alice(alice)");
     expect(projection.system).toContain("あなた自身は Alice ではなく");
     expect(projection.system).toContain("返事は要らない");
-    expect(projection.system).toContain("自分で数えたり足したりしない");
+    expect(projection.system).toContain("自分で数えたり合計したりしない");
     expect(projection.system).not.toContain("あなたの名前は");
   });
 

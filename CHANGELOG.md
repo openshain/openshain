@@ -16,7 +16,7 @@
 ### Fixed
 
 - MCP サーバーが名乗る版が 0.0.0 でした。package の版を名乗ります
-- 0.1.1 の `openshain` は部品の package を 0.1.0 で参照していました。publish のときに lockfile の版を使うためで、検査を足しました
+- 0.1.1 の `openshain` は部品の package を 0.1.0 で参照していました。publish のときに lockfile の版を使うためで、検査を追加しました
 
 ## [0.1.1] - 2026-09-06
 

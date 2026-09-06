@@ -57,10 +57,10 @@ export const AGENTS_TEMPLATE = `# この会社フォルダで働くエージェ�
 会社のファイルの読み書きと集計は openshain の MCP tool で行います。Claude Code や Codex 自身の Read、Write、Bash は会社のファイルには使いません。Runtime を通らなかった操作は記録に残らないためです。
 
 - 依頼を受けたら、まず \`work_create\` に依頼の文をそのまま渡して Work を作る
-- ファイルは \`fs_list\`、\`fs_search\`、\`fs_read\`、\`csv_read\`、\`markdown_read\` で見る。合計や件数は \`csv_aggregate\` に任せ、自分で足さない
+- ファイルは \`fs_list\`、\`fs_search\`、\`fs_read\`、\`csv_read\`、\`markdown_read\` で見る。合計や件数は \`csv_aggregate\` に任せ、自分で合計しない
 - 書くときは \`fs_write\` か \`csv_write\`
 - 終わったら \`work_complete\` に、何をしたかと、書いたファイルを渡す。続けられないときは \`work_fail\`
-- \`openshain.yaml\` と \`work/\` は Runtime のもの。触らない
+- \`openshain.yaml\` と \`work/\` は Runtime のもの。変更しない
 `;
 
 export const CLAUDE_TEMPLATE = "@AGENTS.md\n";
@@ -106,7 +106,7 @@ export async function init({ workspaceRoot, write }: InitOptions): Promise<void>
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
       if (name === ".mcp.json") write(await addToMcpConfig(path));
-      else write(`${path} はすでにあるので触りません。`);
+      else write(`${path} はすでにあるので変更しません。`);
     }
   }
   write(
@@ -123,10 +123,10 @@ async function addToMcpConfig(path: string): Promise<string> {
   try {
     parsed = JSON.parse(await readFile(path, "utf8"));
   } catch {
-    return `${path} はすでにあり、JSON として読めないので触りません。openshain を手で登録してください。`;
+    return `${path} はすでにあり、JSON として読めないので変更しません。openshain を手で登録してください。`;
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return `${path} はすでにあり、形が違うので触りません。openshain を手で登録してください。`;
+    return `${path} はすでにあり、形が違うので変更しません。openshain を手で登録してください。`;
   }
   const config = parsed as { mcpServers?: unknown };
   const servers =
@@ -134,11 +134,11 @@ async function addToMcpConfig(path: string): Promise<string> {
       ? (config.mcpServers as Record<string, unknown>)
       : {};
   if (Object.hasOwn(servers, "openshain"))
-    return `${path} には openshain がすでにあるので触りません。`;
+    return `${path} には openshain がすでにあるので変更しません。`;
   const next = {
     ...config,
     mcpServers: { ...servers, openshain: { command: "openshain", args: ["mcp"] } },
   };
   await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-  return `${path} に openshain を足しました。他の項目はそのままです。`;
+  return `${path} に openshain を追加しました。他の項目はそのままです。`;
 }

@@ -10,7 +10,7 @@ core の基本部分(エラー、ID、設定、イベントログ、Work、Tool 
 
 - 依存の向きは core ← agent, tools, mcp, cli です。core は他の package を import しません。model provider の生成は agent が持ち、`createRuntime` には factory を渡します(core が provider の実装を知らないためです)
 - 設定の `module:` で指定された第三者 Tool は core が動的 import で読みます
-- 追加する依存とその理由: `zod`(schema と型の単一の原本)、`yaml`(行番号つきの解析)、`ajv`(第三者 Tool の任意の JSON Schema を検証)、`csv-parse` と `csv-stringify`(RFC 4180 準拠、Bun に CSV の組み込みがない)、`@anthropic-ai/sdk`、`openai`、`@modelcontextprotocol/sdk`。CLI の引数解析は `node:util` の `parseArgs` を使い、依存を足しません
+- 追加する依存とその理由: `zod`(schema と型の単一の原本)、`yaml`(行番号つきの解析)、`ajv`(第三者 Tool の任意の JSON Schema を検証)、`csv-parse` と `csv-stringify`(RFC 4180 準拠、Bun に CSV の組み込みがない)、`@anthropic-ai/sdk`、`openai`、`@modelcontextprotocol/sdk`。CLI の引数解析は `node:util` の `parseArgs` を使い、依存を追加しません
 - 版はすべて固定(exact)です。更新は別 PR で行います
 - `FakeModelProvider` は `@openshain/agent/testing` として公開し、第三者が自分の Tool を試せるようにします
 - CLI のコマンドは Runtime と ModelProvider を引数で受ける関数として書き、bin が本物を配線します。テストは関数を fake で呼びます
@@ -83,7 +83,7 @@ Work の schema と遷移表、`work.json` への投影の書き出し、`WorkSt
 
 ToolDefinition と ToolProvider の型、`ToolRegistry`(provider 登録、名前の一意性、allow による絞り込み)、ajv(2020-12)による `validateInput`、`resolveWorkspacePath(root, rel)`(`..`、絶対パス、symlink の先、予約パスを拒否)を作ります。
 
-- 受け入れ: 同名 Tool の 2 重登録が `duplicate_tool` で止まります。allow 外の Tool は `listTools` に出ません。schema 不一致の入力が実行前に落ち、理由が読めます。`../x`、`/etc/passwd`、`work/x`、`openshain.yaml`、root 外への symlink がすべて拒否されます。
+- 受け入れ: 同名 Tool の 2 重登録が `duplicate_tool` で止まります。allow 外の Tool は `listTools` に現れません。schema 不一致の入力が実行前に落ち、理由が読めます。`../x`、`/etc/passwd`、`work/x`、`openshain.yaml`、root 外への symlink がすべて拒否されます。
 - 検証: `bun test packages/core/src/tool`
 - 依存: Task 1、Task 3(ToolResult が events.ts の ToolContent と Artifact を使います)
 - ファイル: `packages/core/src/tool/types.ts`、`registry.ts`、`validate.ts`、`paths.ts`、test、`package.json`(ajv)
@@ -102,10 +102,10 @@ ModelProvider と message の型、`buildProjection(events, config, budget)` を
 ### Checkpoint 1
 
 - `bun run typecheck`、`bun run lint`、`bun test` が通ります
-- core の公開 export(`packages/core/src/index.ts`)が上の型と関数を出しています
+- core の公開 export(`packages/core/src/index.ts`)が上の型と関数を表示しています
 - レビュー
 
-Checkpoint 1(2026-09-03 完了)。次を保証します。WorkId の実行時検証、書き込みは handle と lock を通すこと、末尾に改行のないログの拒否、行き先が存在しない symlink も行き先で判定すること、reducer の厳密化、書いたイベントの読み返し確認、lock の所有権の確認と pid の範囲の限定、先頭が `.` の項目の予約、投影の正規形化と tool 呼び出しの対応検査です。あわせて payload schema を loose にし、`tool.rejected` に code、`model.completed` に raw、human の入力に call_id、usage に cache 書き込みを足しました。残した課題は 3 つです。TOCTOU(Task 8 で O_NOFOLLOW)、pid の再利用(spec に既知の限界として記載)、`list()` の性能(work.json を読む案は次の checkpoint)。
+Checkpoint 1(2026-09-03 完了)。次を保証します。WorkId の実行時検証、書き込みは handle と lock を通すこと、末尾に改行のないログの拒否、行き先が存在しない symlink も行き先で判定すること、reducer の厳密化、書いたイベントの読み返し確認、lock の所有権の確認と pid の範囲の限定、先頭が `.` の項目の予約、投影の正規形化と tool 呼び出しの対応検査です。あわせて payload schema を loose にし、`tool.rejected` に code、`model.completed` に raw、human の入力に call_id、usage に cache 書き込みを追加しました。残した課題は 3 つです。TOCTOU(Task 8 で O_NOFOLLOW)、pid の再利用(spec に既知の限界として記載)、`list()` の性能(work.json を読む案は次の checkpoint)。
 
 ### Phase 2: 縦 1 本(fake model → 標準 Tool → CLI)
 
@@ -123,7 +123,7 @@ Checkpoint 1(2026-09-03 完了)。次を保証します。WorkId の実行時検
 
 `fs_list`、`fs_read`、`fs_write`、`csv_read`、`csv_write`、`markdown_read` を作ります。path guard を通します。mutate は `after` に sha256 を返します。
 
-追記(Phase 4 の後): 読む Tool は範囲と件数を返す形に改め、`fs_search` と `csv_aggregate` を足しました。CSV を丸ごと context に載せると入力トークンの大半をそれが占めたためです。表は spec を正とします。
+追記(Phase 4 の後): 読む Tool は範囲と件数を返す形に改め、`fs_search` と `csv_aggregate` を追加しました。CSV を丸ごと context に載せると入力トークンの大半をそれが占めたためです。表は spec を正とします。
 
 - 受け入れ: 各 Tool が spec の表どおりに動きます。予約パスと root 外は Tool が `reserved_path` などの OpenshainError を throw し、Runtime が `tool.rejected` として記録します(`isError` の結果ではありません)。`fs_write` 後の `after.sha256` が実ファイルと一致します。CSV の引用符とカンマを含むセルが往復で崩れません。
 - 検証: `bun test packages/tools`
@@ -143,7 +143,7 @@ Checkpoint 1(2026-09-03 完了)。次を保証します。WorkId の実行時検
 
 #### Task 10: ask_user と評価の記録
 
-Runtime が足す `ask_user` Tool です。呼ばれたら `human.input_requested` を残して `waiting_input` にし、`onInput` の答えで `human.input_provided` から続行します。完了時の `evidence.recorded`(claim、refs、artifacts)も作ります。
+Runtime が追加する `ask_user` Tool です。呼ばれたら `human.input_requested` を残して `waiting_input` にし、`onInput` の答えで `human.input_provided` から続行します。完了時の `evidence.recorded`(claim、refs、artifacts)も作ります。
 
 - 受け入れ: 台本「ask_user → (答え) → end_turn」で状態が `waiting_input` を経て `completed` になります。`evidence.recorded.refs` が mutate Tool のイベント id を指します。
 - 検証: `bun test packages/agent/src/loop.test.ts`
@@ -155,7 +155,7 @@ Runtime が足す `ask_user` Tool です。呼ばれたら `human.input_requeste
 
 `node:util` の `parseArgs` を使います。`openshain init`(ひな型)、`openshain run "<依頼>"`(Tool ごとに 1 行、最後に状態、結果、使用量、次に動く人)、`openshain tools list` を作ります。`--workspace` と上方向の探索も入れます。コマンドは関数、bin は配線だけです。
 
-- 受け入れ: 一時ディレクトリで `init` → 設定の provider を fake に差し替え → `run` が完走し、`work/<id>/events.jsonl` ができます。`tools list` に provider と effect と許可の有無が出ます。
+- 受け入れ: 一時ディレクトリで `init` → 設定の provider を fake に差し替え → `run` が完走し、`work/<id>/events.jsonl` ができます。`tools list` に provider と effect と許可の有無が表示されます。
 - 検証: `bun test packages/cli`
 - 依存: Task 9
 - ファイル: `packages/cli/src/bin.ts`、`commands/init.ts`、`commands/run.ts`、`commands/tools.ts`、test
@@ -163,9 +163,9 @@ Runtime が足す `ask_user` Tool です。呼ばれたら `human.input_requeste
 
 #### Task 12: CLI の work list と show
 
-`openshain work list`、`openshain work show <id>`(状態、イベントの要約、`usage.recorded` の合計、次に動く人)を作ります。実装時に `openshain work resume <id>` を足しました。
+`openshain work list`、`openshain work show <id>`(状態、イベントの要約、`usage.recorded` の合計、次に動く人)を作ります。実装時に `openshain work resume <id>` を追加しました。
 
-- 受け入れ: 2 つの Work を作った後に list が 2 行になります。show の合計が events.jsonl の `usage.recorded` を足した値と一致します。`waiting_input` の Work で「次に動くのは利用者」と出ます。
+- 受け入れ: 2 つの Work を作った後に list が 2 行になります。show の合計が events.jsonl の `usage.recorded` を追加した値と一致します。`waiting_input` の Work で「次に動くのは利用者」と表示されます。
 - 検証: `bun test packages/cli/src/commands/work.test.ts`
 - 依存: Task 11
 - ファイル: `packages/cli/src/commands/work.ts`、test、`bin.ts`
@@ -215,13 +215,13 @@ Checkpoint 2(2026-09-04 完了)。4 面のレビュー(敵対、spec と code、
 - 完了条件 1 のテストが通ります。maintainer が実キーで live smoke を 1 回回します
 - レビュー
 
-Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認しました。1 回目に見えた「残り回数の通知に model が返事をする」挙動は system prompt の一文で直しました。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映しました。
+Checkpoint 3(2026-09-05 完了)。claude-haiku-4-5-20251001 で両 provider の live smoke を 2 回回し、summary.md の「合計 350」と同じ成果物ハッシュを確認しました。1 回目に見えた「残り回数の通知に model が返事をする」挙動は system prompt の一文で修正しました。2 面のレビュー(敵対、spec と code)から、Anthropic の end_turn に tool_use が同居する応答、custom の tool 呼び出し、設定からの上限のすり抜け、options からの system と tools の漏れ、読めない 200 応答、キーの空白、content: null、空の assistant ターン、拒否理由の記録を反映しました。
 
 ### Phase 4: MCP と第三者 Tool
 
 #### Task 16: MCP Server
 
-`@modelcontextprotocol/sdk` を使います。`work_create`、`work_select`、`work_get`、`work_list`、`work_complete`(artifacts の存在と sha256 を検証)、`work_fail`、登録済み全 Tool を出します。セッションが現在の Work を持ちます。
+`@modelcontextprotocol/sdk` を使います。`work_create`、`work_select`、`work_get`、`work_list`、`work_complete`(artifacts の存在と sha256 を検証)、`work_fail`、登録済み全 Tool を表示します。セッションが現在の Work を持ちます。
 
 - 受け入れ: in-memory transport の client から `work_create` → `fs_read` → `work_complete` で Work が `completed` になり、events に Tool 呼び出しと `evidence.recorded` が残ります。現在の Work なしの Tool 呼び出しがエラー文で案内します。申告と違う sha256 のとき Runtime の値が残ります。
 - 検証: `bun test packages/mcp`
@@ -244,7 +244,7 @@ CLI の `mcp` コマンド(stdio)と、`examples/tools/echo/tool.ts`(ToolProvide
 - 完了条件 2、3 のテストが通ります。maintainer が Claude Code から `openshain mcp` に接続して 1 件通します
 - レビュー
 
-Checkpoint 4(2026-09-05 完了)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通しました。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回でした。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致しました。詰まったのは 2 点です。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと(quickstart に書きます。Task 19)と、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと(mcp.md に「外部エージェントの自前の Tool は塞がない」として書きました)。レビューから、エージェントが挙げただけの成果物に `claimed` の印を付け、model 呼び出しのない Work の使用量の表示を直しました。
+Checkpoint 4(2026-09-05 完了)。Claude Code 2.1.261 を架空の会社のフォルダで起動し、`.mcp.json` の `openshain mcp` に接続して、296 行の CSV の category 別集計を 1 件通しました。work_create → fs_list → csv_read(limit 5) → csv_aggregate 2 回 → fs_write → work_complete の 5 呼び出しで、model 呼び出しは 0 回でした。Runtime が計算した成果物の sha256 はファイルと一致し、10 カテゴリの件数と合計も CSV と一致しました。詰まったのは 2 点です。Claude Code はフォルダを信頼するまで `.mcp.json` を読まないこと(quickstart に書きます。Task 19)と、依頼文で Claude Code 自身の Read と Write を使わないよう言わないと Runtime を通らないこと(mcp.md に「外部エージェントの自前の Tool は塞がない」として書きました)。レビューから、エージェントが挙げただけの成果物に `claimed` の印を付け、model 呼び出しのない Work の使用量の表示を修正しました。
 
 ### Phase 5: schema の生成と quickstart
 
@@ -270,10 +270,10 @@ README の「状態」を quickstart に置き換えます(インストール、
 
 ### Checkpoint 5(完了)
 
-- 完了条件 1 から 10 が、それぞれどのテストで確認されるか対応表を spec に足します
+- 完了条件 1 から 10 が、それぞれどのテストで確認されるか対応表を spec に追加します
 - レビュー
 
-Checkpoint 5(2026-09-05 完了)。Task 18 は zod から config、events、work の JSON Schema を生成し、CI が最新かを見ます。Task 19 は README の quickstart(バイナリを作って PATH に置く)、docs/configuration.md、`openshain init` が書く 4 ファイルです。quickstart は新しいディレクトリで上から実行し、`run` と `.mcp.json` 経由の MCP 接続まで通しました。Runtime の model が AGENTS.md を読んで work_* を探す挙動が出たので、AGENTS.md の冒頭で MCP 経由のエージェント向けだと断りました。対応表は spec の「条件とテストの対応」です。レビューでは、架空の会社の 4 Work の記録 136 行が生成した schema を通ることを確かめ、core.md に jsonSchemas の節、format の注記、quickstart の補足を入れ、spec の Status を v0.3 に上げました。
+Checkpoint 5(2026-09-05 完了)。Task 18 は zod から config、events、work の JSON Schema を生成し、CI が最新かを確認します。Task 19 は README の quickstart(バイナリを作って PATH に置く)、docs/configuration.md、`openshain init` が書く 4 ファイルです。quickstart は新しいディレクトリで上から実行し、`run` と `.mcp.json` 経由の MCP 接続まで通しました。Runtime の model が AGENTS.md を読んで work_* を探す挙動が現れたので、AGENTS.md の冒頭で MCP 経由のエージェント向けだと受け付けませんでした。対応表は spec の「条件とテストの対応」です。レビューでは、架空の会社の 4 Work の記録 136 行が生成した schema を通ることを確かめ、core.md に jsonSchemas の節、format の注記、quickstart の補足を入れ、spec の Status を v0.3 に上げました。
 
 ## 並行できるもの
 

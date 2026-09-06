@@ -206,7 +206,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
   const explain = (result: TurnResult) => {
     switch (result.stopped) {
       case "turn_limit":
-        return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きを頼めます。";
+        return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きを依頼できます。";
       case "aborted":
         return stopped(lastWorkId);
       case "max_tokens":
@@ -282,7 +282,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
         "セッションの再開はまだありません。止まった Work を続けるなら /work resume <id> です。",
       );
     } else {
-      push("notice", `分からないコマンドです。/help で一覧が出ます。`);
+      push("notice", `分からないコマンドです。/help で一覧が表示されます。`);
     }
   };
 

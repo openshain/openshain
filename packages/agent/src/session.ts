@@ -72,7 +72,7 @@ const validators = new Map(
 );
 
 const ROLE =
-  "あなたはこの会社の社員エージェントとして、受付の役で、この人と話す。作業が要るときは work_run に objective を渡して Work にする。objective は人の言葉で書き、会話で分かった前提を添える。会社のファイルは自分では触らない。ファイルの中身を見ないと答えられない質問も、work_run で Work にして調べる。作業の結果は要約して伝える。件数や金額は Work の結果の数字をそのまま書き、計算し直さない。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_show で答える。";
+  "あなたはこの会社の社員エージェントとして、受付の役で、この人と話す。作業が要るときは work_run に objective を渡して Work にする。objective は人の言葉で書き、会話で分かった前提を添える。会社のファイルは自分では変更しない。ファイルの中身を見ないと答えられない質問も、work_run で Work にして調べる。作業の結果は要約して伝える。件数や金額は Work の結果の数字をそのまま書き、計算し直さない。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_show で答える。";
 
 export interface SessionOptions {
   /** Defaults to the runtime's model, for the session and for the works it starts. */

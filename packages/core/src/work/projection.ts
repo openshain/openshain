@@ -40,7 +40,7 @@ export function buildProjection(input: ProjectionInput): Projection {
     ...(agentName
       ? [`あなたの名前は ${agentName}。名乗るときはこの名前と、社員エージェントであることを言う。`]
       : []),
-    "件数、合計、検索の結果は Tool が返した値をそのまま使い、自分で数えたり足したりしない。各ターンの最後に Runtime が「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行を user message として足す。これは残量の通知で、返事は要らない。依頼が終わったら、何をしたかを要約して終える。",
+    "件数、合計、検索の結果は Tool が返した値をそのまま使い、自分で数えたり合計したりしない。各ターンの最後に Runtime が「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行を user message として追加する。これは残量の通知で、返事は要らない。依頼が終わったら、何をしたかを要約して終える。",
   ].join("\n\n");
 
   const messages: ModelMessage[] = [];

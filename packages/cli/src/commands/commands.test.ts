@@ -88,7 +88,7 @@ describe("init", () => {
     await init({ workspaceRoot: root, write: out.write });
 
     expect(await readFile(join(root, "AGENTS.md"), "utf8")).toBe("# mine\n");
-    expect(out.lines.join("\n")).toContain("AGENTS.md はすでにあるので触りません");
+    expect(out.lines.join("\n")).toContain("AGENTS.md はすでにあるので変更しません");
     expect(await readFile(join(root, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
   });
 
@@ -106,7 +106,7 @@ describe("init", () => {
     expect(merged.mcpServers.other).toEqual({ command: "other-mcp" });
     expect(merged.mcpServers.openshain).toEqual({ command: "openshain", args: ["mcp"] });
     expect(merged.unrelated).toBe(1);
-    expect(out.lines.join("\n")).toContain("openshain を足しました");
+    expect(out.lines.join("\n")).toContain("openshain を追加しました");
 
     const again = io();
     await expect(init({ workspaceRoot: root, write: again.write })).rejects.toThrow(/上書き/);

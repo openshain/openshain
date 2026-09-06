@@ -14,9 +14,9 @@ core はインターフェース(ModelProvider、ToolProvider)、基本オブジ
 
 決めたこと。Work に起きたことは `work/<id>/events.jsonl` に追記します。Work の状態は `reduceWork` がイベントから作ります。会話履歴も進捗も使用量の合計も、そこから導きます。
 
-envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通します。項目を足しても古い Runtime がログを拒否しないためです。envelope を変えるときは `v` を上げます。書き込みは正規形です。キーを再帰的にソートし、自由形式の値の中の undefined は null にします。同じイベントは同じバイト列になります。追記は自分の行を読み返してから書き、末尾が改行で終わっていないファイルには書きません。
+envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通します。項目を追加しても古い Runtime がログを拒否しないためです。envelope を変えるときは `v` を上げます。書き込みは正規形です。キーを再帰的にソートし、自由形式の値の中の undefined は null にします。同じイベントは同じバイト列になります。追記は自分の行を読み返してから書き、末尾が改行で終わっていないファイルには書きません。
 
-理由。原本が 1 つなら、再開、再生、監査、集計が同じ道を通ります。テキストのまま読めることも要ります。壊れた記録を人が直せるからです。
+理由。原本が 1 つなら、再開、再生、監査、集計が同じ道を通ります。テキストのまま読めることも要ります。壊れた記録を人が修正できるからです。
 
 捨てた案。
 
@@ -25,7 +25,7 @@ envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に�
 
 ## 投影は毎回組み立てる
 
-決めたこと。model に渡す内容(system、messages、tools、末尾の残り回数の行)は、そのつどイベントから組み立てます。同じイベント列からは byte 単位で同じ messages ができます。provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider にだけ無変更で返します。残り回数の通知は独立した user message として末尾に足します。
+決めたこと。model に渡す内容(system、messages、tools、末尾の残り回数の行)は、そのつどイベントから組み立てます。同じイベント列からは byte 単位で同じ messages ができます。provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider にだけ無変更で返します。残り回数の通知は独立した user message として末尾に追加します。
 
 理由。model を交換できる条件は、model 固有の状態を原本にしないことです。thinking は捨てられる最適化として扱います。byte 一致は prompt cache の前提でもあります。残り回数の行を独立した message にしたのは、前の message の byte をターンをまたいで変えないためです。
 
@@ -43,7 +43,7 @@ Tool 定義の schema は登録時に検証します。`pattern` と `patternPro
 
 ## 予約する名前とパス
 
-Tool の名前 `ask_user` と `work_*` は Runtime のもので、provider が同じ名前を登録すると起動時に止まります。パス `openshain.yaml` と `work/` と隠し項目は Tool から触れません。第三者の Tool が Runtime の名前を装えないようにするためです。
+Tool の名前 `ask_user` と `work_*` は Runtime のもので、provider が同じ名前を登録すると起動時に止まります。パス `openshain.yaml` と `work/` と隠し項目には Tool からアクセスできません。第三者の Tool が Runtime の名前を装えないようにするためです。
 
 ## ID、時刻、項目名
 
@@ -57,7 +57,7 @@ provider と Runtime の失敗は `OpenshainError`(code と message)で表しま
 
 `index.ts` から export したものが SDK です。SDK という package は作りません。内部と公開 API を分けるのは、外部の利用者から互換性の要求が来たときでよいと考えています。build はせず、TypeScript のソースをそのまま export しています。今はインターフェースを壊して直す時期で、固定した公開 API はまだ嘘になります。
 
-`jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作ります。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを見ます。原本は zod で、JSON Schema は他の言語や道具のための写しです。refine で書いた条件はそこに出ません。
+`jsonSchemas()` は、ファイルを検証する zod の schema から JSON Schema(draft 2020-12)を作ります。`spec/schemas/` はその出力で、`bun run schemas` が書き、CI が最新かを確認します。原本は zod で、JSON Schema は他の言語や道具のための写しです。refine で書いた条件はそこに出ません。
 
 捨てた案。公開 API を型定義ファイルで固定して semver を守る案。守れない約束を先にしません。
 

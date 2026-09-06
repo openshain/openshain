@@ -25,7 +25,7 @@ openshain が判断に迷ったときに立ち返るものです。README には
 | 項目 | 意味 |
 |---|---|
 | Ambient, not always thinking | 常時 LLM を動かすのではなく、常時観測できる Runtime にします |
-| Event to Work | 頼まれたときだけでなく、観測した出来事から仕事が始まります |
+| Event to Work | 依頼されたときだけでなく、観測した出来事から仕事が始まります |
 | Attention is a cost | 人の時間と注意力も、エージェントが消費するコストとして数えます |
 | Notify only by exception | 対応の要らない進捗を大量に通知しません。知らせるのは判断、承認、失敗、期限の危険です |
 | Mobile is for supervision | スマートフォンではエージェントそのものを操作するのではなく、会社の Work を監督し、例外を処理します |

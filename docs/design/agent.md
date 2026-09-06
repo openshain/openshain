@@ -28,7 +28,7 @@ Work が止まるのは、完了、質問、上限到達、model の refusal、�
 
 `in_progress` のまま止まった Work を続けるときは、直前の model のターンで結果のない Tool 呼び出しに「途中で止まった」という失敗の結果を先に記録します。答えのない質問が残っていれば `waiting_input` として扱います。前のターンより古いイベントは見ません。
 
-理由。投影の規則(tool_call は次の message までに結果を持つ)を満たさないログは model に渡せません。満たさないまま続けるより、閉じてから続けるほうが、model にも人にも何が起きたかが見えます。記録そのものが矛盾していれば `corrupt_log` で止め、勝手に直しません。
+理由。投影の規則(tool_call は次の message までに結果を持つ)を満たさないログは model に渡せません。満たさないまま続けるより、閉じてから続けるほうが、model にも人にも何が起きたかが見えます。記録そのものが矛盾していれば `corrupt_log` で止め、勝手に修正しません。
 
 ## provider はインターフェースに揃える
 
@@ -60,4 +60,4 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 
 ## 公開 API
 
-`runWork`、`ASK_USER`、`pendingQuestions`、`countToolCalls`、`FailureReason`、provider の factory と class です。loop の内部の関数は出しません。
+`runWork`、`ASK_USER`、`pendingQuestions`、`countToolCalls`、`FailureReason`、provider の factory と class です。loop の内部の関数は公開しません。

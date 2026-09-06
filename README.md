@@ -92,7 +92,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 - **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めても再開できます
 - **モデル**: `openshain init` が作る設定ファイルでモデルを指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
-- **Tool の追加**: 第三者の Tool を設定に 1 行足すだけで、CLI と MCP の両方から使えます
+- **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方から使えます
 - **Claude Code などの汎用エージェントから使う**: `openshain mcp` が MCP サーバーです。Claude Code や Codex に登録すると、同じハーネスをそれらのエージェントの上で使えます
 
 ### 現在対応している職種
@@ -118,7 +118,7 @@ flowchart LR
   T --> F[(会社フォルダ)]
 ```
 
-考えるのはモデル、記録と再開はランタイム、ファイルに触るのは Tool です。どの入口から入っても同じランタイムを通り、同じ `work/` に残ります。
+考えるのはモデル、記録と再開はランタイム、ファイルを変更するのは Tool です。どの入口から入っても同じランタイムを通り、同じ `work/` に残ります。
 
 ## インストール
 
@@ -184,25 +184,25 @@ export ANTHROPIC_API_KEY=...        # 使うモデルの API キーです
 openshain                           # 社員エージェントとの会話を始めます
 ```
 
-`openshain` は画面全体を使う会話の画面です。上が会話の履歴、下が入力欄です。依頼を書くと社員エージェントが Work にして進め、経過が `⎿` の行で流れ、結果が返ります。Work が質問すればその場で答えられます。画面の操作とスラッシュコマンドは `/help` で出ます。
+`openshain` は画面全体を使う会話の画面です。上が会話の履歴、下が入力欄です。依頼を書くと社員エージェントが Work にして進め、経過が `⎿` の行で流れ、結果が返ります。Work が質問すればその場で答えられます。画面の操作とスラッシュコマンドは `/help` で表示されます。
 
 ```
 openshain                       # 対話型 CLI を起動します
 openshain init                  # 会社フォルダを初期化します
 openshain run "<依頼>"          # 会話を挟まずに Work を 1 つ実行します
-openshain work list             # Work の一覧を出します
+openshain work list             # Work の一覧を表示します
 openshain work show <id>        # Work の記録を読みます
 openshain work resume <id>      # 止まった Work を続けます
-openshain tools list            # 使える Tool を出します
+openshain tools list            # 使える Tool を表示します
 openshain mcp                   # MCP サーバーとして起動します(通常はエージェントが起動します)
 ```
 
-Tool を足す例は [examples/](examples/README.md) にあります。
+Tool を追加する例は [examples/](examples/README.md) にあります。
 
 ### Claude Code から
 
-1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを足します
-2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が出ます
+1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを追加します
+2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が表示されます
 3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` が伝えます
 4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で読めます
 
@@ -224,7 +224,7 @@ Codex など他のエージェントでも、`openshain mcp` を stdio の MCP �
 会社の決まり(経費の規程、承認の基準、取引先ごとの扱い、書式)と、会社の書類(台帳、契約、過去の申請)です。いまの版では 3 つの経路で入ります。
 
 - `openshain.yaml` の `profession.instructions`。職種の指示文で、すべての Work のシステムプロンプトの先頭に入ります。短い決まりはここに書きます
-- 会社フォルダのファイル。規程や手順書、台帳を置くだけで、社員エージェントは標準 Tool で読みます。読んでほしい場所は指示文で示します(「経費の規程は rules/expenses.md にある」)。渡るのは頼まれた範囲のファイルだけで、フォルダの外には出ません
+- 会社フォルダのファイル。規程や手順書、台帳を置くだけで、社員エージェントは標準 Tool で読みます。読んでほしい場所は指示文で示します(「経費の規程は rules/expenses.md にある」)。渡るのは依頼された範囲のファイルだけで、フォルダの外には出ません
 - `AGENTS.md`。Claude Code や Codex から使うときの指示です。会社の決まりをここに書けば、それらのエージェントも同じ決まりで動きます
 
 これからの版では、会社の決まりと根拠の資料に出典と有効日を持たせ、索引から引ける形にしていきます。モデルには Work に必要な分だけを渡し(Need-to-Know)、権限のない資料は検索結果にも入りません。
@@ -237,7 +237,7 @@ OSS はどの提供元の知識でも読み込めます(Bring Your Own Knowledge
 
 ## 設計思想
 
-1. 社員エージェントは誰かの代理として、委任された権限の範囲で働きます。何を頼まれ、何をして、何を残したかを記録に残します
+1. 社員エージェントは誰かの代理として、委任された権限の範囲で働きます。何を依頼され、何をして、何を残したかを記録に残します
 2. 会社の日常の事務は OSS だけで最後まで完了できます
 3. openshain 自身が作る Tool やモデルプロバイダーも、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使える裏口はありません
 4. 有償で提供するものがあるなら(マネージドサービス、日本の法域に固有の知識を継続して届けることなど)、それは openshain を利用者に代わって動かし続ける運用の対価です。機能を解禁する対価ではありません
@@ -246,7 +246,7 @@ OSS はどの提供元の知識でも読み込めます(Bring Your Own Knowledge
 
 ### しないこと
 
-- 会社フォルダの外には出ません。SaaS や会計ソフトの代わりにはならず、そこから出したファイルを扱います
+- 会社フォルダの外には出ません。SaaS や会計ソフトの代わりにはならず、そこから書き出したファイルを扱います
 - 金額の計算、権限の判断、状態の遷移をモデルに任せません。これらはコードが持ちます
 - 利用者のデータを openshain の運営者に送りません。通信先は設定したモデルの API だけです
 
@@ -261,13 +261,13 @@ bun run typecheck && bun run lint && bun test   # 変更を送る前に通す 3 
 bun packages/cli/src/bin.ts            # ソースのまま CLI を動かします
 bun run build                          # dist/openshain に単体バイナリを作ります
 bun run schemas                        # spec/schemas/ を zod の定義から作り直します
-bun run build:packages                 # npm に出す JavaScript を各 package の dist/ に作ります
+bun run build:packages                 # npm に公開する JavaScript を各 package の dist/ に作ります
 ```
 
 - 構成は `packages/` の 5 つです。core(インターフェース、Work の記録、投影)、agent(ツールループ、モデルプロバイダー、セッション)、tools(標準 Tool)、mcp(MCP サーバー)、cli(`openshain` コマンドと画面)
-- 本物の API を呼ぶテストは `OPENSHAIN_LIVE_TESTS=1` と API キーの環境変数があるときだけ走ります
-- リポジトリの中では package は TypeScript のソースのまま動きます(`exports` の `bun` 条件)。npm に出すときは `dist/` の JavaScript を Node.js が読みます。publish の前に自動で build されます
-- 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行足すだけで CLI と MCP の両方から呼べます
+- 本物の API を呼ぶテストは `OPENSHAIN_LIVE_TESTS=1` と API キーの環境変数があるときだけ実行されます
+- リポジトリの中では package は TypeScript のソースのまま動きます(`exports` の `bun` 条件)。npm に公開するときは `dist/` の JavaScript を Node.js が読みます。publish の前に自動で build されます
+- 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行追加するだけで CLI と MCP の両方から呼べます
 - 規約と構成は [AGENTS.md](AGENTS.md)、貢献のしかたは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md)、変更の履歴は [CHANGELOG.md](CHANGELOG.md) にあります
 
 ## ライセンス

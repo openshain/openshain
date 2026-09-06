@@ -18,7 +18,8 @@
     "noEmit": true,
     "types": ["bun"],
     "paths": {
-      "@openshain/*": ["./packages/*/src/index.ts"]
+      "@openshain/*": ["./packages/*/src/index.ts"],
+      "@openshain/agent/testing": ["./packages/agent/src/testing/index.ts"]
     },
     "jsx": "react-jsx"
   },

@@ -12,7 +12,7 @@
 |---|---|---|
 | [open-runtime.md](open-runtime.md) | v0.3(実装済み) | Model、Tool、入口を交換できる Runtime です。ModelProvider と ToolProvider のインターフェース、Work とイベント、CLI と MCP を決めます |
 | [open-runtime.plan.md](open-runtime.plan.md) | draft | 上の spec の実装計画です。19 タスク、5 checkpoint |
-| [interactive-cli.md](interactive-cli.md) | draft v0.1 | `openshain` の画面です。社員エージェントと話し、作業は Work に出します。セッションの記録と社員エージェントの道具を決めます |
+| [interactive-cli.md](interactive-cli.md) | draft v0.1 | `openshain` の画面です。社員エージェントと話し、作業は Work として実行します。セッションの記録と社員エージェントの道具を決めます |
 | [interactive-cli.plan.md](interactive-cli.plan.md) | draft | 上の spec の実装計画です。5 タスク、1 checkpoint |
 
 ## JSON Schema(`schemas/`)
@@ -25,4 +25,4 @@
 | `schemas/events.v1.json` | `work/<id>/events.jsonl` の 1 行です。envelope は厳密に、payload は知らない項目を通します。知らない type は payload を問わず通します |
 | `schemas/work.v1.json` | `work/<id>/work.json` |
 
-zod の refine で書いた条件(`tools` の項目は `provider` か `module` のどちらか 1 つ、`base_url` に認証情報を含めない)は JSON Schema に出ません。JSON Schema で通っても Runtime が拒むことはあります。`format`(date-time、uri)は、ajv-formats のように format を知る検証器でだけ効きます。
+zod の refine で書いた条件(`tools` の項目は `provider` か `module` のどちらか 1 つ、`base_url` に認証情報を含めない)は JSON Schema には現れません。JSON Schema で通っても Runtime が拒むことはあります。`format`(date-time、uri)は、ajv-formats のように format を知る検証器でだけ効きます。

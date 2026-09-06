@@ -56,7 +56,7 @@ lock は取得した書き手(pid と開始時刻)だけが解放できます。
 
 ### openshain.yaml の責務
 
-Company Workspace の manifest です。root の印であり、この会社に属するものを宣言します。会社の repo に入れて版管理し、self-host でも managed でも同じ中身を使います。会社の事実を置く別のファイル(company.yaml など)は作らず、必要になった事実はこのファイルに足します。
+Company Workspace の manifest です。root の印であり、この会社に属するものを宣言します。会社の repo に入れて版管理し、self-host でも managed でも同じ中身を使います。会社の事実を置く別のファイル(company.yaml など)は作らず、必要になった事実はこのファイルに追加します。
 
 持つもの:
 
@@ -66,7 +66,7 @@ Company Workspace の manifest です。root の印であり、この会社に�
 - 呼び出し回数の上限(`limits`)
 - 使うベンダーと model(`model.provider`、`model.model`)
 
-環境の節。`model.api_key_env`、`model.base_url`、`model.options`、`debug` は Runtime を動かす環境に属します。当面は同じファイルに置きますが、2 つ目の環境(managed)が現れた時点で、commit しない `openshain.local.yaml` による上書きを足します。それまでは作りません。
+環境の節。`model.api_key_env`、`model.base_url`、`model.options`、`debug` は Runtime を動かす環境に属します。当面は同じファイルに置きますが、2 つ目の環境(managed)が現れた時点で、commit しない `openshain.local.yaml` による上書きを追加します。それまでは作りません。
 
 持たないもの: 秘密の値(環境変数名だけを書きます)、Work の状態(`work/`)、知識(`rules/`、`sources/`)、証跡、生成物(`build/`)。
 
@@ -103,7 +103,7 @@ outcome:
 
 ### Event
 
-`events.jsonl` の 1 行です。`v` はイベント行の schema の版で、読む側は版ごとに解釈します。envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通します。これにより、後から項目を足しても古い Runtime がログを拒否しません。envelope を変えるときは `v` を上げます。
+`events.jsonl` の 1 行です。`v` はイベント行の schema の版で、読む側は版ごとに解釈します。envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に検証し、payload は知らない項目を保持して通します。これにより、後から項目を追加しても古い Runtime がログを拒否しません。envelope を変えるときは `v` を上げます。
 
 書き込みは正規形で行います。キーは再帰的にソートし、自由形式の値(`input`、`data`、`value`、`raw`)の中の undefined は null にします。同じイベントは同じバイト列になります。append は自分の行を読み返してから書き、読めない行は書きません。末尾が改行で終わっていないファイルと、開いてから他の書き手が変えたファイルへの追記は拒否します。
 
@@ -148,7 +148,7 @@ model に渡す内容は events.jsonl から組み立てます。会話履歴を
 - 過去の message は書き換えません。追記だけです。
 - 同じイベント列からは byte 単位で同じ messages を作ります。provider の thinking を返せる条件であり、prompt cache の前提でもあります。
 - provider 固有の内容(thinking など)は `opaque` として保存し、同じ provider には無変更で返し、別の provider には渡しません。
-- 末尾に Runtime の user message を 1 つ足します。「残り model 呼び出し N 回、Tool 呼び出し M 回」の 1 行だけを持ちます。同じ数値を `budget` として構造化しても返します。model が残量を知って畳めるようにします。独立した message なので、前の message の byte はターンをまたいで変わりません。Runtime は `stableMessages` で「末尾の残り回数の行を除いた件数」を provider に渡し、provider はそこに prompt cache の切れ目を置きます。provider は連続する user message を 1 ターンとして送ります。
+- 末尾に Runtime の user message を 1 つ追加します。「残り model 呼び出し N 回、Tool 呼び出し M 回」の 1 行だけを持ちます。同じ数値を `budget` として構造化しても返します。model が残量を知って畳めるようにします。独立した message なので、前の message の byte はターンをまたいで変わりません。Runtime は `stableMessages` で「末尾の残り回数の行を除いた件数」を provider に渡し、provider はそこに prompt cache の切れ目を置きます。provider は連続する user message を 1 ターンとして送ります。
 - tool_result は直前の assistant message の tool_call に対応していなければならず、tool_call は次の message までに結果を持たなければなりません。どちらかが欠けたログは壊れたものとして扱います。
 
 ## インターフェース
@@ -262,7 +262,7 @@ export interface ToolResult {
 - usage: inputTokens は input_tokens と cache_read_input_tokens と cache_creation_input_tokens の和です(API の input_tokens はキャッシュ分を含みません)。output_tokens、cache_read_input_tokens(cachedInputTokens)、cache_creation_input_tokens(cacheWriteTokens)、output_tokens_details.thinking_tokens(reasoningTokens)を写します
 - エラー: 401 と 403 は `auth`、429 は `rate_limit`、400 と 404 は `config`、接続の失敗と中断と 5xx は `network`、読めない応答とそれ以外の API エラーは `invalid_response` です。SDK の再試行(既定 2 回)の後に投げます
 - request: prompt cache の切れ目は、`stableMessages` が指す最後の message の末尾のブロックに `cache_control: { type: ephemeral }` として置きます。次のターンはそこまでをキャッシュから読み、続きを書きます。request 末尾の自動キャッシュは使いません(切れ目が毎ターン変わる残り回数の行の後ろになり、一度も当たりません)。`providerOptions` は request の body にそのまま載ります(`thinking`、`output_config`、`cache_control` の上書きなど)。`effort` だけは `output_config.effort` の略記として受けます。model、max_tokens、system、tools、messages、stream(常に false)は Runtime のもので上書きできません
-- API キーは `api_key_env` の環境変数から読みます(前後の空白は取り除きます)。未設定なら起動時に `config` エラーです。認証は `x-api-key` ヘッダです。`base_url` は root を指し、省略時は `https://api.anthropic.com` です。末尾の `/v1` は SDK が自分で足すので外します
+- API キーは `api_key_env` の環境変数から読みます(前後の空白は取り除きます)。未設定なら起動時に `config` エラーです。認証は `x-api-key` ヘッダです。`base_url` は root を指し、省略時は `https://api.anthropic.com` です。末尾の `/v1` は SDK が自分で追加するので外します
 - 応答が message の形でない(content や usage が欠けている、JSON でない)ときは `invalid_response` です。usage の項目が欠けていれば 0 にします。`maxOutputTokens` が省略された request では 16,000 です。system と tools が空なら送りません。相手 provider の opaque だけでできた assistant のターンは送る前に `invalid_response` にします
 
 ### OpenAI 互換 provider(`packages/agent`)
@@ -282,7 +282,7 @@ export interface ToolResult {
 
 ### 標準 Tool(`packages/tools`)
 
-Tool の結果は観測であって転送ではありません。ファイルを丸ごと model の context に載せると、数百行の CSV でも入力トークンの大半をそれが占め、しかも足し算を model にやらせることになります。観測する Tool は件数と先頭の一部を返し、続きは `offset` と `limit` で取りに行かせます。数える、足す、探すは Tool がやります。
+Tool の結果は観測であって転送ではありません。ファイルを丸ごと model の context に載せると、数百行の CSV でも入力トークンの大半をそれが占め、しかも足し算を model にやらせることになります。観測する Tool は件数と先頭の一部を返し、続きは `offset` と `limit` で取りに行かせます。数える、合計する、探すは Tool がやります。
 
 | name | effect | 入力 | 返すもの |
 |---|---|---|---|
@@ -295,12 +295,12 @@ Tool の結果は観測であって転送ではありません。ファイルを
 | `csv_write` | mutate | `path`、`rows`、`columns` | 書いた path と sha256(`after`) |
 | `markdown_read` | observe | `path`、`section`(見出しの文字列)、`limit`(既定 100 行) | 見出しの一覧(level、text、行番号)と先頭の本文。`section` があれば、その見出しから、同じか上の level の次の見出しの手前までを返します |
 
-- 観測する Tool は結果の先頭に JSON で範囲の情報(path、offset、returned、全体の件数、truncated)を置き、本文はその後に text で続けます。model はこの 1 行を見て、続きを読むか集計に切り替えるかを決めます。
+- 観測する Tool は結果の先頭に JSON で範囲の情報(path、offset、returned、全体の件数、truncated)を置き、本文はその後に text で続けます。model はこの 1 行を確認して、続きを読むか集計に切り替えるかを決めます。
 - 既定の範囲は小さくしてあります。広げたいときは `limit` を上げます(上限は Tool ごとに schema に書きます)。それでも 50,000 文字の上限は残ります。範囲の制限は context を守るためのもの、上限は事故を止めるためのものです。
 - 1 MiB を超えるファイルは開きません(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばします)。書き込みも同じ 1 MiB で止めます。Tool が書いたものは Tool が開けます。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返します。グループはグループの値の順に並べ、同じ入力には同じ出力を返します。
 - すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても同じです。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
-- Runtime 自身が 1 つ Tool を足します。`ask_user`(effect: observe)です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約です)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)にします。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になります。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答えます。CLI では利用者に質問を表示して答えを受け取り、続行します。MCP では外部エージェント側が利用者に聞くので登録しません。
+- Runtime 自身が 1 つ Tool を追加します。`ask_user`(effect: observe)です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約です)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)にします。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になります。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答えます。CLI では利用者に質問を表示して答えを受け取り、続行します。MCP では外部エージェント側が利用者に聞くので登録しません。
 
 ## Runtime の振る舞い(`packages/agent`)
 
@@ -325,10 +325,10 @@ provider が throw → model.failed → work.failed(model_error)
 - Tool の失敗は model に `isError` で返し、Work は続きます。Tool 呼び出しの回数には数えます。
 - model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を残して `work.failed`(reason: `model_error`)にします。
 - 判定の差し込み口: Tool を実行する直前に Runtime の `authorize(call)` を通します。この段階の判定は許可リストだけで、それ以外は常に許可です。将来の Authority engine はここに差し込みます。
-- Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。同じターン内で call id が重複したら `work.failed`(model_error)です。前のターンの id を使い回すサーバーはあるので、ターンをまたぐ重複は許します。中断の後始末と質問の突き合わせは直前の model のターン以降のイベントだけを見ます。
+- Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。同じターン内で call id が重複したら `work.failed`(model_error)です。前のターンの id を使い回すサーバーはあるので、ターンをまたぐ重複は許します。中断の後始末と質問の突き合わせは直前の model のターン以降のイベントだけを確認します。
 - 中断された呼び出しには `the run stopped before this tool call finished; call it again if it is still needed` という文言で `isError: true` の `tool.completed` を残します。
 - 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
-- Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に直してから切り、text として返します。
+- Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。
 - `ask_user` の入力が schema に合わないときは `tool.rejected`(schema_mismatch)を同じターンで返し、`waiting_input` にはなりません。
 - lock: `work/<id>/lock` に pid と開始時刻を書きます。すでにあり、その pid が生きていればエラーです。死んでいれば引き継ぎます。
 - 書き込みは `WorkStore.open(id)` が返す handle を通します。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まります。読み取りに lock は要りません。
@@ -339,18 +339,18 @@ provider が throw → model.failed → work.failed(model_error)
 
 | コマンド | 動き |
 |---|---|
-| `openshain` | 引数なしで端末があれば、社員エージェントと話す画面を開きます(spec は interactive-cli.md)。端末がなければ使い方を出します |
-| `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書きます。`openshain.yaml` があれば断ります。`.mcp.json` が既にあれば他のサーバーを残して openshain の項目だけ足し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます |
-| `openshain run "<依頼>"` | Work を作って完了か停止まで進めます。Tool 呼び出しごとに 1 行出します。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を出します |
+| `openshain` | 引数なしで端末があれば、社員エージェントと話す画面を開きます(spec は interactive-cli.md)。端末がなければ使い方を表示します |
+| `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書きます。`openshain.yaml` があれば受け付けません。`.mcp.json` が既にあれば他のサーバーを残して openshain の項目だけ追加し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます |
+| `openshain run "<依頼>"` | Work を作って完了か停止まで進めます。Tool 呼び出しごとに 1 行表示します。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を表示します |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)です。読めない Work は別枠で示します |
-| `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰かを出します |
-| `openshain work resume <id>` | 途中で止まった Work を続けます。`waiting_input` なら端末で質問に答えて続け、`in_progress` なら中断した呼び出しを閉じてから続け、`queued` なら最初から進めます。終わった Work は断ります。端末がなければ質問せず、待機のまま質問文を出して終わります |
+| `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰かを表示します |
+| `openshain work resume <id>` | 途中で止まった Work を続けます。`waiting_input` なら端末で質問に答えて続け、`in_progress` なら中断した呼び出しを閉じてから続け、`queued` なら最初から進めます。終わった Work は受け付けません。端末がなければ質問せず、待機のまま質問文を表示して終わります |
 | `openshain tools list` | 登録された Tool の一覧(name、provider、effect、許可の有無)です |
 | `openshain mcp` | MCP Server を stdio で起動します |
 
 `--workspace <dir>` で起点を指定できます。`init` はそこに書き、他のコマンドはそこから上に向かって `openshain.yaml` を探します。省略時はカレントディレクトリです。
 
-- `run` と `work resume` の進捗行は `tool.called`(名前と、path があればその値)、`tool.rejected`(拒否の理由)、`isError` の `tool.completed`(失敗)だけです。model の呼び出しと質問の記録は出さず、最後の報告(結果、使用量の合計、次に動く人)にまとめます。
+- `run` と `work resume` の進捗行は `tool.called`(名前と、path があればその値)、`tool.rejected`(拒否の理由)、`isError` の `tool.completed`(失敗)だけです。model の呼び出しと質問の記録は表示せず、最後の報告(結果、使用量の合計、次に動く人)にまとめます。
 - exit code は 0 が完了、1 が完了しなかった Work か実行時のエラー、2 が引数の誤りです。
 
 ### MCP Server(`packages/mcp`)
@@ -370,14 +370,14 @@ MCP tool:
 
 現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返します。外部エージェントの model 使用量は Runtime から見えないので、この経路では `usage.recorded` は Tool 実行の分だけになります。
 
-- `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を断ります。`work_get` は id を省くと現在の Work です
+- `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を受け付けません。`work_get` は id を省くと現在の Work です
 - `work_complete` の artifacts は任意です。Tool が書いたファイル(`after` 付きの `tool.completed`)にエージェントの申告を合わせ、パスごとに Runtime がハッシュを計算します。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付けます。`refs` は `after` 付きの `tool.completed` の id です
 - `work_fail` の reason はエージェントの自由な短い語です。CLI の見出し表にない語はそのまま表示されます
 - Tool 呼び出しの call id は Runtime が `call_` で始まる id を振ります。結果の content は text にし、json は JSON 文字列にします。`isError` はそのままです
 - MCP tool の説明とエラー文はエージェントが読むので英語です
 - 呼び出しは接続ごとに 1 つずつ処理します。エージェントが並列に呼んでも lock を奪い合いません
-- `work_*` の入力も他の Tool と同じく schema で検証し、外れたら schema_mismatch の文で返します。`work_complete` の artifacts のパスは path guard を通し、workspace の外なら何も記録せずに断ります
-- 終わった Work への呼び出しは断り、接続の現在の Work を空にします。未完了の現在の Work があるときの `work_create` は断り、先に work_complete か work_fail を求めます
+- `work_*` の入力も他の Tool と同じく schema で検証し、外れたら schema_mismatch の文で返します。`work_complete` の artifacts のパスは path guard を通し、workspace の外なら何も記録せずに受け付けません
+- 終わった Work への呼び出しは受け付けず、接続の現在の Work を空にします。未完了の現在の Work があるときの `work_create` は断り、先に work_complete か work_fail を求めます
 
 ### SDK(`@openshain/core`、`@openshain/agent`)
 
@@ -490,7 +490,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 1. 同じ依頼を、`openshain.yaml` の `model` を書き換えるだけで Anthropic と OpenAI 互換 API の両方で完走します。コードは変えません。
 2. Claude Code か Codex を MCP client として接続し、`work_create` → Tool 呼び出し → `work_complete` で同じ依頼を完走します。Runtime 側のコードは変えません。
 3. `examples/tools/echo` の Tool を設定ファイルに書くだけで、`openshain tools list`、`openshain run`、MCP の 3 つから呼べます。
-4. すべての model 呼び出しが `usage.recorded` として残り、`openshain work show <id>` が Work ごとの合計を出します。
+4. すべての model 呼び出しが `usage.recorded` として残り、`openshain work show <id>` が Work ごとの合計を表示します。
 5. 1 から 4 を `bun test` で再現できます。
 6. workspace 外と予約パスへの読み書きは拒否され、`tool.rejected` として残ります。
 7. schema に合わない Tool 入力と許可リスト外の Tool は実行前に止まり、`tool.rejected` として残ります。
@@ -500,7 +500,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 
 ### 条件とテストの対応
 
-すべて `bun test` で走り、CI が push ごとに実行します。live のテストは `OPENSHAIN_LIVE_TESTS=1` のときだけ動きます。
+すべて `bun test` で実行され、CI が push ごとに実行します。live のテストは `OPENSHAIN_LIVE_TESTS=1` のときだけ動きます。
 
 | 条件 | テスト |
 |---|---|

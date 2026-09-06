@@ -2,7 +2,7 @@
 
 脆弱性は公開の Issue に書かず、GitHub の Security タブにある Report a vulnerability から非公開で知らせてください。受け取ってから 7 日以内に返事をします。対象は最新のリリースです。
 
-openshain は利用者の API キーを環境変数からだけ読み、設定ファイルにも記録にも書きません。Tool は workspace の外のファイルに触れません。この前提が破れる報告を特に歓迎します。
+openshain は利用者の API キーを環境変数からだけ読み、設定ファイルにも記録にも書きません。Tool は workspace の外のファイルにアクセスできません。この前提が破れる報告を特に歓迎します。
 
 `openshain.yaml` の `tools[].module` は workspace の中のコードを読み込んで実行します。Claude Code がフォルダの信頼を聞くのと同じ理由で、信用できないフォルダで openshain を動かさないでください。
 
