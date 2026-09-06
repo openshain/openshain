@@ -5,13 +5,23 @@
   </picture>
 </p>
 
-汎用のエージェントを、あなたの会社で働く専門社員にする対話型のエージェントハーネスです。
+<p align="center">汎用のエージェントを、あなたの会社で働く専門社員にする対話型のエージェントハーネスです。</p>
 
-[![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/openshain/openshain/actions/workflows/ci.yml"><img src="https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/openshain"><img src="https://img.shields.io/npm/v/openshain" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="license"></a>
+</p>
 
-English: [README.en.md](README.en.md)
+<p align="center">
+  <a href="#3-行で始める">3 行で始める</a> ·
+  <a href="#できること">できること</a> ·
+  <a href="#使い方">使い方</a> ·
+  <a href="#claude-code-から">Claude Code から</a> ·
+  <a href="#知識の投入導線">知識</a> ·
+  <a href="#設計思想">設計思想</a> ·
+  <a href="README.en.md">English</a>
+</p>
 
 ```
 $ openshain
@@ -60,6 +70,17 @@ openshain 0.1.0
 
 社員エージェントと対話型 CLI で会話できます。
 
+## 3 行で始める
+
+```
+bun install -g openshain   # Bun 1.3 以上が要ります
+openshain init             # 会社フォルダに設定と MCP の登録を書きます
+openshain                  # 社員エージェントと話します
+```
+
+> [!IMPORTANT]
+> model の API キーは環境変数(`ANTHROPIC_API_KEY` など)からだけ読みます。設定ファイルにも記録にも書きません。
+
 Claude や Codex のようなエージェントは、会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストに関する仕組みと情報が足りず、そのままでは会社の社員として働けません。
 
 openshain はエージェントハーネスとして、会社の社員として働くために必要な仕組みと情報を補います。openshain の CLI を使わずに、openshain が提供する **MCP サーバー** を使って、Claude Code や Codex の上に独自のハーネスを組むこともできます。
@@ -78,7 +99,25 @@ openshain はエージェントハーネスとして、会社の社員として�
 - 汎用(`generic`): 会社フォルダのファイルを扱う一般事務です
 - (開発中) 経理: 台帳と証憑の照合、月次のまとめ、経理に固有の知識を持った職種です
 
-職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、自分の職種を作れます。権限、承認、専門家へのエスカレーションはこれからです。
+職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、自分の職種を作れます。
+
+> [!NOTE]
+> 権限、承認、専門家へのエスカレーションはこれからです。
+
+### 仕組み
+
+```mermaid
+flowchart LR
+  P([人]) --> CLI[対話型 CLI]
+  P --> CC[Claude Code / Codex]
+  CLI --> R[Runtime<br>Work の記録と再開]
+  CC -- MCP --> R
+  R --> M[model<br>Anthropic / OpenAI 互換]
+  R --> T[Tool<br>ファイル、CSV、Markdown]
+  T --> F[(会社フォルダ)]
+```
+
+考えるのは model、記録と再開は Runtime、ファイルに触るのは Tool です。どの入口から入っても同じ Runtime を通り、同じ `work/` に残ります。
 
 ## インストール
 
@@ -91,6 +130,9 @@ bun install -g openshain   # openshain コマンドが入ります
 openshain --help           # 入ったことを確かめます
 ```
 
+<details>
+<summary>バイナリとソースからのインストール</summary>
+
 ### バイナリでのインストール
 
 [GitHub Releases](https://github.com/openshain/openshain/releases) に Linux(x64、arm64)と macOS(x64、arm64)の単体バイナリがあります。ダウンロードして実行権限をつけ、PATH の通った場所に `openshain` という名前で置きます。
@@ -102,7 +144,8 @@ mv openshain-linux-x64 ~/.local/bin/openshain   # PATH の通った場所に置�
 
 #### macOS
 
-ブラウザでダウンロードしたバイナリは、初回の実行を Gatekeeper が止めます。隔離属性を外してから実行します。
+> [!TIP]
+> ブラウザでダウンロードしたバイナリは、初回の実行を Gatekeeper が止めます。隔離属性を外してから実行します。
 
 ```
 xattr -d com.apple.quarantine openshain   # 隔離属性を外します
@@ -119,6 +162,8 @@ git clone https://github.com/openshain/openshain.git && cd openshain
 bun install                      # 依存を入れます
 bun run build                    # dist/openshain に単体バイナリができます
 ```
+
+</details>
 
 ## 使い方
 
@@ -187,6 +232,12 @@ OSS はどの提供元の知識でも読み込めます(Bring Your Own Knowledge
 3. openshain 自身が作る Tool や model provider も、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使える裏口はありません
 4. 有償で提供するものがあるなら(マネージドサービス、日本の法域に固有の知識を継続して届けることなど)、それは openshain を利用者に代わって動かし続ける運用の対価です。機能を解禁する対価ではありません
 
+### しないこと
+
+- 会社フォルダの外には出ません。SaaS や会計ソフトの代わりにはならず、そこから出したファイルを扱います
+- 金額の計算、権限の判断、状態の遷移を model に任せません。これらはコードが持ちます
+- 利用者のデータを openshain の運営者に送りません。通信先は設定した model の API だけです
+
 - 全文は [docs/principles.md](docs/principles.md) にあります
 - 各 package の設計と理由は [docs/design/](docs/design/README.md) にあります
 - 仕様は [spec/](spec/README.md) にあります
@@ -212,3 +263,5 @@ bun run schemas                        # spec/schemas/ を zod の定義から�
 ## ライセンス
 
 Apache-2.0。[LICENSE](LICENSE) と [NOTICE](NOTICE) を見てください。
+
+<p align="center"><sub><a href="SECURITY.md">脆弱性の報告</a> · <a href="CONTRIBUTING.md">貢献のしかた</a> · <a href="CHANGELOG.md">変更の履歴</a> · <a href="assets/README.md">ロゴ</a></sub></p>

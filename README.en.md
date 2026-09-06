@@ -5,11 +5,23 @@
   </picture>
 </p>
 
-An interactive agent harness that turns a general agent into a professional employee of your company.
+<p align="center">An interactive agent harness that turns a general agent into a professional employee of your company.</p>
 
-[![CI](https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg)](https://github.com/openshain/openshain/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/openshain)](https://www.npmjs.com/package/openshain)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/openshain/openshain/actions/workflows/ci.yml"><img src="https://github.com/openshain/openshain/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.npmjs.com/package/openshain"><img src="https://img.shields.io/npm/v/openshain" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="license"></a>
+</p>
+
+<p align="center">
+  <a href="#three-lines-to-start">Three lines to start</a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#from-claude-code">From Claude Code</a> ·
+  <a href="#bringing-knowledge-in">Knowledge</a> ·
+  <a href="#design-principles">Principles</a> ·
+  <a href="README.md">日本語</a>
+</p>
 
 The Japanese [README.md](README.md) is the primary one; documentation is written in Japanese first.
 
@@ -58,6 +70,17 @@ openshain 0.1.0
 
 You talk with an employee agent in an interactive CLI.
 
+## Three lines to start
+
+```
+bun install -g openshain   # requires Bun 1.3 or later
+openshain init             # writes the configuration and the MCP registration into the company folder
+openshain                  # starts talking with the employee agent
+```
+
+> [!IMPORTANT]
+> The model's API key is read from the environment only (`ANTHROPIC_API_KEY` and the like). It is never written to the configuration or the records.
+
 Agents such as Claude and Codex cannot work as an employee of a company as they are. They lack the rules and procedures of the company, hands for SaaS and Office files, permissions and approval, work state that survives a session, and a trail of what was done and what it cost.
 
 openshain is an agent harness that supplies what an agent needs to work as an employee of your company. You do not have to use the openshain CLI: the **MCP server** openshain provides lets you build your own harness on top of Claude Code or Codex.
@@ -76,7 +99,25 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - General (`generic`): general office work over the files in the company folder
 - (In development) Accounting: reconciling ledgers against receipts, monthly summaries, and knowledge specific to accounting
 
-The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and you have your own profession. Permissions, approval, and escalation to an expert are still to come.
+The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and you have your own profession.
+
+> [!NOTE]
+> Permissions, approval, and escalation to an expert are still to come.
+
+### How it fits together
+
+```mermaid
+flowchart LR
+  P([Person]) --> CLI[Interactive CLI]
+  P --> CC[Claude Code / Codex]
+  CLI --> R[Runtime<br>records and resumes Work]
+  CC -- MCP --> R
+  R --> M[model<br>Anthropic / OpenAI-compatible]
+  R --> T[Tools<br>files, CSV, Markdown]
+  T --> F[(company folder)]
+```
+
+The model thinks, the Runtime records and resumes, and the tools touch the files. Every entrance goes through the same Runtime and leaves the same record under `work/`.
 
 ## Install
 
@@ -89,6 +130,9 @@ bun install -g openshain   # installs the openshain command
 openshain --help           # checks that it is there
 ```
 
+<details>
+<summary>Binaries and from source</summary>
+
 ### Binaries
 
 [GitHub Releases](https://github.com/openshain/openshain/releases) carries single-file binaries for Linux (x64, arm64) and macOS (x64, arm64). Download one, make it executable, and put it on your PATH under the name `openshain`.
@@ -100,7 +144,8 @@ mv openshain-linux-x64 ~/.local/bin/openshain   # puts it on your PATH
 
 #### macOS
 
-Gatekeeper blocks the first run of a binary downloaded with a browser. Remove the quarantine attribute before running it.
+> [!TIP]
+> Gatekeeper blocks the first run of a binary downloaded with a browser. Remove the quarantine attribute before running it.
 
 ```
 xattr -d com.apple.quarantine openshain   # removes the quarantine attribute
@@ -117,6 +162,8 @@ git clone https://github.com/openshain/openshain.git && cd openshain
 bun install                      # installs dependencies
 bun run build                    # writes the single-file binary to dist/openshain
 ```
+
+</details>
 
 ## Usage
 
@@ -185,6 +232,12 @@ The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Offic
 3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no back door that only the interactive CLI can use
 4. If something is offered for a fee (a managed service, continuously delivered knowledge of the Japanese jurisdiction), it is paid for running openshain on your behalf, not for unlocking features
 
+### What it does not do
+
+- It never leaves the company folder. It is not a replacement for SaaS or accounting software; it works on the files exported from them
+- It never leaves money arithmetic, authority checks, or state transitions to the model. Those are code
+- It never sends your data to the people who run openshain. The only network peer is the model API you configured
+
 - The full text is in [docs/principles.md](docs/principles.md)
 - The design of each package and the reasons behind it are in [docs/design/](docs/design/README.md)
 - The specification is in [spec/](spec/README.md)
@@ -210,3 +263,5 @@ bun run schemas                        # regenerates spec/schemas/ from the zod 
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+<p align="center"><sub><a href="SECURITY.md">Report a vulnerability</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="assets/README.md">Logo</a></sub></p>
