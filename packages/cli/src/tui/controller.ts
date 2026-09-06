@@ -200,13 +200,13 @@ export async function createController(options: ControllerOptions): Promise<Cont
 
   const stopped = (workId: string | undefined) =>
     workId
-      ? `止めました。${workId} は途中のまま残っています。/work resume ${workId} で続けられます。`
+      ? `止めました。${workId} は途中のまま残っています。/work resume ${workId} で再開します。`
       : "止めました。";
 
   const explain = (result: TurnResult) => {
     switch (result.stopped) {
       case "turn_limit":
-        return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きを依頼できます。";
+        return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きは改めて依頼してください。";
       case "aborted":
         return stopped(lastWorkId);
       case "max_tokens":

@@ -299,7 +299,7 @@ Tool の結果は観測であって転送ではありません。ファイルを
 - 既定の範囲は小さくしてあります。広げたいときは `limit` を上げます(上限は Tool ごとに schema に書きます)。それでも 50,000 文字の上限は残ります。範囲の制限は context を守るためのもの、上限は事故を止めるためのものです。
 - 1 MiB を超えるファイルは開きません(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばします)。書き込みも同じ 1 MiB で止めます。Tool が書いたものは Tool が開けます。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返します。グループはグループの値の順に並べ、同じ入力には同じ出力を返します。
-- すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても同じです。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
+- すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても行き先で判定します。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
 - Runtime 自身が 1 つ Tool を追加します。`ask_user`(effect: observe)です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約です)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)にします。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になります。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答えます。CLI では利用者に質問を表示して答えを受け取り、続行します。MCP では外部エージェント側が利用者に聞くので登録しません。
 
 ## Runtime の振る舞い(`packages/agent`)

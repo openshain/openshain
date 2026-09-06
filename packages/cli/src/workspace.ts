@@ -14,7 +14,7 @@ export async function findWorkspace(start: string): Promise<string> {
       if (parent === dir) {
         throw new OpenshainError(
           "config",
-          `${CONFIG_FILE_NAME} が見つかりません。${resolve(start)} から上に向かって探しました。openshain init で作れます。`,
+          `${CONFIG_FILE_NAME} が見つかりません。${resolve(start)} から上に向かって探しました。openshain init で作成します。`,
         );
       }
       dir = parent;

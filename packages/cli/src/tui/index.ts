@@ -46,6 +46,8 @@ export async function startTui(options: TuiOptions): Promise<number> {
   } finally {
     leave();
   }
-  console.log(`会話を終えました。記録は openshain work show ${controller.sessionId} で読めます。`);
+  console.log(
+    `会話を終えました。記録は openshain work show ${controller.sessionId} で参照します。`,
+  );
   return 0;
 }

@@ -4,7 +4,7 @@
 
 ## 置き場所と探し方
 
-`openshain` のコマンドはカレントディレクトリから上に向かって `openshain.yaml` を探し、見つかったディレクトリを workspace の root にします。`--workspace <dir>` で起点を変えられます。Tool がアクセスできるのは root の中だけで、`openshain.yaml`、`work/`、先頭が `.` の項目にはアクセスできません。
+`openshain` のコマンドはカレントディレクトリから上に向かって `openshain.yaml` を探し、見つかったディレクトリを workspace の root にします。`--workspace <dir>` で起点を指定します。Tool がアクセスできるのは root の中だけで、`openshain.yaml`、`work/`、先頭が `.` の項目にはアクセスできません。
 
 ## 項目
 
@@ -13,14 +13,14 @@
 | `version` | 必須 | `1` |
 | `company.name` | 必須 | 会社名です。model に伝わります。1 から 200 文字 |
 | `company.language` | 任意 | 会社の言語です。`ja` か `en`。社員エージェントの名前をこの言語の一覧から選びます。省略時は `ja`。`openshain init` が OS の locale を見て埋めます |
-| `principal.id` | 必須 | 依頼する人の id です。小文字の英字で始まり、英数字と `_` と `-` が使えます。記録に残ります |
+| `principal.id` | 必須 | 依頼する人の id です。小文字の英字で始まり、英数字と `_` と `-` で構成します。記録に残ります |
 | `principal.name` | 必須 | 表示名です。1 から 200 文字 |
-| `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じです |
+| `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じ規則です |
 | `profession.instructions` | 必須 | model への指示です。system prompt の先頭に入ります。100,000 文字まで |
 | `model.provider` | 必須 | `anthropic` か `openai-compatible` です。SDK から使うときは登録した provider の id です |
 | `model.model` | 必須 | model の名前です。provider にそのまま渡します |
-| `model.api_key_env` | 必須 | API キーを入れる環境変数の名前です。大文字の英字で始まり、英数字と `_` が使えます。値はここに書きません |
-| `model.base_url` | 任意 | API の root です。openai-compatible では `/v1` まで含めます(例 `http://localhost:11434/v1`)。省略時は各 provider の既定です。`user:pass@` は書けません。https か、localhost のようにこの機械を指す http だけを受け付けます。遠隔のホストに http を書くとキーが平文で流れるので拒みます |
+| `model.api_key_env` | 必須 | API キーを入れる環境変数の名前です。大文字の英字で始まり、英数字と `_` で構成します。値はここに書きません |
+| `model.base_url` | 任意 | API の root です。openai-compatible では `/v1` まで含めます(例 `http://localhost:11434/v1`)。省略時は各 provider の既定です。`user:pass@` は受け付けません。https か、localhost のようにこの機械を指す http だけを受け付けます。遠隔のホストに http を書くとキーが平文で流れるので拒みます |
 | `model.options` | 任意 | provider にそのまま渡す指定です。Anthropic なら `effort` や `thinking`、OpenAI 互換なら `reasoning_effort` や `temperature` です。model、messages、tools、出力の上限は上書きできません |
 | `tools` | 任意 | Tool provider の並びです。省略時は `[{ provider: standard }]` です。各項目は `provider`(組み込みの id)か `module`(ToolProvider を default export するファイルのパス)のどちらか 1 つです。`allow` を書くと、その名前の Tool だけを model に渡します。`module` はそのファイルを読み込んで実行するので、信用できないフォルダでは動かさないでください |
 | `limits.max_model_calls` | 任意 | 1 つの Work での model 呼び出しの上限です。既定 30。超えると Work は失敗(上限到達)で止まります |
@@ -32,11 +32,11 @@
 
 ## 標準 Tool
 
-`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read の 8 つが使えます。`openshain tools list` が、登録された Tool と許可の有無を表示します。自分の Tool を追加するには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
+`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read の 8 つが有効になります。`openshain tools list` が、登録された Tool と許可の有無を表示します。自分の Tool を追加するには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
 
 ## 記録
 
-Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから依頼した Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で読めます。
+Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから依頼した Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で参照します。
 
 ## Claude Code から使うためのファイル
 

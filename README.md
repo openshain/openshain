@@ -89,7 +89,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 ## できること
 
 - **対話型 CLI**: `openshain` で社員エージェントとの会話セッションを開始します。依頼を投げると、社員エージェントが Work にして進め、結果を返します
-- **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めても再開できます
+- **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めた Work は `openshain work resume` で再開します
 - **モデル**: `openshain init` が作る設定ファイルでモデルを指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
 - **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
@@ -100,7 +100,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 - 汎用(`generic`): 会社フォルダのファイルを扱う一般事務です
 - (開発中) 経理: 台帳と証憑の照合、月次のまとめ、経理に固有の知識を持った職種です
 
-職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、独自の職種を定義できます。
+職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、独自の職種を定義します。
 
 > [!NOTE]
 > 権限、承認、専門家へのエスカレーションはこれからです。
@@ -128,7 +128,7 @@ flowchart LR
 
 ```
 npm install -g openshain   # openshain コマンドをインストールします
-openshain --help           # 入ったことを確かめます
+openshain --help           # インストールを確認します
 ```
 
 インストールせずに試すなら `npx openshain` です。pnpm と yarn でもパッケージ名は同じ `openshain` です。
@@ -148,7 +148,7 @@ bunx --bun openshain       # Node.js を入れずに Bun だけで動かすと�
 [GitHub Releases](https://github.com/openshain/openshain/releases) に Linux(x64、arm64)と macOS(x64、arm64)の単体バイナリがあります。ダウンロードして実行権限をつけ、PATH の通った場所に `openshain` という名前で置きます。
 
 ```
-chmod +x openshain-linux-x64            # 実行権限をつけます
+chmod +x openshain-linux-x64            # 実行権限を付与します
 mv openshain-linux-x64 ~/.local/bin/openshain   # PATH の通った場所に置きます
 ```
 
@@ -169,7 +169,7 @@ Windows 向けのバイナリはまだありません。Bun でのインスト�
 
 ```
 git clone https://github.com/openshain/openshain.git && cd openshain
-bun install                      # 依存を入れます
+bun install                      # 依存関係をインストールします
 bun run build                    # dist/openshain に単体バイナリを生成します
 ```
 
@@ -184,7 +184,7 @@ export ANTHROPIC_API_KEY=...        # 使うモデルの API キーです
 openshain                           # 社員エージェントとの会話を始めます
 ```
 
-`openshain` は画面全体を使う会話の画面です。上が会話の履歴、下が入力欄です。依頼を書くと社員エージェントが Work にして進め、経過が `⎿` の行で流れ、結果が返ります。Work が質問すればその場で答えられます。画面の操作とスラッシュコマンドは `/help` で表示されます。
+`openshain` は画面全体を使う会話の画面です。上が会話の履歴、下が入力欄です。依頼を書くと社員エージェントが Work にして進め、経過が `⎿` の行で流れ、結果が返ります。Work が質問すればその場で答えます。画面の操作とスラッシュコマンドは `/help` で表示されます。
 
 ```
 openshain                       # 対話型 CLI を起動します
@@ -203,7 +203,7 @@ Tool を追加する例は [examples/](examples/README.md) にあります。
 
 1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを追加します
 2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が表示されます
-3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` が伝えます
+3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` に書いてあります
 4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で参照します
 
 Codex など他のエージェントでも、`openshain mcp` を stdio の MCP サーバーとして登録すると、Claude Code と同じ手順で動きます。
@@ -239,7 +239,7 @@ OSS はどの提供元の知識でも読み込みます(Bring Your Own Knowledge
 
 1. 社員エージェントは誰かの代理として、委任された権限の範囲で働きます。何を依頼され、何をして、何を残したかを記録に残します
 2. 会社の日常の事務は OSS だけで最後まで完了します
-3. openshain 自身が作る Tool やモデルプロバイダーも、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使える裏口はありません
+3. openshain 自身が作る Tool やモデルプロバイダーも、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使う API はありません
 4. 有償で提供するものがあるなら(マネージドサービス、日本の法域に固有の知識を継続して届けることなど)、それは openshain を利用者に代わって動かし続ける運用の対価です。機能を解禁する対価ではありません
 
 原則の全文は [docs/principles.md](docs/principles.md)、各 package の設計と理由は [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md) にあります。
@@ -256,7 +256,7 @@ Bun 1.3 以上が要ります。
 
 ```
 git clone https://github.com/openshain/openshain.git && cd openshain
-bun install                            # 依存を入れます
+bun install                            # 依存関係をインストールします
 bun run typecheck && bun run lint && bun test   # 変更を送る前に通す 3 つです
 bun packages/cli/src/bin.ts            # ソースのまま CLI を動かします
 bun run build                          # dist/openshain に単体バイナリを作ります
@@ -267,7 +267,7 @@ bun run build:packages                 # npm に公開する JavaScript を各 p
 - 構成は `packages/` の 5 つです。core(インターフェース、Work の記録、投影)、agent(ツールループ、モデルプロバイダー、セッション)、tools(標準 Tool)、mcp(MCP サーバー)、cli(`openshain` コマンドと画面)
 - 本物の API を呼ぶテストは `OPENSHAIN_LIVE_TESTS=1` と API キーの環境変数があるときだけ実行されます
 - リポジトリの中では package は TypeScript のソースのまま動きます(`exports` の `bun` 条件)。npm に公開するときは `dist/` の JavaScript を Node.js が読みます。publish の前に自動で build されます
-- 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行追加するだけで CLI と MCP の両方から呼べます
+- 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行追加するだけで CLI と MCP の両方で有効になります
 - 規約と構成は [AGENTS.md](AGENTS.md)、貢献のしかたは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md)、変更の履歴は [CHANGELOG.md](CHANGELOG.md) にあります
 
 ## ライセンス

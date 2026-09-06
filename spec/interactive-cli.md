@@ -62,7 +62,7 @@ Runtime が提供します。名前は予約で、Tool provider は同じ名前�
 - 入力欄は 1 行で、その場で編集できます。左右の矢印と Home と End(Ctrl-A と Ctrl-E も)でカーソルが動き、文字はカーソルの位置に入ります。Backspace はカーソルの前、Delete はカーソルの位置、Ctrl-U はカーソルの前すべて、Ctrl-K は後ろすべてを削除します。貼り付けた文に改行が含まれていれば、最初の改行までを送り、残りは入力欄に残します
 - 終了すると元の画面に戻り、会話は端末に残りません。記録の読み方(`openshain work show <セッションの id>`)を 1 行表示します
 - スラッシュコマンドは次の節のとおりです
-- Ctrl-C は、子 Work が動いていれば中断します(Work は `in_progress` で残り、`/work resume` で続きます)。子 Work が質問を待っていれば質問を取り下げます(Work は `waiting_input` で残り、`/work resume` でもう一度聞きます)。`/work resume` で動かしている Work も同じです。動いていなければセッションを閉じます
+- Ctrl-C は、子 Work が動いていれば中断します(Work は `in_progress` で残り、`/work resume` で続きます)。子 Work が質問を待っていれば質問を取り下げます(Work は `waiting_input` で残り、`/work resume` でもう一度聞きます)。`/work resume` で動かしている Work も同じ手順で中断します。動いていなければセッションを閉じます
 - 文言は日本語です。CLI の既存の表を使います。注意の行と質問には色を付けます
 
 ## スラッシュコマンド

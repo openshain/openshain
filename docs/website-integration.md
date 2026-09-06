@@ -11,7 +11,7 @@
 | `assets/openshain_wordmark_color_for-dark.svg` | 文字だけのロゴの暗い背景用です |
 | `assets/openshain_logomark_color.svg` | 印だけです。アイコンやアバターに使います |
 | `assets/openshain_logomark_color_for-dark.svg` | 印だけの暗い背景用です |
-| `assets/openshain_horizontal_lockup_color.svg` | 印と文字を横に並べた形です。README の先頭と同じです |
+| `assets/openshain_horizontal_lockup_color.svg` | 印と文字を横に並べた形です。README の先頭に使っている形です |
 | `assets/openshain_horizontal_lockup_color_for-dark.svg` | 横の形の暗い背景用です |
 | `assets/openshain_vertical_lockup_color.svg` | 印の下に文字を置いた形です |
 | `assets/favicon.svg` | favicon です |

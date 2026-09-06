@@ -100,7 +100,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - General (`generic`): general office work over the files in the company folder
 - (In development) Accounting: reconciling ledgers against receipts, monthly summaries, and knowledge specific to accounting
 
-The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and you have your own profession.
+The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and that defines your own profession.
 
 > [!NOTE]
 > Permissions, approval, and escalation to an expert are still to come.
@@ -239,7 +239,7 @@ The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Offic
 
 1. An employee agent acts on behalf of a person, within the authority delegated to it. It records what it was asked, what it did, and what it left behind
 2. The everyday office work of a company can be completed with the OSS alone
-3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no back door that only the interactive CLI can use
+3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no API that only the interactive CLI uses
 4. If something is offered for a fee (a managed service, continuously delivered knowledge of the Japanese jurisdiction), it is paid for running openshain on your behalf, not for unlocking features
 
 The full text of the principles is in [docs/principles.md](docs/principles.md), the design of each package and the reasons behind it in [docs/design/](docs/design/README.md), and the specification in [spec/](spec/README.md).
