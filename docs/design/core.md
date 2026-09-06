@@ -51,7 +51,7 @@ ID は UUIDv7 に接頭辞(`work_`、`evt_`)を付け、コードでは branded 
 
 ## エラーは code で分岐する
 
-provider と Runtime の失敗は `OpenshainError`(code と message)で表します。code は機械が読む語の閉じた一覧で、Runtime はそれで分岐し、利用者向けの文言は入口が持ちます。provider の独自の理由は message に書きます。Tool の業務上の失敗(ファイルがない、列がない)は例外ではなく `isError` の結果で、Work は続きます。
+provider と Runtime の失敗は `OpenshainError`(code と message)で表します。code は機械が読む語の閉じた一覧で、Runtime はそれで分岐し、利用者向けの文言は入口が持ちます。provider の独自の理由は message に書きます。Tool の業務上の失敗(ファイルがない、列がない)は `isError` の結果として返し、Work は続きます。
 
 ## 公開 API
 

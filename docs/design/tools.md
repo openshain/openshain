@@ -6,7 +6,7 @@
 
 ## 結果は観測であって転送ではない
 
-決めたこと。観測する Tool(fs_list、fs_search、fs_read、csv_read、csv_aggregate、markdown_read)は、ファイルの全体ではなく、頼まれた範囲だけを返します。結果の先頭に JSON で件数と範囲と続きの有無を置き、本文はその後に続けます。既定の範囲は小さく、続きは `offset` と `limit` で model が取りに行きます。数値は spec の表にあります。
+決めたこと。観測する Tool(fs_list、fs_search、fs_read、csv_read、csv_aggregate、markdown_read)は、頼まれた範囲だけを返します。結果の先頭に JSON で件数と範囲と続きの有無を置き、本文はその後に続けます。既定の範囲は小さく、続きは `offset` と `limit` で model が取りに行きます。数値は spec の表にあります。
 
 理由。context に入れたものは、そのターンだけでなく以後の全ターンで毎回入力として送られ、課金され、注意を薄めます。架空の会社の 296 行の CSV を、同じ model に同じ依頼で頼んで測りました。csv_read が全行を返す版では Tool の結果 1 つが 48,115 文字あり、Work 全体の入力が 68,346 トークン、出力が 7,326 トークンでした。範囲と集計に変えた版では、同じ依頼が入力 30,985 トークン、出力 2,169 トークンで終わり、結果の数字は一致しました。出力が 3 分の 1 になったのは、model が行を読み上げながら足し算していたのをやめたからです。
 
@@ -28,7 +28,7 @@
 
 捨てた案。SQL や式言語を受け取る汎用の集計 Tool。強力ですが、model が書いた式の検証が難しく、注入の入口にもなります。形を固定した Tool のほうが、後で権限の判定(どの列を見てよいか)にも載せやすいです。
 
-変える条件。`group_by` と `sum` で足りない集計が具体的に出たとき、式言語ではなく Tool を 1 つ足します。
+変える条件。`group_by` と `sum` で足りない集計が具体的に出たとき、Tool を 1 つ足します。
 
 ## 説明文は出力の意味まで書く
 
@@ -78,7 +78,7 @@ fs_list と fs_search はコードポイント順、csv_aggregate のグルー�
 
 ## 公開 API
 
-export するのは `standardTools()`、`MAX_READ_BYTES`、`MAX_WRITE_BYTES`、`DEFAULT_WINDOW` です。Tool の中の関数は出しません。標準 Tool を拡張したい人は継承ではなく provider を 1 つ足し、設定で並べます。provider の組み合わせは設定で決めるものだからです。
+export するのは `standardTools()`、`MAX_READ_BYTES`、`MAX_WRITE_BYTES`、`DEFAULT_WINDOW` です。Tool の中の関数は出しません。標準 Tool を拡張したい人は provider を 1 つ足し、設定で並べます。provider の組み合わせは設定で決めるものだからです。
 
 ## 捨てた案(package 全体)
 
