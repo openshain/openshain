@@ -6,3 +6,6 @@ coverage/
 .env.*
 *.local
 .DS_Store
+
+# Windows/WSL download marker streams
+*:Zone.Identifier
