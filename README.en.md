@@ -170,13 +170,13 @@ The company's rules (expense policies, approval thresholds, how each counterpart
 - Files in the company folder. Put policies, procedures, and ledgers there and the employee agent reads them with the standard tools. Point at them from the instructions ("the expense policy is in rules/expenses.md"). Only the files a Work asks for reach the model, and nothing leaves the folder
 - `AGENTS.md`. Instructions for Claude Code and Codex. Company rules written there make those agents follow the same rules
 
-In a coming version, company rules live in `rules/` and their supporting material in `sources/`, each with a source and an effective date, and are indexed. The model receives only what the Work needs (need-to-know), and material a person is not allowed to see does not appear in search results either.
+Coming versions give company rules and their supporting material a source and an effective date, and make them reachable through an index. The model receives only what the Work needs (need-to-know), and material a person is not allowed to see does not appear in search results either.
 
 ### Continuously maintained knowledge of the Japanese jurisdiction
 
 Laws, circulars, guidelines, forms, and deadlines are not something each company writes down, and they keep changing. openshain treats them as knowledge delivered together with a profession: each item carries its source and effective date, and can be looked up by version and by point in time. Accounting comes first.
 
-The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is a candidate paid offering, as the operation of keeping up with the changes. Without it, an employee agent still works from the documents placed in the company folder.
+The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is delivered as the operation of keeping up with the changes, in line with design principle 4. Without it, an employee agent still works from the documents placed in the company folder.
 
 ## Design principles
 
