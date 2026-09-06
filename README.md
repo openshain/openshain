@@ -69,7 +69,7 @@ openshain 0.1.0
   summary.mdファイルに作成されています。
 ```
 
-社員エージェントと対話型 CLI で会話できます。
+対話型 CLI で社員エージェントと会話している画面です。
 
 ## 3 行で始める
 
@@ -82,9 +82,9 @@ openshain                  # 社員エージェントと話します
 > [!IMPORTANT]
 > モデルの API キーは環境変数(`ANTHROPIC_API_KEY` など)からだけ読みます。設定ファイルにも記録にも書きません。
 
-Claude や Codex のようなエージェントは、会社のルールと業務手順、SaaS や Office のファイルを扱う手、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストに関する仕組みと情報が足りず、そのままでは会社の社員として働けません。
+Claude や Codex のようなエージェントは、会社のルールと業務手順、SaaS や Office のファイルを操作する手段、権限と承認、セッションをまたいで残る仕事の状態、証跡とコストに関する仕組みと情報を持たないため、そのままでは会社の社員として機能しません。
 
-openshain はエージェントハーネスとして、会社の社員として働くために必要な仕組みと情報を補います。openshain の CLI を使わずに、openshain が提供する **MCP サーバー** を使って、Claude Code や Codex の上に独自のハーネスを組むこともできます。
+openshain はエージェントハーネスとして、会社の社員として働くために必要な仕組みと情報を補います。openshain の CLI を使わず、openshain が提供する **MCP サーバー** を通して Claude Code や Codex の上に独自のハーネスを構築する使い方もあります。
 
 ## できること
 
@@ -92,15 +92,15 @@ openshain はエージェントハーネスとして、会社の社員として�
 - **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めても再開できます
 - **モデル**: `openshain init` が作る設定ファイルでモデルを指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
-- **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方から使えます
-- **Claude Code などの汎用エージェントから使う**: `openshain mcp` が MCP サーバーです。Claude Code や Codex に登録すると、同じハーネスをそれらのエージェントの上で使えます
+- **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
+- **Claude Code などの汎用エージェントから使う**: `openshain mcp` が MCP サーバーです。Claude Code や Codex に登録すると、同じハーネスがそれらのエージェントの上で動きます
 
 ### 現在対応している職種
 
 - 汎用(`generic`): 会社フォルダのファイルを扱う一般事務です
 - (開発中) 経理: 台帳と証憑の照合、月次のまとめ、経理に固有の知識を持った職種です
 
-職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、自分の職種を作れます。
+職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、独自の職種を定義できます。
 
 > [!NOTE]
 > 権限、承認、専門家へのエスカレーションはこれからです。
@@ -127,11 +127,11 @@ flowchart LR
 [Node.js](https://nodejs.org) 22 以上が要ります。
 
 ```
-npm install -g openshain   # openshain コマンドが入ります
+npm install -g openshain   # openshain コマンドをインストールします
 openshain --help           # 入ったことを確かめます
 ```
 
-入れずに試すなら `npx openshain` です。pnpm と yarn でも同じ名前で入ります。
+インストールせずに試すなら `npx openshain` です。pnpm と yarn でもパッケージ名は同じ `openshain` です。
 
 ### Bun でのインストール
 
@@ -170,7 +170,7 @@ Windows 向けのバイナリはまだありません。Bun でのインスト�
 ```
 git clone https://github.com/openshain/openshain.git && cd openshain
 bun install                      # 依存を入れます
-bun run build                    # dist/openshain に単体バイナリができます
+bun run build                    # dist/openshain に単体バイナリを生成します
 ```
 
 </details>
@@ -204,9 +204,9 @@ Tool を追加する例は [examples/](examples/README.md) にあります。
 1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを追加します
 2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が表示されます
 3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` が伝えます
-4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で読めます
+4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で参照します
 
-Codex など他のエージェントでも、`openshain mcp` を stdio の MCP サーバーとして登録すれば同じです。
+Codex など他のエージェントでも、`openshain mcp` を stdio の MCP サーバーとして登録すると、Claude Code と同じ手順で動きます。
 
 ## 設定
 
@@ -233,12 +233,12 @@ Codex など他のエージェントでも、`openshain mcp` を stdio の MCP �
 
 法令、通達、ガイドライン、様式、期限は会社ごとに書くものではなく、変わり続けます。これは職種と一緒に届ける知識として扱い、出典と有効日を持ち、版と時点で引けるようにします。最初の対象は経理です。
 
-OSS はどの提供元の知識でも読み込めます(Bring Your Own Knowledge)。公式に保守する日本の法域の知識は、更新を追い続ける運用として届けるもので、設計思想の 4 に沿います。この知識がなくても、会社フォルダに置いた文書だけで社員エージェントは働けます。
+OSS はどの提供元の知識でも読み込みます(Bring Your Own Knowledge)。公式に保守する日本の法域の知識は、更新を追い続ける運用として届けるもので、設計思想の 4 に沿います。この知識がなくても、社員エージェントは会社フォルダに置いた文書だけで業務を遂行します。
 
 ## 設計思想
 
 1. 社員エージェントは誰かの代理として、委任された権限の範囲で働きます。何を依頼され、何をして、何を残したかを記録に残します
-2. 会社の日常の事務は OSS だけで最後まで完了できます
+2. 会社の日常の事務は OSS だけで最後まで完了します
 3. openshain 自身が作る Tool やモデルプロバイダーも、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使える裏口はありません
 4. 有償で提供するものがあるなら(マネージドサービス、日本の法域に固有の知識を継続して届けることなど)、それは openshain を利用者に代わって動かし続ける運用の対価です。機能を解禁する対価ではありません
 

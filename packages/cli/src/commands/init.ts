@@ -123,10 +123,10 @@ async function addToMcpConfig(path: string): Promise<string> {
   try {
     parsed = JSON.parse(await readFile(path, "utf8"));
   } catch {
-    return `${path} はすでにあり、JSON として読めないので変更しません。openshain を手で登録してください。`;
+    return `${path} はすでにあり、JSON として読めないので変更しません。openshain を手動で登録してください。`;
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return `${path} はすでにあり、形が違うので変更しません。openshain を手で登録してください。`;
+    return `${path} はすでにあり、形が違うので変更しません。openshain を手動で登録してください。`;
   }
   const config = parsed as { mcpServers?: unknown };
   const servers =

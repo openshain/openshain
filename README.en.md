@@ -69,7 +69,7 @@ openshain 0.1.0
   They are in summary.md.
 ```
 
-You talk with an employee agent in an interactive CLI.
+The interactive CLI, in conversation with an employee agent.
 
 ## Three lines to start
 
@@ -82,7 +82,7 @@ openshain                  # starts talking with the employee agent
 > [!IMPORTANT]
 > The model's API key is read from the environment only (`ANTHROPIC_API_KEY` and the like). It is never written to the configuration or the records.
 
-Agents such as Claude and Codex cannot work as an employee of a company as they are. They lack the rules and procedures of the company, hands for SaaS and Office files, permissions and approval, work state that survives a session, and a trail of what was done and what it cost.
+Agents such as Claude and Codex cannot work as an employee of a company as they are. They lack the rules and procedures of the company, the means to operate SaaS and Office files, permissions and approval, work state that survives a session, and a trail of what was done and what it cost.
 
 openshain is an agent harness that supplies what an agent needs to work as an employee of your company. You do not have to use the openshain CLI: the **MCP server** openshain provides lets you build your own harness on top of Claude Code or Codex.
 
@@ -206,7 +206,7 @@ An example of adding a tool is in [examples/](examples/README.md).
 3. Write a request. Claude Code does the thinking, and openshain's tools do the reading, writing, and recording in the company folder. `AGENTS.md` tells it which is which
 4. The record and the output of the request stay in `work/` in the company folder, readable with `openshain work list` and `openshain work show <id>`
 
-Any other agent, Codex included, works the same way once `openshain mcp` is registered as a stdio MCP server.
+Any other agent, Codex included, follows the same steps as Claude Code once `openshain mcp` is registered as a stdio MCP server.
 
 ## Configuration
 
@@ -233,7 +233,7 @@ Coming versions give company rules and their supporting material a source and an
 
 Laws, circulars, guidelines, forms, and deadlines are not something each company writes down, and they keep changing. openshain treats them as knowledge delivered together with a profession: each item carries its source and effective date, and can be looked up by version and by point in time. Accounting comes first.
 
-The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is delivered as the operation of keeping up with the changes, in line with design principle 4. Without it, an employee agent still works from the documents placed in the company folder.
+The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is delivered as the operation of keeping up with the changes, in line with design principle 4. Without it, an employee agent carries out its work from the documents placed in the company folder.
 
 ## Design principles
 

@@ -71,14 +71,14 @@ Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub
 on:
   repository_dispatch:
     types: [openshain-release]   # この repo の Release workflow が送ります
-  workflow_dispatch:             # 手で build するときです
+  workflow_dispatch:             # 手動で build するときです
 jobs:
   build:
     steps:
       - uses: actions/checkout@v4
         with:
           repository: openshain/openshain
-          ref: ${{ github.event.client_payload.sha }}   # 手で動かすときは releases/latest の tag を引きます
+          ref: ${{ github.event.client_payload.sha }}   # 手動で動かすときは releases/latest の tag を引きます
           path: openshain
       # build --docs ./openshain
 ```
