@@ -170,7 +170,7 @@ bun run build                    # dist/openshain に単体バイナリができ
 ```
 mkdir my-company && cd my-company   # 会社フォルダを作ります
 openshain init                      # 設定ファイルと MCP の登録、AGENTS.md を書きます
-export ANTHROPIC_API_KEY=...        # 使う model の API キーです
+export ANTHROPIC_API_KEY=...        # 使うモデルの API キーです
 openshain                           # 社員エージェントとの会話を始めます
 ```
 
@@ -191,7 +191,7 @@ Tool を足す例は [examples/](examples/README.md) にあります。
 
 ### Claude Code から
 
-1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他の server を残して openshain の項目だけを足します
+1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを足します
 2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が出ます
 3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` が伝えます
 4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で読めます
