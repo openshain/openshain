@@ -1,6 +1,6 @@
 {
   "name": "@openshain/tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standard tool provider: filesystem, CSV, Markdown, documents, email",
   "keywords": [
     "openshain",
