@@ -232,15 +232,13 @@ OSS はどの提供元の知識でも読み込めます(Bring Your Own Knowledge
 3. openshain 自身が作る Tool や model provider も、第三者が作るものと同じインターフェース(ToolProvider、ModelProvider、MCP)を通ります。対話型 CLI だけが使える裏口はありません
 4. 有償で提供するものがあるなら(マネージドサービス、日本の法域に固有の知識を継続して届けることなど)、それは openshain を利用者に代わって動かし続ける運用の対価です。機能を解禁する対価ではありません
 
+原則の全文は [docs/principles.md](docs/principles.md)、各 package の設計と理由は [docs/design/](docs/design/README.md)、仕様は [spec/](spec/README.md) にあります。
+
 ### しないこと
 
 - 会社フォルダの外には出ません。SaaS や会計ソフトの代わりにはならず、そこから出したファイルを扱います
 - 金額の計算、権限の判断、状態の遷移を model に任せません。これらはコードが持ちます
 - 利用者のデータを openshain の運営者に送りません。通信先は設定した model の API だけです
-
-- 全文は [docs/principles.md](docs/principles.md) にあります
-- 各 package の設計と理由は [docs/design/](docs/design/README.md) にあります
-- 仕様は [spec/](spec/README.md) にあります
 
 ## 開発
 

@@ -232,15 +232,13 @@ The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Offic
 3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no back door that only the interactive CLI can use
 4. If something is offered for a fee (a managed service, continuously delivered knowledge of the Japanese jurisdiction), it is paid for running openshain on your behalf, not for unlocking features
 
+The full text of the principles is in [docs/principles.md](docs/principles.md), the design of each package and the reasons behind it in [docs/design/](docs/design/README.md), and the specification in [spec/](spec/README.md).
+
 ### What it does not do
 
 - It never leaves the company folder. It is not a replacement for SaaS or accounting software; it works on the files exported from them
 - It never leaves money arithmetic, authority checks, or state transitions to the model. Those are code
 - It never sends your data to the people who run openshain. The only network peer is the model API you configured
-
-- The full text is in [docs/principles.md](docs/principles.md)
-- The design of each package and the reasons behind it are in [docs/design/](docs/design/README.md)
-- The specification is in [spec/](spec/README.md)
 
 ## Development
 
