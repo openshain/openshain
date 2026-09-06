@@ -74,7 +74,7 @@ openshain 0.1.0
 ## 3 行で始める
 
 ```
-bun install -g openshain   # Bun 1.3 以上が要ります
+npm install -g openshain   # Node.js 22 以上が要ります
 openshain init             # 会社フォルダに設定と MCP の登録を書きます
 openshain                  # 社員エージェントと話します
 ```
@@ -122,13 +122,22 @@ flowchart LR
 
 ## インストール
 
-### Bun でのインストール
+### npm でのインストール
 
-[Bun](https://bun.sh) 1.3 以上が要ります。
+[Node.js](https://nodejs.org) 22 以上が要ります。
 
 ```
-bun install -g openshain   # openshain コマンドが入ります
+npm install -g openshain   # openshain コマンドが入ります
 openshain --help           # 入ったことを確かめます
+```
+
+入れずに試すなら `npx openshain` です。pnpm と yarn でも同じ名前で入ります。
+
+### Bun でのインストール
+
+```
+bun install -g openshain   # Bun 1.3 以上。コマンドは Node.js で動くので、Node.js も要ります
+bunx --bun openshain       # Node.js を入れずに Bun だけで動かすときはこちらです
 ```
 
 <details>
@@ -252,10 +261,12 @@ bun run typecheck && bun run lint && bun test   # 変更を送る前に通す 3 
 bun packages/cli/src/bin.ts            # ソースのまま CLI を動かします
 bun run build                          # dist/openshain に単体バイナリを作ります
 bun run schemas                        # spec/schemas/ を zod の定義から作り直します
+bun run build:packages                 # npm に出す JavaScript を各 package の dist/ に作ります
 ```
 
 - 構成は `packages/` の 5 つです。core(インターフェース、Work の記録、投影)、agent(ツールループ、モデルプロバイダー、セッション)、tools(標準 Tool)、mcp(MCP サーバー)、cli(`openshain` コマンドと画面)
 - 本物の API を呼ぶテストは `OPENSHAIN_LIVE_TESTS=1` と API キーの環境変数があるときだけ走ります
+- リポジトリの中では package は TypeScript のソースのまま動きます(`exports` の `bun` 条件)。npm に出すときは `dist/` の JavaScript を Node.js が読みます。publish の前に自動で build されます
 - 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行足すだけで CLI と MCP の両方から呼べます
 - 規約と構成は [AGENTS.md](AGENTS.md)、貢献のしかたは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md)、変更の履歴は [CHANGELOG.md](CHANGELOG.md) にあります
 

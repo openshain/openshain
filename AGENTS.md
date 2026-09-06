@@ -5,7 +5,7 @@ An agent harness that turns a general agent into a professional employee of a co
 ## Tech stack
 
 - Bun 1.3 as runtime, package manager and test runner. TypeScript strict. Biome for lint and format.
-- Bun workspaces monorepo. Packages export TypeScript source directly (`exports: ./src/index.ts`); the packages have no build step. `bun run build` compiles the CLI into one binary, `dist/openshain`, for distribution.
+- Bun workspaces monorepo. Inside the repository the packages resolve to TypeScript source (the `bun` condition of `exports`), so development needs no build. For npm, `bun run build:packages` emits JavaScript and declarations into each package's `dist/` (the `import` and `types` conditions; the CLI's `bin` is `dist/bin.js`), and `prepublishOnly` runs it. Published packages run on Node 22 and Bun. `bun run build` compiles the CLI into one binary, `dist/openshain`.
 - One root `tsconfig.json` covers every package.
 
 ## Commands
@@ -15,6 +15,7 @@ An agent harness that turns a general agent into a professional employee of a co
 - Lint / format: `bun run lint`, `bun run format`
 - Test: `bun test`
 - Build the CLI binary: `bun run build`
+- Build the npm packages: `bun run build:packages` (in dependency order; a package's `tsconfig.build.json` resolves its siblings through their `dist/`)
 - Schemas: `bun run schemas` regenerates `spec/schemas/` from the zod schemas in `packages/core`; CI fails when the committed files are stale
 
 ## Layout
@@ -34,6 +35,7 @@ An agent harness that turns a general agent into a professional employee of a co
 - Contracts live in `packages/core`. Every implementation, official or third-party, uses the same contracts. Nothing under `packages/` imports from `packs/` or `examples/`.
 - Money, authority checks, state transitions and safety conditions are ordinary code, never model output.
 - Named exports only. Tests sit next to the source: `work.ts` has `work.test.ts`.
+- Runtime code uses no Bun-only API (`Bun.*`); it runs on Node and Bun alike through `node:` modules and web standards. Tests may use `bun:test`. A test enforces this.
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first, in the polite です・ます style: README, docs, specs, plans, CHANGELOG, CONTRIBUTING and SECURITY alike. Headings, table headers and bullet fragments stay as noun phrases; a bullet that is a sentence ends in です・ます.
 - The README opens with one short real exchange from the interactive CLI, then says who the reader is talking to. Feature bullets lead with a bold label (`**対話型 CLI**: ...`). Every line in a command block carries a comment saying what it does. Procedures are numbered steps; links are bullets. Say what exists today and what is in development, and never describe a command, file or binary that is not shipped. Keep README.en.md a section-for-section mirror of README.md.
 - Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: エージェント rather than Agent for an agent, インターフェース rather than 契約 for contract, 範囲 rather than 窓 for what a reading tool returns, 原本 rather than 正本 for the source of truth, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.

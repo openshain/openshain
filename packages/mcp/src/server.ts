@@ -22,11 +22,13 @@ import {
   SESSION_WORK_TYPE,
   type ToolDefinition,
   type ToolResult,
+  uuidv7,
   verifyArtifact,
   type Work,
   type WorkId,
   WorkStore,
 } from "@openshain/core";
+import pkg from "../package.json" with { type: "json" };
 import { Session } from "./session.ts";
 
 export interface McpServerOptions {
@@ -132,7 +134,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
   const works = new WorkStore(workspaceRoot);
   const session = new Session();
   const server = new Server(
-    { name: "openshain", version: "0.0.0" },
+    { name: "openshain", version: pkg.version },
     { capabilities: { tools: {} } },
   );
 
@@ -344,5 +346,5 @@ function failure(text: string): CallToolResult {
 }
 
 function newCallId(): string {
-  return `call_${Bun.randomUUIDv7()}`;
+  return `call_${uuidv7()}`;
 }

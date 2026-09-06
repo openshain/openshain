@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
 import { anthropicProvider, openaiCompatibleProvider } from "@openshain/agent";

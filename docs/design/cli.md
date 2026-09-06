@@ -65,6 +65,12 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 MCP Server は別 package ですが、起動は CLI のサブコマンドです。インストールを 1 回で済ませるためです。
 
+## 配布の形
+
+決めたこと。npm に出す package は Node.js 22 以上で動く JavaScript を `dist/` に持ち、`bin` は `dist/bin.js`(shebang は node)です。`exports` は `bun` 条件でソース、`import` と `types` 条件で `dist/` を指し、リポジトリの中では build なしで動きます。build は `tsc` で、相対 import の `.ts` を `.js` に書き換え、兄弟 package は node_modules を通して `dist/` の型定義で解決します。
+
+理由。CLI を npm に出す製品は `npm install -g` を第一の経路にしていて、Bun だけの案内は少数派です。Node.js は TypeScript の型を剥がせても JSX(画面)は扱えず、node_modules の中の `.ts` も読まないので、JavaScript を出す以外にありません。Bun ではソースを読み続けるのは、開発中の build を無くすためと、`bunx --bun openshain` で Node.js なしでも動かせるためです。捨てた案は、shebang を bun にする案(npm の利用者が動かせない)と、bundler で 1 ファイルに束ねる案(`@openshain/core` のインターフェースを第三者が import できなくなる)です。
+
 ## 捨てた案
 
 - 色付け。端末によって崩れ、テストが読みにくくなります。

@@ -39,6 +39,12 @@ jobs:
               exit 1
             fi
           done
+          # bun publish takes workspace versions from bun.lock; a stale lockfile publishes
+          # a CLI that depends on the previous release.
+          if [ "$(grep -c "\"version\": \"$tag\"" bun.lock)" -lt 5 ]; then
+            echo "bun.lock does not carry version $tag for every workspace package; update it before tagging" >&2
+            exit 1
+          fi
 
       - name: Build binaries for each platform
         run: |

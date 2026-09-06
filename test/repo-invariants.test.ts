@@ -23,8 +23,35 @@ describe("packages", () => {
     const pkg = JSON.parse(readFileSync(join(packagesDir, name, "package.json"), "utf8"));
     expect(pkg.name).toBeTruthy();
     expect(pkg.license).toBe("Apache-2.0");
-    expect(pkg.exports?.["."]).toBe("./src/index.ts");
+    expect(pkg.exports?.["."]).toEqual({
+      bun: "./src/index.ts",
+      types: "./dist/index.d.ts",
+      import: "./dist/index.js",
+    });
+    expect(pkg.engines).toEqual({ node: ">=22", bun: ">=1.3" });
     expect(existsSync(join(packagesDir, name, "src", "index.ts"))).toBe(true);
+  });
+
+  test("bun.lock records the version each workspace package declares", () => {
+    // bun publish and bun pm pack take workspace versions from the lockfile, so a stale
+    // lockfile publishes a package that depends on the previous release.
+    const lock = readFileSync(join(root, "bun.lock"), "utf8");
+    for (const name of packages) {
+      const declared = JSON.parse(
+        readFileSync(join(packagesDir, name, "package.json"), "utf8"),
+      ).version;
+      const entry = new RegExp(
+        `"packages/${name}": \\{\\s*"name": "[^"]+",\\s*"version": "([^"]+)"`,
+      ).exec(lock);
+      expect(entry?.[1]).toBe(declared);
+    }
+  });
+
+  test("runtime code uses no Bun-only API, so the published packages run on Node", () => {
+    const offenders = [...sourceFiles(packagesDir)].filter(
+      (file) => !/\.test\.tsx?$/.test(file) && /\bBun\.[a-zA-Z]/.test(readFileSync(file, "utf8")),
+    );
+    expect(offenders).toEqual([]);
   });
 
   test("nothing under packages/ imports from packs/ or examples/", () => {

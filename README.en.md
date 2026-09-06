@@ -74,7 +74,7 @@ You talk with an employee agent in an interactive CLI.
 ## Three lines to start
 
 ```
-bun install -g openshain   # requires Bun 1.3 or later
+npm install -g openshain   # requires Node.js 22 or later
 openshain init             # writes the configuration and the MCP registration into the company folder
 openshain                  # starts talking with the employee agent
 ```
@@ -122,13 +122,22 @@ The model thinks, the Runtime records and resumes, and the tools touch the files
 
 ## Install
 
-### With Bun
+### With npm
 
-Requires [Bun](https://bun.sh) 1.3 or later.
+Requires [Node.js](https://nodejs.org) 22 or later.
 
 ```
-bun install -g openshain   # installs the openshain command
+npm install -g openshain   # installs the openshain command
 openshain --help           # checks that it is there
+```
+
+`npx openshain` runs it without installing. pnpm and yarn install the same name.
+
+### With Bun
+
+```
+bun install -g openshain   # Bun 1.3 or later; the command runs on Node.js, so Node.js is needed too
+bunx --bun openshain       # runs on Bun alone, without Node.js
 ```
 
 <details>
@@ -252,10 +261,12 @@ bun run typecheck && bun run lint && bun test   # the three checks to pass befor
 bun packages/cli/src/bin.ts            # runs the CLI from source
 bun run build                          # writes the single-file binary to dist/openshain
 bun run schemas                        # regenerates spec/schemas/ from the zod definitions
+bun run build:packages                 # emits the JavaScript published to npm into each package's dist/
 ```
 
 - The code is five packages under `packages/`: core (interfaces, the Work record, projection), agent (the tool loop, model providers, sessions), tools (standard tools), mcp (the MCP server), and cli (the `openshain` command and the screen)
 - Tests that call a real API run only with `OPENSHAIN_LIVE_TESTS=1` and the API key in the environment
+- Inside the repository the packages run as TypeScript source (the `bun` export condition). On npm, Node.js reads the JavaScript in `dist/`, built automatically before publishing
 - A third-party tool example is in [examples/tools/echo](examples/tools/echo). One line in the configuration makes it callable from both the CLI and MCP
 - Conventions and layout are in [AGENTS.md](AGENTS.md), how to contribute in [CONTRIBUTING.md](CONTRIBUTING.md), vulnerability reports in [SECURITY.md](SECURITY.md), and the history of changes in [CHANGELOG.md](CHANGELOG.md)
 
