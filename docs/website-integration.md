@@ -83,9 +83,9 @@ dispatch は早く更新するための合図で、何を出すかの基準は G
 
 ## URL
 
-- 正規の URL は `https://openshain.jp` です
-- ドメインが開通するまで、`packages/*/package.json` の `homepage`、README、SECURITY.md のリンクは GitHub を指したままにします。まだ無い場所へ利用者を送らないためです。開通したときに切り替える場所は、5 つの package.json の `homepage` と、この文書です
-- `security.txt`: サイトが `/.well-known/security.txt` を出します。`Contact` は SECURITY.md と同じ窓口にします。いまは GitHub の Report a vulnerability(`https://github.com/openshain/openshain/security/advisories/new`)です。`security@openshain.jp` が開通したら、SECURITY.md に足すのと同じ commit で security.txt にも足します。`Policy` は SECURITY.md の URL です
+- 正規の URL は `https://openshain.jp` です。`www.openshain.jp` と `openshain.com` はそこへ転送します
+- `packages/*/package.json` の `homepage` は `https://openshain.jp` です。README の先頭の案内にもサイトへのリンクがあります。ソースコード、Issue、Release へのリンクは GitHub のままです
+- `security.txt`: サイトが `/.well-known/security.txt` を出します。`Contact` は SECURITY.md と同じ窓口で、GitHub の Report a vulnerability(`https://github.com/openshain/openshain/security/advisories/new`)です。`Policy` は SECURITY.md の URL です。`security@openshain.jp` を窓口に足すときは、SECURITY.md と security.txt を同じ日に直します
 
 ## 検査
 
@@ -98,4 +98,4 @@ dispatch は早く更新するための合図で、何を出すかの基準は G
 - Stable release: a tag of the form `vX.Y.Z`. Tags with a suffix (`-rc.1`, `-beta.2`, `-experimental`) become prereleases. Draft and prerelease releases are never picked up; use `releases/latest`.
 - On a stable release the Release workflow sends `repository_dispatch` with event type `openshain-release` and `client_payload` `{tag, version, sha, release_url}` to the repository named by the `WEBSITE_REPOSITORY` variable, using the `WEBSITE_DISPATCH_TOKEN` secret. Without both, nothing is sent and the workflow still succeeds.
 - Moving, renaming or deleting a path in the table is a breaking change; update the table in the same commit. `test/website-contract.test.ts` checks that every path exists.
-- Canonical URL: `https://openshain.jp`. Links stay on GitHub until the domain is live; `security.txt` must keep the same contact as SECURITY.md.
+- Canonical URL: `https://openshain.jp` (`homepage` of every package). Source, issues and releases stay on GitHub; `security.txt` keeps the same contact as SECURITY.md.

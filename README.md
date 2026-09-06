@@ -20,6 +20,7 @@
   <a href="#claude-code-から">Claude Code から</a> ·
   <a href="#知識の投入導線">知識</a> ·
   <a href="#設計思想">設計思想</a> ·
+  <a href="https://openshain.jp">公式サイト</a> ·
   <a href="README.en.md">English</a>
 </p>
 

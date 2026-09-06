@@ -2,6 +2,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [Unreleased]
+
+### Changed
+
+- package の `homepage` と README の案内が公式サイト `https://openshain.jp` を指します
+
 ## [0.1.0] - 2026-09-06
 
 最初の公開版です。Model、Tool、入口を交換できるエージェントハーネスの中核(spec の Open Runtime)です。
