@@ -1,6 +1,6 @@
 # 公式サイトとの連携
 
-公式サイト(`https://openshain.jp`)は別の repo にあり、build のときにこの repo を特定の commit で checkout して、製品情報、文書、ブランド資産を読みます。この repo がそれらの原本で、サイト側にコピーは置きません。この文書は、サイトが読んでよい path と、その約束です。
+公式サイト(`https://openshain.jp`)は別の repo にあり、build のときにこの repo を特定の commit で checkout して、製品情報、文書、ブランド資産を読みます。この repo がそれらの原本で、サイト側にコピーは置きません。この文書は、サイトが読んでよい path の一覧と、それを変えるときの規則です。
 
 ## サイトが読む path
 
@@ -31,7 +31,7 @@
 
 読んでよいのは表にある path だけです。表にない path(`packages/` の中身、`scripts/`、`.github/`、`test/`)はサイトから読みません。
 
-## 約束
+## 変更の規則
 
 - 表にある path の移動、改名、削除は breaking change です。`CHANGELOG.md` の Changed に書き、この表を同じ commit で直します。サイト側は、表の版に合わせて追従します
 - ファイルを足すこと(新しい図、新しい文書)は breaking ではありません

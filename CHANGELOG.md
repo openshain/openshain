@@ -17,6 +17,6 @@
 - 社員エージェントはセッションごとに名前を持ちます。名前は `company.language`(`ja` か `en`)の一覧から選び、Work の記録に残ります
 - openshain.yaml、events.jsonl、work.json の JSON Schema(`spec/schemas/`)
 - 各 package の設計ノート(`docs/design/`)
-- 公式サイトが読む path の約束(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
+- 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
 [0.1.0]: https://github.com/openshain/openshain/releases/tag/v0.1.0

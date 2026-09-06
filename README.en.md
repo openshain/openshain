@@ -227,7 +227,7 @@ The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Offic
 
 ## Design principles
 
-1. An employee agent works under the same commitments as a person of the company. It records what it was asked, what it did, and what it left behind
+1. An employee agent acts on behalf of a person, within the authority delegated to it. It records what it was asked, what it did, and what it left behind
 2. The everyday office work of a company can be completed with the OSS alone
 3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no back door that only the interactive CLI can use
 4. If something is offered for a fee (a managed service, continuously delivered knowledge of the Japanese jurisdiction), it is paid for running openshain on your behalf, not for unlocking features

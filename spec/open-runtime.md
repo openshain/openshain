@@ -483,7 +483,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 - Anthropic と OpenAI 互換の provider は、記録した HTTP 応答を fetch の差し替えで返して試します。実 API への smoke test は `OPENSHAIN_LIVE_TESTS=1` のときだけ動きます。
 - MCP Server は MCP SDK の in-memory transport で、client から `work_create` → Tool 呼び出し → `work_complete` を通します。
 - 第三者 Tool は、一時 workspace の `openshain.yaml` に `examples/tools/echo` を書いて読み込みます。
-- テストで確認する約束: workspace 外、予約パス(先頭が `.` の項目を含む)、行き先が外を向く symlink は拒否されること、schema 不一致と許可リスト外は実行前に止まること、上限で止まること、同じ Work の使用量が合計できること、同値のイベント列から同じバイト列の投影が作られること、2 つ目の書き手は lock と `concurrent_write` の両方で止まること、書いたイベントは必ず読めること、Tool に対応しない model は起動時に止まることです。
+- テストで確認すること: workspace 外、予約パス(先頭が `.` の項目を含む)、行き先が外を向く symlink は拒否されること、schema 不一致と許可リスト外は実行前に止まること、上限で止まること、同じ Work の使用量が合計できること、同値のイベント列から同じバイト列の投影が作られること、2 つ目の書き手は lock と `concurrent_write` の両方で止まること、書いたイベントは必ず読めること、Tool に対応しない model は起動時に止まることです。
 
 ## 完了の条件
 
