@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CONFIG_FILE_NAME, type Language, OpenshainError } from "@openshain/core";
 
@@ -72,8 +72,9 @@ export interface InitOptions {
 
 /**
  * Writes the starter files of a company workspace: openshain.yaml, .mcp.json, AGENTS.md and
- * CLAUDE.md. A workspace that already has openshain.yaml is left alone with an error; any other
- * file that already exists is kept as it is.
+ * CLAUDE.md. A workspace that already has openshain.yaml is left alone with an error. An existing
+ * .mcp.json keeps its servers and gains the openshain entry when it lacks one; any other file that
+ * already exists is kept as it is.
  */
 export async function init({ workspaceRoot, write }: InitOptions): Promise<void> {
   const configPath = join(workspaceRoot, CONFIG_FILE_NAME);
@@ -104,10 +105,40 @@ export async function init({ workspaceRoot, write }: InitOptions): Promise<void>
       write(`${path} を作りました。`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
-      write(`${path} はすでにあるので触りません。`);
+      if (name === ".mcp.json") write(await addToMcpConfig(path));
+      else write(`${path} はすでにあるので触りません。`);
     }
   }
   write(
     "company と principal を自分の会社に合わせ、api_key_env に書いた環境変数を設定してから openshain run を実行してください。",
   );
+}
+
+/**
+ * Adds the openshain server to a .mcp.json that is already there, keeping every other server.
+ * A file that cannot be read as JSON is left as it is, and the line says so.
+ */
+async function addToMcpConfig(path: string): Promise<string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(path, "utf8"));
+  } catch {
+    return `${path} はすでにあり、JSON として読めないので触りません。openshain を手で登録してください。`;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return `${path} はすでにあり、形が違うので触りません。openshain を手で登録してください。`;
+  }
+  const config = parsed as { mcpServers?: unknown };
+  const servers =
+    config.mcpServers && typeof config.mcpServers === "object" && !Array.isArray(config.mcpServers)
+      ? (config.mcpServers as Record<string, unknown>)
+      : {};
+  if (Object.hasOwn(servers, "openshain"))
+    return `${path} には openshain がすでにあるので触りません。`;
+  const next = {
+    ...config,
+    mcpServers: { ...servers, openshain: { command: "openshain", args: ["mcp"] } },
+  };
+  await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+  return `${path} に openshain を足しました。他の項目はそのままです。`;
 }

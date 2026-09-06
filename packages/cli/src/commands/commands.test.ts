@@ -92,6 +92,37 @@ describe("init", () => {
     expect(await readFile(join(root, "CLAUDE.md"), "utf8")).toBe("@AGENTS.md\n");
   });
 
+  test("adds openshain to a .mcp.json that already lists other servers, and leaves one that has it", async () => {
+    const root = await tmp();
+    await writeFile(
+      join(root, ".mcp.json"),
+      JSON.stringify({ mcpServers: { other: { command: "other-mcp" } }, unrelated: 1 }, null, 2),
+    );
+    const out = io();
+
+    await init({ workspaceRoot: root, write: out.write });
+
+    const merged = JSON.parse(await readFile(join(root, ".mcp.json"), "utf8"));
+    expect(merged.mcpServers.other).toEqual({ command: "other-mcp" });
+    expect(merged.mcpServers.openshain).toEqual({ command: "openshain", args: ["mcp"] });
+    expect(merged.unrelated).toBe(1);
+    expect(out.lines.join("\n")).toContain("openshain を足しました");
+
+    const again = io();
+    await expect(init({ workspaceRoot: root, write: again.write })).rejects.toThrow(/上書き/);
+  });
+
+  test("leaves a .mcp.json it cannot read as JSON, and says so", async () => {
+    const root = await tmp();
+    await writeFile(join(root, ".mcp.json"), "{ not json");
+    const out = io();
+
+    await init({ workspaceRoot: root, write: out.write });
+
+    expect(await readFile(join(root, ".mcp.json"), "utf8")).toBe("{ not json");
+    expect(out.lines.join("\n")).toContain("JSON として読めない");
+  });
+
   test("names the directory when it does not exist", async () => {
     const root = await tmp();
     const missing = join(root, "missing");

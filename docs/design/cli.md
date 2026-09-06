@@ -55,7 +55,7 @@ TTY がなければ `ask_user` に答えず、`waiting_input` のまま質問文
 
 ## `init` は 4 つのファイルを書く
 
-決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部エージェントへの指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書きます。`openshain.yaml` があれば断り、他の 3 つは無いものだけ書きます。
+決めたこと。`openshain init` は `openshain.yaml` のほかに、Claude Code 用の `.mcp.json`、外部エージェントへの指示の `AGENTS.md`、それを読ませる `CLAUDE.md` を書きます。`openshain.yaml` があれば断ります。`.mcp.json` は既にあれば他の server を残して openshain の項目だけ足し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます。利用者のファイルを壊さないこと、そして既に MCP server を使っている人が手で JSON を編集しなくて済むことの両方のためです。
 
 理由。Claude Code からの接続テストで詰まったのは、`.mcp.json` を手で書くことと、依頼文で自前の Tool を使わないよう言わないと Runtime を通らないことの 2 つでした。どちらも会社フォルダにファイルを 1 つ置けば済みます。`.mcp.json` の command が `openshain` で済むのは、配布をバイナリにして PATH に置く形にしたからです。
 
