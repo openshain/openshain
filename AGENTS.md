@@ -57,4 +57,5 @@ An agent harness that turns a general agent into a professional employee of a co
 - Examples, fixtures and tests use fictional companies and fictional data only. Never commit real company data, credentials or personal data.
 - Do not add a dependency without saying why in the commit message. The screen is drawn with Ink and React; the rest of the CLI prints plain lines and takes no color or spinner library.
 - Ask before changing a public contract in `packages/core` or a file under `spec/`.
+- The official website builds from this repository at a release commit and reads only the paths listed in [docs/website-integration.md](docs/website-integration.md). Moving, renaming or deleting one of them is a breaking change: update that table in the same commit.
 - How contributions arrive, for people: [CONTRIBUTING.md](CONTRIBUTING.md). Security reports: [SECURITY.md](SECURITY.md).

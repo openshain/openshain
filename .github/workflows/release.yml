@@ -28,6 +28,18 @@ jobs:
           bun run lint
           bun test
 
+      - name: Check that the tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for pkg in packages/*/package.json; do
+            version="$(bun -e "console.log(JSON.parse(require('fs').readFileSync('$pkg','utf8')).version)")"
+            if [ "$version" != "$tag" ]; then
+              echo "$pkg has version $version but the tag is v$tag; align them before tagging" >&2
+              exit 1
+            fi
+          done
+
       - name: Build binaries for each platform
         run: |
           mkdir -p dist
@@ -58,4 +70,26 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/openshain-* dist/SHA256SUMS --title "openshain ${GITHUB_REF_NAME#v}" --notes-file notes.md
+        run: |
+          # A tag with a suffix (v0.2.0-rc.1, v0.2.0-beta.2) is a prerelease; only vX.Y.Z is stable.
+          prerelease=""
+          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/openshain-* dist/SHA256SUMS --title "openshain ${GITHUB_REF_NAME#v}" --notes-file notes.md $prerelease
+
+      - name: Tell the website about a stable release
+        # The website builds from the commit named here. See docs/website-integration.md.
+        if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+        env:
+          WEBSITE_REPOSITORY: ${{ vars.WEBSITE_REPOSITORY }}
+          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$WEBSITE_REPOSITORY" ] || [ -z "$GH_TOKEN" ]; then
+            echo "WEBSITE_REPOSITORY or WEBSITE_DISPATCH_TOKEN is not set; the website is not told about this release"
+            exit 0
+          fi
+          gh api "repos/$WEBSITE_REPOSITORY/dispatches" \
+            -f event_type=openshain-release \
+            -f "client_payload[tag]=$GITHUB_REF_NAME" \
+            -f "client_payload[version]=${GITHUB_REF_NAME#v}" \
+            -f "client_payload[sha]=$GITHUB_SHA" \
+            -f "client_payload[release_url]=https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
