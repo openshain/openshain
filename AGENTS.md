@@ -37,7 +37,7 @@ An agent harness that turns a general agent into a professional employee of a co
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first, in the polite です・ます style: README, docs, specs, plans, CHANGELOG, CONTRIBUTING and SECURITY alike. Headings, table headers and bullet fragments stay as noun phrases; a bullet that is a sentence ends in です・ます.
 - Japanese docs use the words a Japanese engineer would say, not literal translations of English design jargon: エージェント rather than Agent for an agent, インターフェース rather than 契約 for contract, 範囲 rather than 窓 for what a reading tool returns, 原本 rather than 正本 for the source of truth, 残り回数 rather than 予算 for the budget notice, 同じ入力なら同じ結果 rather than 決定的.
 - Commit messages follow Conventional Commits and say what changed in the product.
-- The project calls itself an agent harness (エージェントハーネス) wherever it describes itself. "Runtime" names the component that runs works, not the project. The model the person talks to on the screen is the 社員エージェント (employee agent in English), never 担当.
+- The project calls itself an agent harness (エージェントハーネス) wherever it describes itself. "Runtime" names the component that runs works, not the project. The model the person talks to on the screen is called the 社員エージェント (employee agent in English); 担当 is not used for it.
 
 ## How to work here
 
