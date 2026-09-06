@@ -40,7 +40,7 @@ Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)�
 
 ## Claude Code から使うためのファイル
 
-`openshain init` は設定のほかに 3 つのファイルを書きます。既にあるものは上書きしません。`.mcp.json` が既にあれば、他の server の項目を残したまま openshain の項目だけを足します(JSON として読めないときは触らず、その旨を出します)。`AGENTS.md` と `CLAUDE.md` は既にあれば触りません。
+`openshain init` は設定のほかに 3 つのファイルを書きます。既にあるものは上書きしません。`.mcp.json` が既にあれば、他のサーバーの項目を残したまま openshain の項目だけを足します(JSON として読めないときは触らず、その旨を出します)。`AGENTS.md` と `CLAUDE.md` は既にあれば触りません。
 
 | ファイル | 内容 |
 |---|---|

@@ -340,7 +340,7 @@ provider が throw → model.failed → work.failed(model_error)
 | コマンド | 動き |
 |---|---|
 | `openshain` | 引数なしで端末があれば、社員エージェントと話す画面を開きます(spec は interactive-cli.md)。端末がなければ使い方を出します |
-| `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書きます。`openshain.yaml` があれば断ります。`.mcp.json` が既にあれば他の server を残して openshain の項目だけ足し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます |
+| `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書きます。`openshain.yaml` があれば断ります。`.mcp.json` が既にあれば他のサーバーを残して openshain の項目だけ足し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます |
 | `openshain run "<依頼>"` | Work を作って完了か停止まで進めます。Tool 呼び出しごとに 1 行出します。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を出します |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)です。読めない Work は別枠で示します |
 | `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰かを出します |
