@@ -43,8 +43,8 @@
     "openshain": "./dist/bin.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json"
+    "build": "../../node_modules/.bin/tsc -p tsconfig.build.json",
+    "prepublishOnly": "rm -rf dist && ../../node_modules/.bin/tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",

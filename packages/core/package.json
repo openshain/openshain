@@ -40,8 +40,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "rm -rf dist && tsc -p tsconfig.build.json"
+    "build": "../../node_modules/.bin/tsc -p tsconfig.build.json",
+    "prepublishOnly": "rm -rf dist && ../../node_modules/.bin/tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "ajv": "8.20.0",
