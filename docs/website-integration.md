@@ -16,10 +16,14 @@
 | `assets/openshain_vertical_lockup_color.svg` | 印の下に文字を置いた形です |
 | `assets/favicon.svg` | favicon です |
 | `assets/favicon.ico` | favicon の ico 版です |
-| `assets/icon-192.png` | サイトとアプリのアイコンです。正方形です |
-| `assets/icon-512.png` | 512px のアイコンです |
-| `assets/icon-1024.png` | 1024px のアイコンです |
-| `assets/apple-touch-icon.png` | iOS のホーム画面用のアイコンです |
+| `assets/web_icon-192.png` | サイトのアイコンです。明るい地に緑の印、正方形です |
+| `assets/web_icon-512.png` | 512px のサイトのアイコンです |
+| `assets/web_icon-1024.png` | 1024px のサイトのアイコンです |
+| `assets/web_apple-touch-icon.png` | iOS のホーム画面用のサイトのアイコンです(180px) |
+| `assets/app_icon-192.png` | アプリのアイコンです。緑の地に白の印、正方形です |
+| `assets/app_icon-512.png` | 512px のアプリのアイコンです |
+| `assets/app_icon-1024.png` | 1024px のアプリのアイコンです |
+| `assets/app_apple-touch-icon.png` | iOS のホーム画面用のアプリのアイコンです(180px) |
 | `docs/` | 利用者向けの文書です。`docs/design/` は設計ノートです |
 | `spec/` | 仕様です。`spec/schemas/` はコードから生成した JSON Schema です |
 | `CHANGELOG.md` | 版ごとの変更です。`## [x.y.z] - 日付` の節に分かれています |

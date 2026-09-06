@@ -7,6 +7,7 @@
 ### Changed
 
 - package の `homepage` と README の案内が公式サイト `https://openshain.jp` を指します
+- アイコンのファイル名が変わりました。サイト用は `assets/web_icon-*.png` と `assets/web_apple-touch-icon.png`、アプリ用は `assets/app_icon-*.png` と `assets/app_apple-touch-icon.png` です。`assets/icon-*.png` と `assets/apple-touch-icon.png` はありません(サイトが読む path の変更)
 
 ## [0.1.0] - 2026-09-06
 
