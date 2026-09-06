@@ -1,6 +1,6 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/openshain_horizontal_lockup_white.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/openshain_horizontal_lockup_color_for-dark.svg">
     <img src="assets/openshain_horizontal_lockup_color.svg" width="360" alt="openshain">
   </picture>
 </p>
@@ -54,135 +54,159 @@ openshain 0.1.0
   - Communications: 29 receipts, 172,370 yen
   
   They are in summary.md.
-
-> Which category is the largest?
-
-⏺ The largest category is fees.
-  
-  Its total is 1,170,950 yen, the highest of all categories.
-╭────────────────────────────────────────────────────────────────────────────╮
-│ > ▌                                                                       │
-╰────────────────────────────────────────────────────────────────────────────╯
-work_01a0720c… completed · model calls 3, input 5350, output 454 tokens · /help
 ```
 
-The screen speaks Japanese; this is the same conversation translated. The employee agent, the one you talk to on the screen, goes by a name for the session (みなと here), turns the request into a work, the child work reads and writes files through tools, the closing lines show what was written and what it cost, and the employee agent reports back. The conversation and the work are both kept under `work/`.
+You talk with an employee agent in an interactive CLI.
 
-Agents such as Claude and Codex cannot work as employees of a company on their own. They lack the company's rules and procedures, hands for SaaS and Office files, authority and approval, work state that survives a session, and evidence and cost. openshain adds these as an agent harness.
+Agents such as Claude and Codex cannot work as an employee of a company as they are. They lack the rules and procedures of the company, hands for SaaS and Office files, permissions and approval, work state that survives a session, and a trail of what was done and what it cost.
 
-## Features
+openshain is an agent harness that supplies what an agent needs to work as an employee of your company. You do not have to use the openshain CLI: the **MCP server** openshain provides lets you build your own harness on top of Claude Code or Codex.
 
-- Type `openshain` and talk to your employee agent; when there is work to do, it turns it into a work and reports back
-- A request becomes a work, fully recorded in `work/<id>/events.jsonl`; stop and resume at will
-- Swap the model in configuration: Anthropic and OpenAI-compatible APIs, with your own key
-- Standard tools for files, CSV and Markdown, confined to the workspace; results come as windows and aggregates, never whole files
-- Use the same runtime from Claude Code or Codex over MCP: the agent thinks, the runtime records
-- Add your own tool with one line of configuration, under the same contract as the official ones
-- Artifact hashes and usage recorded per work
+## What it does
 
-Authority, approval, escalation to experts and profession packs are still to come. The only profession today is `generic`; the accounting employee is the first one being built.
+- **Interactive CLI**: `openshain` starts a conversation with an employee agent. Give it a request and the agent turns it into a Work, carries it out, and reports back
+- **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stops can be resumed
+- **Models**: the configuration file written by `openshain init` names the model. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported
+- **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
+- **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
+- **From Claude Code and other agents**: `openshain mcp` is the MCP server. Register it in Claude Code or Codex and the same harness works on top of those agents
+
+### Professions available today
+
+- General (`generic`): general office work over the files in the company folder
+- (In development) Accounting: reconciling ledgers against receipts, monthly summaries, and knowledge specific to accounting
+
+The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and you have your own profession. Permissions, approval, and escalation to an expert are still to come.
 
 ## Install
 
-Take a binary from [GitHub Releases](https://github.com/openshain/openshain/releases) and put it on your PATH as `openshain`. The macOS binaries are unsigned: run `xattr -d com.apple.quarantine openshain` once.
+### With Bun
 
-With Bun:
-
-```
-bun install -g openshain
-```
-
-From source:
+Requires [Bun](https://bun.sh) 1.3 or later.
 
 ```
-git clone https://github.com/openshain/openshain.git
-cd openshain
-bun install
-bun run build   # dist/openshain
+bun install -g openshain   # installs the openshain command
+openshain --help           # checks that it is there
+```
+
+### Binaries
+
+[GitHub Releases](https://github.com/openshain/openshain/releases) carries single-file binaries for Linux (x64, arm64) and macOS (x64, arm64). Download one, make it executable, and put it on your PATH under the name `openshain`.
+
+```
+chmod +x openshain-linux-x64            # makes it executable
+mv openshain-linux-x64 ~/.local/bin/openshain   # puts it on your PATH
+```
+
+#### macOS
+
+Gatekeeper blocks the first run of a binary downloaded with a browser. Remove the quarantine attribute before running it.
+
+```
+xattr -d com.apple.quarantine openshain   # removes the quarantine attribute
+```
+
+#### Windows
+
+There is no Windows binary yet. Install with Bun, or use the Linux binary under WSL.
+
+### From source
+
+```
+git clone https://github.com/openshain/openshain.git && cd openshain
+bun install                      # installs dependencies
+bun run build                    # writes the single-file binary to dist/openshain
 ```
 
 ## Usage
 
 ```
-mkdir my-company && cd my-company
-openshain init                       # writes openshain.yaml, .mcp.json, AGENTS.md, CLAUDE.md
-export ANTHROPIC_API_KEY=...         # the variable name is api_key_env in openshain.yaml
-openshain                            # talk to the employee agent; /help lists the screen's commands
-openshain run "Total this month's receipts"   # one request without the screen
-openshain work list
-openshain work show <id>
+mkdir my-company && cd my-company   # creates the company folder
+openshain init                      # writes the configuration, the MCP registration, and AGENTS.md
+export ANTHROPIC_API_KEY=...        # the API key of the model you use
+openshain                           # starts the conversation with the employee agent
 ```
 
-On the screen, the employee agent turns what you ask into a work and drives it, one line per tool call. When a work asks a question, you answer it right there. The conversation itself is kept as a work; when you leave, the terminal returns to where it was, and `openshain work show <session id>` reads the conversation back.
+`openshain` is a full-screen conversation: the history above, the input line below. Write a request and the employee agent turns it into a Work, progress flows past on the `⎿` lines, and the result comes back. When a Work asks a question, you answer it in place. `/help` lists the keys and the slash commands.
 
-| On the screen | What it does |
-|---|---|
-| `/work list`, `/work show <id>` | List works, show one |
-| `/work resume <id>` | Continue a stopped work, answering its questions on the screen |
-| `/tools`, `/help`, `/quit` | The tools available, the help, leave |
-| Ctrl-C | Stop the running work, withdrawing a question it waits on; leave when nothing runs |
-| ↑ ↓ | Recall the lines sent before; the bottom is the new line |
-| ← → Home End | Move the cursor in the input; Backspace and Delete act where it is |
-| Mouse wheel, PageUp and PageDown | Scroll back through the conversation; sending a line returns to the newest rows |
+```
+openshain                       # starts the interactive CLI
+openshain init                  # initializes the company folder
+openshain run "<request>"       # runs a single Work without a conversation
+openshain work list             # lists Works
+openshain work show <id>        # reads the record of a Work
+openshain work resume <id>      # continues a Work that stopped
+openshain tools list            # lists the tools available
+openshain mcp                   # runs as an MCP server (normally the agent starts it)
+```
 
-| Command | What it does |
-|---|---|
-| `openshain` | The conversation screen; work is started as works |
-| `openshain init` | Write the workspace configuration and the instruction files for agents |
-| `openshain run "<request>"` | Create a work and drive it to completion or a stop |
-| `openshain work list` / `work show <id>` | List works and show one, with usage totals and who acts next |
-| `openshain work resume <id>` | Continue a work that stopped on a question or an interruption |
-| `openshain tools list` | The tools available and whether each is allowed |
-| `openshain mcp` | Serve the workspace over MCP on stdio |
-
-`--workspace <dir>` names the company folder; otherwise it is found by walking up from the current directory to `openshain.yaml`.
+An example of adding a tool is in [examples/](examples/README.md).
 
 ### From Claude Code
 
-Start `claude` in the company folder and trust it. The `.mcp.json` written by `openshain init` connects `openshain mcp`, and `/mcp` lists openshain. Write the request as usual: Claude Code thinks, openshain does the file work and keeps the record. `AGENTS.md` tells the agent to use openshain's tools for company files.
+1. `openshain init` writes `.mcp.json` into the company folder. If one is already there, it keeps the other servers and adds only the openshain entry
+2. Start `claude` in the company folder and trust the folder. Claude Code reads `.mcp.json`, starts `openshain mcp` itself, and connects. openshain appears under `/mcp`
+3. Write a request. Claude Code does the thinking, and openshain's tools do the reading, writing, and recording in the company folder. `AGENTS.md` tells it which is which
+4. The record and the output of the request stay in `work/` in the company folder, readable with `openshain work list` and `openshain work show <id>`
 
-Any other agent that speaks MCP over stdio, such as Codex, can register `openshain mcp` the same way.
+Any other agent, Codex included, works the same way once `openshain mcp` is registered as a stdio MCP server.
 
 ## Configuration
 
-The smallest `openshain.yaml`:
+`openshain.yaml` describes the company, the profession, the model, and the tools.
 
-```yaml
-version: 1
-company:
-  name: Sample Inc.
-principal:
-  id: alice
-  name: Alice
-profession:
-  id: generic
-  instructions: You are the back-office clerk of this company.
-model:
-  provider: anthropic          # anthropic | openai-compatible
-  model: claude-opus-5
-  api_key_env: ANTHROPIC_API_KEY
-```
+- Every field is in [docs/configuration.md](docs/configuration.md)
+- The `openshain.yaml` written by `openshain init` explains each field in comments
 
-`company.language` (`ja` or `en`, default `ja`) selects the list the employee agent's name comes from; `openshain init` fills it from the OS locale. Every field: [docs/configuration.md](docs/configuration.md) (Japanese). JSON Schemas: [spec/schemas/](spec/schemas/).
+## Bringing knowledge in
 
-## Design
+An employee agent needs two kinds of knowledge to work as a person of the company: the company's own rules, and knowledge specific to the Japanese jurisdiction. They enter through different places and routes.
 
-- Work, not answers.
-- Existing SaaS remains the system of record: the company's records stay in the accounting software, SaaS and ledgers it already uses. openshain reads and writes there; the only records it keeps are its own work records.
-- Official has no hidden privilege: the tools and model providers openshain itself ships go through the same interfaces as anyone else's. There is no back door.
-- Paid means easiest: the open-source code completes the main use cases on its own. Anything paid takes over running openshain for a company; it does not unlock features.
+### The company's own policies and knowledge
 
-Principles in full: [docs/principles.md](docs/principles.md). Why each package is shaped as it is: [docs/design/](docs/design/README.md). Specification: [spec/](spec/README.md).
+The company's rules (expense policies, approval thresholds, how each counterparty is handled, document formats) and the company's records (ledgers, contracts, past filings). In the current version they enter by three routes.
+
+- `profession.instructions` in `openshain.yaml`. The instructions of the profession, placed at the top of the system prompt of every Work. Short rules go here
+- Files in the company folder. Put policies, procedures, and ledgers there and the employee agent reads them with the standard tools. Point at them from the instructions ("the expense policy is in rules/expenses.md"). Only the files a Work asks for reach the model, and nothing leaves the folder
+- `AGENTS.md`. Instructions for Claude Code and Codex. Company rules written there make those agents follow the same rules
+
+In a coming version, company rules live in `rules/` and their supporting material in `sources/`, each with a source and an effective date, and are indexed. The model receives only what the Work needs (need-to-know), and material a person is not allowed to see does not appear in search results either.
+
+### Continuously maintained knowledge of the Japanese jurisdiction
+
+Laws, circulars, guidelines, forms, and deadlines are not something each company writes down, and they keep changing. openshain treats them as knowledge delivered together with a profession: each item carries its source and effective date, and can be looked up by version and by point in time. Accounting comes first.
+
+The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is a candidate paid offering, as the operation of keeping up with the changes. Without it, an employee agent still works from the documents placed in the company folder.
+
+## Design principles
+
+1. An employee agent works under the same commitments as a person of the company. It records what it was asked, what it did, and what it left behind
+2. The everyday office work of a company can be completed with the OSS alone
+3. The tools and model providers openshain itself ships go through the same interfaces as anyone else's (ToolProvider, ModelProvider, MCP). There is no back door that only the interactive CLI can use
+4. If something is offered for a fee (a managed service, continuously delivered knowledge of the Japanese jurisdiction), it is paid for running openshain on your behalf, not for unlocking features
+
+- The full text is in [docs/principles.md](docs/principles.md)
+- The design of each package and the reasons behind it are in [docs/design/](docs/design/README.md)
+- The specification is in [spec/](spec/README.md)
 
 ## Development
 
+Requires Bun 1.3 or later.
+
 ```
-bun install
-bun run typecheck && bun run lint && bun test
+git clone https://github.com/openshain/openshain.git && cd openshain
+bun install                            # installs dependencies
+bun run typecheck && bun run lint && bun test   # the three checks to pass before sending a change
+bun packages/cli/src/bin.ts            # runs the CLI from source
+bun run build                          # writes the single-file binary to dist/openshain
+bun run schemas                        # regenerates spec/schemas/ from the zod definitions
 ```
 
-Layout and conventions: [AGENTS.md](AGENTS.md). Contributing: [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md).
+- The code is five packages under `packages/`: core (interfaces, the Work record, projection), agent (the tool loop, model providers, sessions), tools (standard tools), mcp (the MCP server), and cli (the `openshain` command and the screen)
+- Tests that call a real API run only with `OPENSHAIN_LIVE_TESTS=1` and the API key in the environment
+- A third-party tool example is in [examples/tools/echo](examples/tools/echo). One line in the configuration makes it callable from both the CLI and MCP
+- Conventions and layout are in [AGENTS.md](AGENTS.md), how to contribute in [CONTRIBUTING.md](CONTRIBUTING.md), vulnerability reports in [SECURITY.md](SECURITY.md), and the history of changes in [CHANGELOG.md](CHANGELOG.md)
 
 ## License
 
-[Apache-2.0](LICENSE)
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
