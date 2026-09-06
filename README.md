@@ -1,4 +1,9 @@
-# openshain
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/openshain_horizontal_lockup_white.svg">
+    <img src="assets/openshain_horizontal_lockup_color.svg" width="360" alt="openshain">
+  </picture>
+</p>
 
 汎用のエージェントを、あなたの会社で働く専門社員にする対話型のエージェントハーネスです。
 
