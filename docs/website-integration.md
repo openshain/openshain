@@ -79,7 +79,7 @@ jobs:
       # build --docs ./openshain
 ```
 
-dispatch は早く更新するための合図で、真実は GitHub Release です。dispatch が届かなかったとき(設定前、失敗)は、サイト側が `releases/latest` を読んで同じ結果になります。
+dispatch は早く更新するための合図で、何を出すかの基準は GitHub Release です。dispatch が届かなかったとき(設定前、失敗)は、サイト側が `releases/latest` を読んで同じ結果になります。
 
 ## URL
 
