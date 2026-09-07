@@ -2,7 +2,7 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
-## [Unreleased]
+## [0.3.1] - 2026-09-07
 
 ### Added
 
@@ -78,7 +78,7 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.3.0...HEAD
+[0.3.1]: https://github.com/openshain/openshain/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/openshain/openshain/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/openshain/openshain/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/openshain/openshain/compare/v0.1.0...v0.1.1
