@@ -21,7 +21,7 @@ import { type ClientResult, jsonOf, type RuntimeClient } from "./client.ts";
 import { pickAgentName } from "./names.ts";
 
 /** How much one turn of the conversation may do before it stops and the person is told. */
-export const TURN_LIMITS = { modelCalls: 5, toolCalls: 10 } as const;
+export const TURN_LIMITS = { modelCalls: 25, toolCalls: 40 } as const;
 
 /** The tools of the runtime that the loop itself drives; the model never sees them. */
 const LOOP_ONLY_TOOLS: ReadonlySet<string> = new Set(["work_record", "work_answer"]);

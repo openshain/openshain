@@ -46,23 +46,27 @@ export const ConfigFileSchema = z.strictObject({
   }),
   principal: z.strictObject({ id: identifier, name: z.string().min(1).max(200) }),
   profession: z.strictObject({ id: identifier, instructions: z.string().min(1).max(100_000) }),
-  model: z.strictObject({
-    provider: identifier,
-    model: z.string().min(1).max(200),
-    api_key_env: envVarName,
-    base_url: z
-      .url()
-      .refine((value) => {
-        const url = new URL(value);
-        return url.username === "" && url.password === "";
-      }, "base_url must not carry credentials; use api_key_env")
-      .refine((value) => {
-        const url = new URL(value);
-        return url.protocol === "https:" || (url.protocol === "http:" && isLoopback(url.hostname));
-      }, "base_url must use https unless it points at this machine (localhost, 127.0.0.0/8, ::1)")
-      .optional(),
-    options: z.record(z.string(), z.unknown()).optional(),
-  }),
+  model: z
+    .strictObject({
+      provider: identifier,
+      model: z.string().min(1).max(200),
+      api_key_env: envVarName,
+      base_url: z
+        .url()
+        .refine((value) => {
+          const url = new URL(value);
+          return url.username === "" && url.password === "";
+        }, "base_url must not carry credentials; use api_key_env")
+        .refine((value) => {
+          const url = new URL(value);
+          return (
+            url.protocol === "https:" || (url.protocol === "http:" && isLoopback(url.hostname))
+          );
+        }, "base_url must use https unless it points at this machine (localhost, 127.0.0.0/8, ::1)")
+        .optional(),
+      options: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
   tools: z.array(toolProviderRef).default([{ provider: "standard" }]),
   limits: z
     .strictObject({
@@ -81,18 +85,22 @@ export type ToolProviderRef =
   | { module: string; allow: readonly string[] | undefined };
 
 /** Configuration as used in code (camelCase). */
+/** The model section of openshain.yaml, as the model providers take it. */
+export interface ModelConfig {
+  provider: string;
+  model: string;
+  apiKeyEnv: string;
+  baseUrl: string | undefined;
+  options: Record<string, unknown> | undefined;
+}
+
 export interface Config {
   version: 1;
   company: { name: string; language: Language };
   principal: { id: string; name: string };
   profession: { id: string; instructions: string };
-  model: {
-    provider: string;
-    model: string;
-    apiKeyEnv: string;
-    baseUrl: string | undefined;
-    options: Record<string, unknown> | undefined;
-  };
+  /** The model the interactive CLI runs on. Absent when the workspace is used from other agents only. */
+  model?: ModelConfig;
   tools: ToolProviderRef[];
   limits: { maxModelCalls: number; maxToolCalls: number; maxOutputTokens: number };
   debug: { persistRaw: boolean };
@@ -104,13 +112,15 @@ export function toConfig(file: ConfigFile): Config {
     company: { name: file.company.name, language: file.company.language },
     principal: { id: file.principal.id, name: file.principal.name },
     profession: { id: file.profession.id, instructions: file.profession.instructions },
-    model: {
-      provider: file.model.provider,
-      model: file.model.model,
-      apiKeyEnv: file.model.api_key_env,
-      baseUrl: file.model.base_url,
-      options: file.model.options,
-    },
+    ...(file.model && {
+      model: {
+        provider: file.model.provider,
+        model: file.model.model,
+        apiKeyEnv: file.model.api_key_env,
+        baseUrl: file.model.base_url,
+        options: file.model.options,
+      },
+    }),
     tools: file.tools.map(toToolProviderRef),
     limits: {
       maxModelCalls: file.limits.max_model_calls,

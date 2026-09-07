@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -47,7 +47,7 @@ describe("openshain", () => {
   });
 
   test("an unknown option exits with 2 instead of crashing", async () => {
-    const { code, stdout, stderr } = await openshain("run", "--foo", "x");
+    const { code, stdout, stderr } = await openshain("tools", "--foo", "list");
 
     expect(code).toBe(2);
     expect(stdout).toContain("不明なオプション --foo");
@@ -55,7 +55,7 @@ describe("openshain", () => {
   });
 
   test("an option without its value exits with 2 and says the arguments could not be read", async () => {
-    const { code, stdout } = await openshain("run", "x", "--workspace");
+    const { code, stdout } = await openshain("tools", "list", "--workspace");
 
     expect(code).toBe(2);
     expect(stdout).toContain("引数を解釈できません");
@@ -68,20 +68,31 @@ describe("openshain", () => {
     expect(stdout).toContain("使い方");
   });
 
-  test("run without the API key in the environment is a config error that names the variable", async () => {
+  test("a workspace without a model section still lists tools and works", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
     await openshain("init", "--workspace", root);
+    const yaml = await readFile(join(root, "openshain.yaml"), "utf8");
+    await writeFile(join(root, "openshain.yaml"), yaml.replace(/\nmodel:\n(?: .*\n)+/, "\n"));
 
-    const { code, stderr } = await openshainWith(
+    const tools = await openshainWith(
       { ANTHROPIC_API_KEY: undefined },
-      "run",
-      "x",
+      "tools",
+      "list",
+      "--workspace",
+      root,
+    );
+    const works = await openshainWith(
+      { ANTHROPIC_API_KEY: undefined },
+      "work",
+      "list",
       "--workspace",
       root,
     );
 
-    expect(code).toBe(1);
-    expect(stderr).toContain("ANTHROPIC_API_KEY");
+    expect(tools.code).toBe(0);
+    expect(tools.stdout).toContain("fs_read");
+    expect(works.code).toBe(0);
+    expect(works.stderr).toBe("");
   });
 
   test("a directory without a config is a config error with exit 1", async () => {

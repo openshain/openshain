@@ -1,5 +1,4 @@
-import { countToolCalls } from "@openshain/agent";
-import type { AnyEvent, Event } from "@openshain/core";
+import { type AnyEvent, countToolCalls, type Event } from "@openshain/core";
 
 export interface UsageSummary {
   modelCalls: number;

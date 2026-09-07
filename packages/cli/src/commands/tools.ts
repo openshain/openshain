@@ -1,5 +1,10 @@
-import { ASK_USER, RUNTIME_PROVIDER_ID } from "@openshain/agent";
-import { createToolRegistry, loadConfig, type RuntimeProviders } from "@openshain/core";
+import {
+  ASK_USER,
+  createToolRegistry,
+  loadConfig,
+  RUNTIME_PROVIDER_ID,
+  type RuntimeProviders,
+} from "@openshain/core";
 
 export interface ToolsListOptions {
   workspaceRoot: string;

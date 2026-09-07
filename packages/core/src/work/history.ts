@@ -1,5 +1,8 @@
 import type { AnyEvent, Event } from "./events.ts";
 
+/** Why a client gives up on a work, as recorded in `work.failed`. */
+export type FailureReason = "limit_reached" | "model_refusal" | "model_error";
+
 /**
  * Counts the tool calls of a work the way the limits do: every call the runtime started, plus
  * every rejection that never became a call. A rejection of a started call is not a second call.

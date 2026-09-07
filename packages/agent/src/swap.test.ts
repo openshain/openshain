@@ -2,18 +2,28 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AnyEvent, createRuntime, type RuntimeProviders } from "@openshain/core";
+import { type AnyEvent, loadConfig, type RuntimeProviders, WorkStore } from "@openshain/core";
+import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
-import { runWork } from "./loop.ts";
+import { connectInMemory } from "./client.ts";
 import { AnthropicProvider } from "./providers/anthropic.ts";
 import { OpenAICompatibleProvider } from "./providers/openai-compatible.ts";
+import { createSession } from "./session.ts";
 
 type ProviderId = "anthropic" | "openai-compatible";
 
 /** The same script for both providers: read the CSV, write the summary, say what was done. */
 const SCRIPT = [
+  { call: { id: "c0", name: "work_create", input: { objective: "receipts を集計して" } } },
   { call: { id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } } },
   { call: { id: "c2", name: "fs_write", input: { path: "summary.md", content: "# 合計 350\n" } } },
+  {
+    call: {
+      id: "c3",
+      name: "work_complete",
+      input: { summary: "summary.md に合計 350 を書きました" },
+    },
+  },
   { text: "summary.md に合計 350 を書きました" },
 ];
 
@@ -123,16 +133,22 @@ async function runScript(provider: ProviderId) {
     },
     tools: { standard: () => standardTools() },
   };
-  const runtime = await createRuntime({ workspaceRoot: root, providers });
-  const work = await runtime.works.create({
-    objective: "receipts を集計して",
-    principal: "alice",
-    profession: "generic",
-  });
-  const done = await runWork(runtime, work.id);
-  const events = await runtime.works.events(work.id);
+  const config = await loadConfig(root, { modelProviders: Object.keys(providers.models) });
+  const modelConfig = config.model as NonNullable<typeof config.model>;
+  const model = (providers.models[modelConfig.provider] as (m: typeof modelConfig) => never)(
+    modelConfig,
+  );
+  const server = await createMcpServer({ workspaceRoot: root, tools: providers.tools });
+  const client = await connectInMemory(server);
+  const session = await createSession(client, { model, config });
+  const reply = await session.turn("receipts を集計して");
+  const store = new WorkStore(root);
+  const work = (await store.list()).works.find((w) => w.type !== "session");
+  if (!work) throw new Error("no work was created");
+  const done = await store.get(work.id);
+  const events = await store.events(work.id);
   const summary = await readFile(join(root, "summary.md"), "utf8");
-  return { done, events, summary, bodies: wire.bodies };
+  return { done, events, summary, bodies: wire.bodies, reply };
 }
 
 const shape = (events: AnyEvent[]) => events.map((e) => e.type);
@@ -149,15 +165,16 @@ describe("the same work through either provider", () => {
     }
     expect(shape(anthropic.events)).toEqual(shape(openai.events));
     expect(anthropic.done.outcome?.artifacts).toEqual(openai.done.outcome?.artifacts);
-    expect(anthropic.bodies).toHaveLength(3);
-    expect(openai.bodies).toHaveLength(3);
+    expect(anthropic.bodies).toHaveLength(5);
+    expect(openai.bodies).toHaveLength(5);
+    expect(anthropic.reply.reply).toBe("summary.md に合計 350 を書きました");
   });
 
   test("hands each provider the tool results in its own wire format", async () => {
     const anthropic = await runScript("anthropic");
     const openai = await runScript("openai-compatible");
 
-    const anthropicTurn2 = (anthropic.bodies[1]?.messages ?? []) as {
+    const anthropicTurn2 = (anthropic.bodies[2]?.messages ?? []) as {
       role: string;
       content: unknown[];
     }[];
@@ -165,7 +182,7 @@ describe("the same work through either provider", () => {
       type: "tool_result",
       tool_use_id: "c1",
     });
-    const openaiTurn2 = (openai.bodies[1]?.messages ?? []) as {
+    const openaiTurn2 = (openai.bodies[2]?.messages ?? []) as {
       role: string;
       tool_call_id?: string;
     }[];

@@ -8,11 +8,11 @@ import {
   WorkStore,
 } from "@openshain/core";
 import { createMcpServer } from "@openshain/mcp";
-import { progressLine, report } from "../commands/run.ts";
 import { toolsList } from "../commands/tools.ts";
 import { workList, workShow } from "../commands/work.ts";
 import { plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
+import { progressLine, report } from "../report.ts";
 import { LOGO_ROWS, VERSION } from "./banner.ts";
 
 /** logo and banner are the rows shown once when the screen opens: the wordmark, the version, the folder. */
@@ -93,6 +93,12 @@ const QUESTION_WITHDRAWN =
 export async function createController(options: ControllerOptions): Promise<Controller> {
   const { workspaceRoot, providers } = options;
   const config = await loadConfig(workspaceRoot, { modelProviders: Object.keys(providers.models) });
+  if (!config.model) {
+    throw new OpenshainError(
+      "config",
+      "対話にはモデルが要ります。openshain.yaml に model を書いてください。Claude Code や Codex から使うだけなら要りません。",
+    );
+  }
   const modelFactory = Object.hasOwn(providers.models, config.model.provider)
     ? providers.models[config.model.provider]
     : undefined;
@@ -206,6 +212,17 @@ export async function createController(options: ControllerOptions): Promise<Cont
           status: event.type === "work.completed" ? "completed" : "failed",
         };
         return closingLines(workId);
+      }
+      // The work_* calls are the loop's own bookkeeping; the closing lines already say the work ended.
+      if (
+        event.type === "tool.called" &&
+        (event as Event<"tool.called">).payload.name.startsWith("work_")
+      ) {
+        names.set(
+          (event as Event<"tool.called">).payload.callId,
+          (event as Event<"tool.called">).payload.name,
+        );
+        return;
       }
       const line = progressLine(event, names);
       if (line) push("progress", line);

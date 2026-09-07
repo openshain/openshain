@@ -70,7 +70,7 @@ export function parseConfig(text: string, options: ParseConfigOptions = {}): Con
   }
 
   const known = options.modelProviders;
-  if (known && !known.includes(result.data.model.provider)) {
+  if (known && result.data.model && !known.includes(result.data.model.provider)) {
     throw new OpenshainError(
       "config",
       problem(

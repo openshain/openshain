@@ -1,19 +1,15 @@
-import { pendingQuestions } from "@openshain/agent";
 import {
   type AnyEvent,
-  createRuntime,
   type Event,
-  isTerminal,
   parseWorkId,
-  type RuntimeProviders,
-  SESSION_WORK_TYPE,
+  pendingQuestions,
   type Work,
   WorkStore,
 } from "@openshain/core";
 import { describeInput, padDisplay } from "../format.ts";
 import { errorLabel, failureLabel, rejectionLabel, statusLabel } from "../labels.ts";
+import { nextActor } from "../report.ts";
 import { formatUsage, summarizeUsage } from "../usage.ts";
-import { type DriveOptions, drive, nextActor } from "./run.ts";
 
 export interface WorkListOptions {
   workspaceRoot: string;
@@ -84,33 +80,6 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   lines.push(formatUsage(summarizeUsage(events)));
   lines.push(nextActor(work));
   return lines;
-}
-
-export interface WorkResumeOptions extends DriveOptions {
-  workspaceRoot: string;
-  providers: RuntimeProviders;
-  id: string;
-}
-
-/** Continues a work that stopped before its end, answering its questions when the caller can. */
-export async function workResume(options: WorkResumeOptions): Promise<number> {
-  const workId = parseWorkId(options.id);
-  const work = await new WorkStore(options.workspaceRoot).get(workId);
-  if (work.type === SESSION_WORK_TYPE) {
-    options.write(
-      `${work.id} は会話の記録のため、再開できません。会話は openshain で始め直してください。`,
-    );
-    return 1;
-  }
-  if (isTerminal(work.status)) {
-    options.write(`${work.id} は${statusLabel(work.status)}のため、再開できません。`);
-    return 1;
-  }
-  const runtime = await createRuntime({
-    workspaceRoot: options.workspaceRoot,
-    providers: options.providers,
-  });
-  return drive(runtime, workId, options);
 }
 
 /** One line per tool call, in log order, with its outcome when it was rejected or failed. */

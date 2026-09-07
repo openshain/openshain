@@ -1,16 +1,6 @@
-// @openshain/agent: Tool loop and model providers (bring your own key)
+// @openshain/agent: The conversation loop that drives the runtime as an MCP client, and the model providers (bring your own key)
 
 export { type ClientResult, connectInMemory, jsonOf, type RuntimeClient, wrap } from "./client.ts";
-export {
-  ASK_USER,
-  countToolCalls,
-  type FailureReason,
-  type PendingQuestion,
-  pendingQuestions,
-  RUNTIME_PROVIDER_ID,
-  type RunWorkOptions,
-  runWork,
-} from "./loop.ts";
 export { AGENT_NAMES, pickAgentName } from "./names.ts";
 export {
   ANTHROPIC_PROVIDER_ID,

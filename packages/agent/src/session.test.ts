@@ -227,7 +227,7 @@ describe("a session", () => {
 
   test("stops a turn that calls the model too often, and the session goes on", async () => {
     const { open } = await setup([
-      ...Array.from({ length: 5 }, (_, i) =>
+      ...Array.from({ length: 25 }, (_, i) =>
         callTools({ id: `c${i}`, name: "work_list", input: {} }),
       ),
       say("やっと。"),
@@ -303,6 +303,6 @@ describe("the agent package as a client", () => {
         offenders.push(name);
       }
     }
-    expect(offenders).toEqual(["loop.ts"]);
+    expect(offenders).toEqual([]);
   });
 });

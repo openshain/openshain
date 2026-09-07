@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { connectInMemory, createSession } from "@openshain/agent";
 import { callTools, FakeModelProvider, say } from "@openshain/agent/testing";
-import { type RuntimeProviders, WorkStore } from "@openshain/core";
+import { loadConfig, type RuntimeProviders, WorkStore } from "@openshain/core";
+import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
-import { run } from "./run.ts";
 import { toolsList } from "./tools.ts";
 
 const bin = join(import.meta.dir, "..", "bin.ts");
@@ -67,29 +68,27 @@ describe("a tool provider from a module in the workspace", () => {
     expect(out.text()).toMatch(/echo\s+echo\s+observe\s+許可/);
   });
 
-  test("is called by the model in run", async () => {
+  test("is called by the model from the interactive session", async () => {
     const root = await workspace();
     const model = new FakeModelProvider([
+      callTools({ id: "c0", name: "work_create", input: { objective: "echo を試して" } }),
       callTools({ id: "c1", name: "echo", input: { text: "こんにちは" } }),
+      callTools({ id: "c2", name: "work_complete", input: { summary: "echo は動きました" } }),
       say("echo は動きました"),
     ]);
     const providers: RuntimeProviders = {
       models: { fake: () => model },
       tools: { standard: () => standardTools() },
     };
-    const out = io();
+    const config = await loadConfig(root, { modelProviders: ["fake"] });
+    const server = await createMcpServer({ workspaceRoot: root, tools: providers.tools });
+    const session = await createSession(await connectInMemory(server), { model, config });
 
-    const code = await run({
-      workspaceRoot: root,
-      providers,
-      objective: "echo を試して",
-      write: out.write,
-    });
+    const result = await session.turn("echo を試して");
 
-    expect(code).toBe(0);
-    expect(out.text()).toContain("echo は動きました");
-    const result = model.requests[1]?.messages.at(-2)?.content[0];
-    expect(result).toMatchObject({ type: "tool_result", callId: "c1", content: "こんにちは" });
+    expect(result.reply).toBe("echo は動きました");
+    const echoed = model.requests[2]?.messages.at(-2)?.content[0];
+    expect(echoed).toMatchObject({ type: "tool_result", callId: "c1", content: "こんにちは" });
   });
 
   test("is offered and callable over MCP through openshain mcp on stdio", async () => {

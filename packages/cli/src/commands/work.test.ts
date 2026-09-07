@@ -2,11 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { callTools, FakeModelProvider, say } from "@openshain/agent/testing";
+import type { FakeModelProvider } from "@openshain/agent/testing";
 import { OpenshainError, type RuntimeProviders, WorkStore } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
-import { run } from "./run.ts";
-import { workList, workResume, workShow } from "./work.ts";
+import { workList, workShow } from "./work.ts";
 
 function io() {
   const lines: string[] = [];
@@ -21,7 +20,7 @@ async function workspace() {
 
 const request = { principal: "alice", profession: "generic" };
 
-async function fakeWorkspace(model: FakeModelProvider) {
+async function _fakeWorkspace(model: FakeModelProvider) {
   const root = await mkdtemp(join(tmpdir(), "openshain-cli-work-"));
   await writeFile(
     join(root, "openshain.yaml"),
@@ -167,7 +166,7 @@ describe("work show", () => {
 
     await workShow({ workspaceRoot: root, id: work.id, write: out.write });
 
-    expect(out.text()).toContain(`openshain work resume ${work.id}`);
+    expect(out.text()).toContain(`/work resume ${work.id}`);
     expect(out.text()).toContain("どの月?");
   });
 
@@ -177,102 +176,6 @@ describe("work show", () => {
     await expect(
       workShow({ workspaceRoot: root, id: "../etc", write: () => {} }),
     ).rejects.toBeInstanceOf(OpenshainError);
-  });
-});
-
-describe("work resume", () => {
-  test("answers the pending question and drives the work to its end", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
-      say("7月分を集計しました"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const first = io();
-    await run({ workspaceRoot: root, providers, objective: "集計して", write: first.write });
-    const id = first.lines[0]?.split(" ")[0] ?? "";
-    const out = io();
-
-    const code = await workResume({
-      workspaceRoot: root,
-      providers,
-      id,
-      write: out.write,
-      ask: async () => "7月",
-    });
-
-    expect(code).toBe(0);
-    expect(out.lines[0]).toBe("完了。7月分を集計しました");
-    expect(out.text()).toContain("次に動く人はいません");
-  });
-
-  test("refuses to resume a work that has ended", async () => {
-    const model = new FakeModelProvider([say("済み")]);
-    const { root, providers } = await fakeWorkspace(model);
-    const first = io();
-    await run({ workspaceRoot: root, providers, objective: "x", write: first.write });
-    const id = first.lines[0]?.split(" ")[0] ?? "";
-    const out = io();
-
-    const code = await workResume({ workspaceRoot: root, providers, id, write: out.write });
-
-    expect(code).toBe(1);
-    expect(out.text()).toContain("のため、再開できません");
-  });
-
-  test("refuses to resume the work that records a conversation", async () => {
-    const { root, providers } = await fakeWorkspace(new FakeModelProvider([]));
-    const session = await new WorkStore(root).create({
-      ...request,
-      objective: "会話",
-      type: "session",
-    });
-    const out = io();
-
-    const code = await workResume({
-      workspaceRoot: root,
-      providers,
-      id: session.id,
-      write: out.write,
-    });
-
-    expect(code).toBe(1);
-    expect(out.text()).toContain("会話の記録のため");
-  });
-
-  test("without a way to ask, shows the pending question and stops", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
-      say("never"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const first = io();
-    await run({ workspaceRoot: root, providers, objective: "集計して", write: first.write });
-    const id = first.lines[0]?.split(" ")[0] ?? "";
-    const out = io();
-
-    const code = await workResume({ workspaceRoot: root, providers, id, write: out.write });
-
-    expect(code).toBe(1);
-    expect(out.text()).toContain("利用者の入力を待っています。");
-    expect(out.text()).toContain("  質問 どの月?");
-    expect(out.text()).toContain(`openshain work resume ${id}`);
-  });
-});
-
-describe("work resume checks the id first", () => {
-  test("rejects a bad id before it needs a model provider", async () => {
-    const model = new FakeModelProvider([]);
-    const { root } = await fakeWorkspace(model);
-    const providers: RuntimeProviders = { models: {}, tools: { standard: () => standardTools() } };
-
-    const err = await workResume({
-      workspaceRoot: root,
-      providers,
-      id: "wk_bad",
-      write: () => {},
-    }).catch((e: unknown) => e);
-
-    expect((err as { code?: string }).code).toBe("invalid_id");
   });
 });
 

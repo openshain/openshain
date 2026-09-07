@@ -1,5 +1,4 @@
-import type { FailureReason } from "@openshain/agent";
-import type { ErrorCode, ToolRejectionCode, WorkStatus } from "@openshain/core";
+import type { ErrorCode, FailureReason, ToolRejectionCode, WorkStatus } from "@openshain/core";
 
 /** The words shown for a work's status. The log keeps the original value. */
 export const STATUS_LABELS: Record<WorkStatus, string> = {

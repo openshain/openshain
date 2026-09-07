@@ -17,9 +17,10 @@
 | `principal.name` | 必須 | 表示名です。1 から 200 文字 |
 | `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じ規則です |
 | `profession.instructions` | 必須 | model への指示です。system prompt の先頭に入ります。100,000 文字まで |
-| `model.provider` | 必須 | `anthropic` か `openai-compatible` です。SDK から使うときは登録した provider の id です |
-| `model.model` | 必須 | model の名前です。provider にそのまま渡します |
-| `model.api_key_env` | 必須 | API キーを入れる環境変数の名前です。大文字の英字で始まり、英数字と `_` で構成します。値はここに書きません |
+| `model` | 任意 | 対話型 CLI(`openshain`)が使うモデルの節です。Claude Code や Codex から MCP で使うだけなら書きません。無いときに `openshain` を実行すると、モデルが要る旨で止まります |
+| `model.provider` | model があれば必須 | `anthropic` か `openai-compatible` です。SDK から使うときは登録した provider の id です |
+| `model.model` | model があれば必須 | model の名前です。provider にそのまま渡します |
+| `model.api_key_env` | model があれば必須 | API キーを入れる環境変数の名前です。大文字の英字で始まり、英数字と `_` で構成します。値はここに書きません |
 | `model.base_url` | 任意 | API の root です。openai-compatible では `/v1` まで含めます(例 `http://localhost:11434/v1`)。省略時は各 provider の既定です。`user:pass@` は受け付けません。https か、localhost のようにこの機械を指す http だけを受け付けます。遠隔のホストに http を書くとキーが平文で流れるので拒みます |
 | `model.options` | 任意 | provider にそのまま渡す指定です。Anthropic なら `effort` や `thinking`、OpenAI 互換なら `reasoning_effort` や `temperature` です。model、messages、tools、出力の上限は上書きできません |
 | `tools` | 任意 | Tool provider の並びです。省略時は `[{ provider: standard }]` です。各項目は `provider`(組み込みの id)か `module`(ToolProvider を default export するファイルのパス)のどちらか 1 つです。`allow` を書くと、その名前の Tool だけを model に渡します。`module` はそのファイルを読み込んで実行するので、信用できないフォルダでは動かさないでください |

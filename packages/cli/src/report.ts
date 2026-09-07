@@ -1,66 +1,13 @@
-import { pendingQuestions, runWork } from "@openshain/agent";
 import {
   type AnyEvent,
-  createRuntime,
   type Event,
-  type Runtime,
-  type RuntimeProviders,
+  pendingQuestions,
   type ToolContent,
   type Work,
-  type WorkId,
 } from "@openshain/core";
-import { describeInput, truncate } from "../format.ts";
-import { failureLabel, rejectionLabel, statusLabel } from "../labels.ts";
-import { formatUsage, summarizeUsage } from "../usage.ts";
-
-export interface DriveOptions {
-  write: (line: string) => void;
-  /** Answers the model's questions. Without it, a question leaves the work waiting and the run ends. */
-  ask?: (question: string) => Promise<string>;
-  /** Stops the run. The work stays where it is and can be resumed. */
-  signal?: AbortSignal;
-}
-
-export interface RunOptions extends DriveOptions {
-  workspaceRoot: string;
-  providers: RuntimeProviders;
-  objective: string;
-}
-
-/** Creates a work for the request and drives it. Exit code 0 when the work completed. */
-export async function run(options: RunOptions): Promise<number> {
-  const runtime = await createRuntime({
-    workspaceRoot: options.workspaceRoot,
-    providers: options.providers,
-  });
-  const work = await runtime.works.create({
-    objective: options.objective,
-    principal: runtime.config.principal.id,
-    profession: runtime.config.profession.id,
-  });
-  options.write(`${work.id} を開始`);
-  return drive(runtime, work.id, options);
-}
-
-/** Drives a work from its current state, printing one line per tool call, and closes with the report. */
-export async function drive(
-  runtime: Runtime,
-  workId: WorkId,
-  options: DriveOptions,
-): Promise<number> {
-  const names = new Map<string, string>();
-  const done = await runWork(runtime, workId, {
-    ...(options.ask && { onInput: options.ask }),
-    ...(options.signal && { signal: options.signal }),
-    onEvent: (event) => {
-      const line = progressLine(event, names);
-      if (line) options.write(line);
-    },
-  });
-  const events = await runtime.works.events(workId);
-  for (const line of report(done, events)) options.write(line);
-  return done.status === "completed" ? 0 : 1;
-}
+import { describeInput, truncate } from "./format.ts";
+import { failureLabel, rejectionLabel, statusLabel } from "./labels.ts";
+import { formatUsage, summarizeUsage } from "./usage.ts";
 
 /** One line for a tool call, a rejection or a failure; nothing for the other events. `names` maps call ids to tool names. */
 export function progressLine(event: AnyEvent, names: Map<string, string>): string | undefined {
@@ -126,7 +73,7 @@ export function nextActor(work: Work): string {
     case "cancelled":
       return "次に動く人はいません。";
     case "waiting_input":
-      return `次は利用者の番です。openshain work resume ${work.id} で質問に答えると続きます。`;
+      return `次は利用者の番です。openshain の会話で /work resume ${work.id} を実行し、続きを依頼すると質問に答えられます。`;
     case "waiting_approval":
       return "次は利用者の番です。承認が要ります。";
     case "failed":

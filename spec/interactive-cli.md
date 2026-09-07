@@ -64,7 +64,7 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 
 - system prompt は投影と同じ system prompt(職種の指示、会社、principal、名前)に、社員エージェントの役割の段落を追加したものです。名乗るときは名前と、社員エージェントであることを言います。人と話します。作業が要るときは `work_create` で Work を作り、その中で Tool を呼び、終わったら `work_complete` します。objective と summary は人の言葉で書きます。件数、合計、検索の結果は Tool が返した値のまま書き、計算し直しません。返答は端末に表示されるので Markdown の記法と絵文字は使いません
 - 会話の投影は client(CLI の loop)が組み立てます。セッションの Work の記録から作り、作業の Work の中で得た Tool の結果は、その Work を閉じた後は要約(`work_complete` の summary)だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです
-- 1 ターン(人の発言から次の返答まで)の上限は model 呼び出し 5 回、Tool 呼び出し 10 回です。投影の末尾の残り回数の行はこの値を表示します。超えたらそのターンを打ち切り、人に知らせ、セッションは続きます。作業の Work には `limits` の `max_tool_calls` を Runtime が数えます。`max_model_calls` は client が Work ごとに数え、超えたら `work_fail`(limit_reached)します
+- 1 ターン(人の発言から次の返答まで)の上限は model 呼び出し 25 回、Tool 呼び出し 40 回です。作業の Tool 呼び出しもこのターンの中で起きるので、v0.1 より大きい値です。投影の末尾の残り回数の行はこの値を表示します。超えたらそのターンを打ち切り、人に知らせ、セッションは続きます。作業の Work には `limits` の `max_tool_calls` を Runtime が数えます。`max_model_calls` は client が Work ごとに数え、超えたら `work_fail`(limit_reached)します
 - `ask_user` の結果が pending なら、client は人に質問を表示し、答えを `work_answer` で記録してから続けます。Ctrl-C で質問を取り下げると Work は `waiting_input` のまま残ります
 - `/work resume <id>` で名指しされた Work は、人の次の依頼がその Work の objective に沿うときだけ `work_select` して続けます。沿わなければ、その旨を伝えたうえで新しい Work を作るか、`work_list` で探し直します。名指しは候補であって命令ではありません
 - 社員エージェントの model は設定の `model` です。使用量はセッションと作業の Work に `work_record` で記録され、`work show` で合計が表示されます

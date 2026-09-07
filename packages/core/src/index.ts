@@ -5,7 +5,7 @@ export {
   type ParseConfigOptions,
   parseConfig,
 } from "./config/load.ts";
-export type { Config, ToolProviderRef } from "./config/schema.ts";
+export type { Config, ModelConfig, ToolProviderRef } from "./config/schema.ts";
 export { LANGUAGES, type Language } from "./config/schema.ts";
 export { ERROR_CODES, type ErrorCode, isOpenshainError, OpenshainError } from "./errors.ts";
 export {
@@ -84,6 +84,7 @@ export {
 } from "./work/events.ts";
 export {
   countToolCalls,
+  type FailureReason,
   type HistoryCall,
   type PendingQuestion,
   pendingQuestions,

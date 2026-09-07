@@ -1,5 +1,5 @@
 import { loadConfig } from "./config/load.ts";
-import type { Config } from "./config/schema.ts";
+import type { Config, ModelConfig } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
 import type { ModelProvider } from "./model/types.ts";
 import { loadToolModule } from "./tool/load-module.ts";
@@ -12,7 +12,7 @@ import { type WorkHandle, WorkStore } from "./work/store.ts";
 
 export interface RuntimeProviders {
   /** Model providers by the id used in openshain.yaml. */
-  models: Record<string, (model: Config["model"]) => ModelProvider>;
+  models: Record<string, (model: ModelConfig) => ModelProvider>;
   /** Tool providers by the id used in openshain.yaml. Modules are loaded from the config directly. */
   tools: Record<string, () => ToolProvider>;
 }
@@ -50,6 +50,12 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
   const { workspaceRoot, providers } = options;
   const config = await loadConfig(workspaceRoot, { modelProviders: Object.keys(providers.models) });
 
+  if (!config.model) {
+    throw new OpenshainError(
+      "config",
+      "this needs a model: add a model section to openshain.yaml (only the interactive CLI needs one)",
+    );
+  }
   const modelFactory = Object.hasOwn(providers.models, config.model.provider)
     ? providers.models[config.model.provider]
     : undefined;

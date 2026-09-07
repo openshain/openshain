@@ -2,11 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRuntime, type RuntimeProviders } from "@openshain/core";
+import { loadConfig, type RuntimeProviders, WorkStore } from "@openshain/core";
+import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
-import { runWork } from "./loop.ts";
+import { connectInMemory } from "./client.ts";
 import { anthropicProvider } from "./providers/anthropic.ts";
 import { openaiCompatibleProvider } from "./providers/openai-compatible.ts";
+import { createSession } from "./session.ts";
 
 /**
  * Real calls to the API. They run only with OPENSHAIN_LIVE_TESTS=1 and an ANTHROPIC_API_KEY;
@@ -57,14 +59,20 @@ const providers: RuntimeProviders = {
 
 async function smoke(modelSection: string) {
   const root = await workspace(modelSection);
-  const runtime = await createRuntime({ workspaceRoot: root, providers });
-  const work = await runtime.works.create({
-    objective:
-      "receipts/2026-07.csv の amount を合計して、summary.md に「合計 <数値>」と書いてください。",
-    principal: "alice",
-    profession: "generic",
-  });
-  const done = await runWork(runtime, work.id);
+  const config = await loadConfig(root, { modelProviders: Object.keys(providers.models) });
+  const modelConfig = config.model as NonNullable<typeof config.model>;
+  const model = (providers.models[modelConfig.provider] as (m: typeof modelConfig) => never)(
+    modelConfig,
+  );
+  const server = await createMcpServer({ workspaceRoot: root, tools: providers.tools });
+  const client = await connectInMemory(server);
+  const session = await createSession(client, { model, config });
+  await session.turn(
+    "receipts/2026-07.csv の amount を合計して、summary.md に「合計 <数値>」と書いてください。",
+  );
+  const store = new WorkStore(root);
+  const work = (await store.list()).works.find((w) => w.type !== "session");
+  const done = work ? await store.get(work.id) : { status: "no work" };
   const summary = await readFile(join(root, "summary.md"), "utf8").catch(() => "");
   return { done, summary };
 }

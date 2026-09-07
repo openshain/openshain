@@ -96,7 +96,7 @@ describe("parseConfig", () => {
     expect(config.tools).toEqual([{ provider: "standard", allow: undefined }]);
     expect(config.limits).toEqual({ maxModelCalls: 30, maxToolCalls: 100, maxOutputTokens: 16000 });
     expect(config.debug).toEqual({ persistRaw: false });
-    expect(config.model.baseUrl).toBe("http://localhost:11434/v1");
+    expect(config.model?.baseUrl).toBe("http://localhost:11434/v1");
   });
 
   test("reports a missing api_key_env at the model block", () => {
@@ -122,7 +122,7 @@ describe("parseConfig", () => {
   test("accepts any provider name when the known providers are not given", () => {
     const text = example.replace("provider: anthropic", "provider: my-gateway");
 
-    expect(parseConfig(text).model.provider).toBe("my-gateway");
+    expect(parseConfig(text).model?.provider).toBe("my-gateway");
   });
 
   test("reports a non-string entry in allow at its own line", () => {
@@ -239,7 +239,7 @@ company: { name: *e }
       "http://127.0.0.1:8080/v1",
       "http://[::1]:8080/v1",
     ]) {
-      expect(parseConfig(withUrl(url), { modelProviders: ["anthropic"] }).model.baseUrl).toBe(url);
+      expect(parseConfig(withUrl(url), { modelProviders: ["anthropic"] }).model?.baseUrl).toBe(url);
     }
   });
 
@@ -252,5 +252,25 @@ company: { name: *e }
     const err = configError(text);
 
     expect(err.message).toContain("profession.instructions");
+  });
+});
+
+describe("a config without a model section", () => {
+  test("parses, leaves model undefined, and skips the provider check", () => {
+    const text = `version: 1
+company:
+  name: サンプル株式会社
+principal:
+  id: alice
+  name: Alice
+profession:
+  id: generic
+  instructions: 事務担当として働く。
+`;
+
+    const config = parseConfig(text, { modelProviders: ["anthropic"] });
+
+    expect(config.model).toBeUndefined();
+    expect(config.tools).toEqual([{ provider: "standard", allow: undefined }]);
   });
 });

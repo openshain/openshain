@@ -2,12 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { callTools, FakeModelProvider, say } from "@openshain/agent/testing";
+import { FakeModelProvider } from "@openshain/agent/testing";
 import { OpenshainError, parseConfig, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { findWorkspace } from "../workspace.ts";
 import { configTemplate, detectLanguage, init } from "./init.ts";
-import { run } from "./run.ts";
 import { toolsList } from "./tools.ts";
 
 function io() {
@@ -58,7 +57,7 @@ describe("init", () => {
 
     const text = await readFile(join(root, "openshain.yaml"), "utf8");
     const config = parseConfig(text, { modelProviders: ["anthropic"] });
-    expect(config.model.apiKeyEnv).toBe("ANTHROPIC_API_KEY");
+    expect(config.model?.apiKeyEnv).toBe("ANTHROPIC_API_KEY");
     expect(config.limits.maxModelCalls).toBe(30);
     expect(out.lines.join("\n")).toContain("openshain.yaml");
     const mcp = JSON.parse(await readFile(join(root, ".mcp.json"), "utf8"));
@@ -151,119 +150,6 @@ describe("findWorkspace", () => {
   });
 });
 
-describe("run", () => {
-  test("runs a request to completion and reports each tool call, the outcome and the usage", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
-      callTools({ id: "c2", name: "fs_write", input: { path: "summary.md", content: "# 100\n" } }),
-      say("summary.md に書きました"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const out = io();
-
-    const code = await run({
-      workspaceRoot: root,
-      providers,
-      objective: "集計して",
-      write: out.write,
-      ask: async () => "",
-    });
-
-    expect(code).toBe(0);
-    const text = out.lines.join("\n");
-    expect(text).toContain("csv_read receipts/2026-07.csv");
-    expect(text).toContain("fs_write summary.md");
-    expect(text).toContain("summary.md に書きました");
-    expect(text).toMatch(/model 呼び出し 3 回/);
-    expect(text).toMatch(/Tool 呼び出し 2 回/);
-    expect(text).toContain("完了");
-    expect(await readFile(join(root, "summary.md"), "utf8")).toBe("# 100\n");
-  });
-
-  test("asks the person on the terminal and continues with the answer", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
-      say("7月分を集計しました"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const out = io();
-    const asked: string[] = [];
-
-    const code = await run({
-      workspaceRoot: root,
-      providers,
-      objective: "集計して",
-      write: out.write,
-      ask: async (q) => {
-        asked.push(q);
-        return "7月";
-      },
-    });
-
-    expect(code).toBe(0);
-    expect(asked).toEqual(["どの月?"]);
-    expect(out.lines.join("\n")).toContain("7月分を集計しました");
-  });
-
-  test("reports a failed work with the reason and exits non-zero", async () => {
-    const model = new FakeModelProvider([{ ...say("no"), stopReason: "refusal" }]);
-    const { root, providers } = await fakeWorkspace(model);
-    const out = io();
-
-    const code = await run({
-      workspaceRoot: root,
-      providers,
-      objective: "x",
-      write: out.write,
-      ask: async () => "",
-    });
-
-    expect(code).toBe(1);
-    expect(out.lines.join("\n")).toContain("失敗。model の拒否。");
-  });
-
-  test("prints a line for a tool call that failed", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "c1", name: "fs_read", input: { path: "missing.csv" } }),
-      say("見つかりませんでした"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const out = io();
-
-    await run({
-      workspaceRoot: root,
-      providers,
-      objective: "x",
-      write: out.write,
-      ask: async () => "",
-    });
-
-    expect(out.lines.join("\n")).toMatch(/^fs_read は失敗しました。.+$/m);
-  });
-
-  test("without a way to ask, leaves the work waiting and shows the question", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "q1", name: "ask_user", input: { question: "どの月?" } }),
-      say("never"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model);
-    const out = io();
-
-    const code = await run({
-      workspaceRoot: root,
-      providers,
-      objective: "集計して",
-      write: out.write,
-    });
-
-    expect(code).toBe(1);
-    const text = out.lines.join("\n");
-    expect(text).toContain("利用者の入力を待っています。");
-    expect(text).toContain("  質問 どの月?");
-    expect(text).toContain("次は利用者の番です");
-  });
-});
-
 describe("tools list", () => {
   test("shows every tool with its provider and effect, and the ones an allow list hides", async () => {
     const model = new FakeModelProvider([]);
@@ -290,22 +176,5 @@ describe("tools list without a model provider", () => {
     await toolsList({ workspaceRoot: root, providers, write: out.write });
 
     expect(out.lines.join("\n")).toMatch(/fs_read\s+standard\s+observe/);
-  });
-});
-
-describe("run and rejected calls", () => {
-  test("prints a line for a call the workspace does not allow", async () => {
-    const model = new FakeModelProvider([
-      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
-      say("済み"),
-    ]);
-    const { root, providers } = await fakeWorkspace(model, "    allow: [fs_read]\n");
-    const out = io();
-
-    await run({ workspaceRoot: root, providers, objective: "x", write: out.write });
-
-    expect(out.lines.join("\n")).toContain(
-      "csv_read は拒否されました。この workspace では不許可。",
-    );
   });
 });
