@@ -373,7 +373,7 @@ describe("a session and approvals", () => {
           input: { path: "ledger/2026-07.csv", content: "a,b\n" },
         }),
         (request) => {
-          expect(JSON.stringify(request.messages.at(-2))).toContain("did not approve");
+          expect(JSON.stringify(request.messages.at(-2))).toContain("refused this call");
           return say("承認されなかったので書きませんでした。");
         },
       ],

@@ -492,7 +492,12 @@ export async function createSession(
           // The person left it undecided: the work stays waiting_approval and the turn ends.
           held = pending;
           finish(call.id, {
-            content: [{ type: "text", text: "the person left the approval undecided" }],
+            content: [
+              {
+                type: "text",
+                text: "the person left this call undecided; it is still waiting for their approval and the work stops here",
+              },
+            ],
             isError: true,
             text: "",
           });
@@ -518,7 +523,12 @@ export async function createSession(
         finish(call.id, decided);
       } else if (choice === "reject") {
         finish(call.id, {
-          content: [{ type: "text", text: "the person did not approve this call" }],
+          content: [
+            {
+              type: "text",
+              text: "the person refused this call; it did not run and the work is not waiting for anyone. Do not call it again unchanged: say what you would need, or propose another way.",
+            },
+          ],
           isError: true,
           text: "",
         });
