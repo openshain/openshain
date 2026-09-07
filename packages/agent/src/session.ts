@@ -27,7 +27,7 @@ export const TURN_LIMITS = { modelCalls: 25, toolCalls: 40 } as const;
 const LOOP_ONLY_TOOLS: ReadonlySet<string> = new Set(["work_record", "work_answer"]);
 
 const ROLE =
-  "あなたはこの会社の社員エージェントとして、受付の役で、この人と話す。作業が要るときは work_create で Work を作り(objective は人の言葉で書き、会話で分かった前提を添える)、その Work の中で Tool を呼び、終わったら work_complete で summary を人の言葉で書いて閉じる。会話の中では Tool を呼べないので、ファイルの中身を見ないと答えられない質問も Work を作って調べる。件数や金額は Tool が返した値をそのまま書き、計算し直さない。/work resume で候補として示された Work は、人の依頼がその objective に沿うときだけ work_select で続ける。沿わなければ続けず、その旨を伝えて新しい Work を作るか work_list で探し直す。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_get で答える。";
+  "あなたはこの会社の社員エージェントとして、受付の役で、この人と話す。作業が要るときは work_create で Work を作り(objective は人の言葉で書き、会話で分かった前提を添える)、その Work の中で Tool を呼び、終わったら work_complete で summary を人の言葉で書いて閉じる。会話の中では Tool を呼べないので、ファイルの中身を見ないと答えられない質問も Work を作って調べる。件数や金額は Tool が返した値をそのまま書き、計算し直さない。/work resume で候補として示された Work は、人の依頼がその objective に沿うときだけ work_select で続ける。沿わなければ続けず、その旨を伝えて新しい Work を作るか work_list で探し直す。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_get で答える。日付や時刻が要るときは context を呼び、自分で推測しない。";
 
 export interface SessionOptions {
   /** The model the conversation runs on. The client owns it; the runtime never calls one. */
@@ -125,6 +125,14 @@ export async function createSession(
   let task: TaskState | undefined;
   let candidate: { id: WorkId; objective: string; status: string } | undefined;
 
+  // The basics (time, business date, folder) enter the conversation as a recorded prompt, so the
+  // projection stays a function of the record. The model can refresh them with the context tool.
+  const basics = await client.call("context", {});
+  const info = basics.isError ? undefined : (jsonOf(basics) as Record<string, unknown> | undefined);
+  const basicsText = info
+    ? `現在時刻は ${info.now}(${info.timezone})、今日の業務日は ${info.business_date}。会社フォルダは ${info.workspace}。日付や時刻が要るときは context を呼ぶ。`
+    : undefined;
+
   /** Records one of the client's own events on a work through the runtime, and reports it. */
   const record = async <T extends EventType>(
     workId: WorkId,
@@ -147,6 +155,11 @@ export async function createSession(
     await record(id, type, payload);
     if (task) await record(task.id, type, payload);
   };
+
+  if (basicsText) {
+    events.push(local("prompt.expanded", { name: "context", source: "runtime", text: basicsText }));
+    await record(id, "prompt.expanded", { name: "context", source: "runtime", text: basicsText });
+  }
 
   const describedTools = async (): Promise<ToolDefinition[]> =>
     (await client.listTools()).filter((t) => !LOOP_ONLY_TOOLS.has(t.name));

@@ -175,6 +175,31 @@ describe("openshain over MCP", () => {
     expect((await store.get(id as never)).status).toBe("in_progress");
   });
 
+  test("context tells where and when, and is recorded on the current work, a session included", async () => {
+    const { call, store } = await connected();
+
+    const outside = await call("context", {});
+    expect(outside.isError).toBe(false);
+    expect(outside.json()).toMatchObject({
+      timezone: expect.any(String),
+      company: "サンプル株式会社",
+      principal: { id: "alice", name: "Alice" },
+      profession: "generic",
+      work: null,
+    });
+    expect(outside.json().now).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+    expect(outside.json().business_date).toBe(outside.json().now.slice(0, 10));
+
+    const id = (await call("work_create", { objective: "会話", type: "session" })).json()
+      .id as string;
+    const inside = await call("context", {});
+    expect(inside.isError).toBe(false);
+    expect(inside.json().work).toBe(id);
+    const types = (await store.events(id as never)).map((e) => e.type);
+    expect(types.filter((t) => t === "tool.called")).toHaveLength(1);
+    expect(types.filter((t) => t === "tool.completed")).toHaveLength(1);
+  });
+
   test("work_record accepts the client's own events, checks their payload, and refuses the rest", async () => {
     const { call, store } = await connected();
     const id = (await call("work_create", { objective: "会話", type: "session" })).json()

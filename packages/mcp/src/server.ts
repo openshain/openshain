@@ -164,6 +164,13 @@ const WORK_TOOLS: Tool[] = [
     },
   },
   {
+    name: "context",
+    description:
+      "Where and when you are working: the current time with its offset, the time zone, today's business date, the company folder, the company, the person you work for, and the current work. Call it when a date or a time matters; the answer is recorded.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: "work_record",
     description:
       "Record an event of the client itself on a work: what the person said (human.message), a prompt command expanded for the model (prompt.expanded), a model call (model.requested, model.completed, model.failed) or its usage (usage.recorded with kind model_inference). The payload is in the file form of spec/schemas/events.v1.json. Tool calls are recorded by the runtime and cannot be recorded here.",
@@ -385,6 +392,40 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           await opened.close();
         }
       }
+      case "context": {
+        const now = new Date();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const info = {
+          now: localIso(now),
+          timezone,
+          business_date: localIso(now).slice(0, 10),
+          workspace: workspaceRoot,
+          company: config.company.name,
+          principal: { id: config.principal.id, name: config.principal.name },
+          profession: config.profession.id,
+          work: session.current ?? null,
+        };
+        const result = json(info);
+        // Recorded on the current work when there is one, even a session: it touches no file.
+        const current = session.current;
+        if (current && !isTerminal((await works.get(current)).status)) {
+          const callId = newCallId();
+          const opened = await works.open(current);
+          try {
+            await opened.append({
+              type: "tool.called",
+              payload: { callId, provider: RUNTIME_PROVIDER_ID, name: "context", input: {} },
+            });
+            await opened.append({
+              type: "tool.completed",
+              payload: { callId, content: [{ type: "json", value: info }], isError: false },
+            });
+          } finally {
+            await opened.close();
+          }
+        }
+        return result;
+      }
       case "work_list": {
         const { works: all, problems } = await works.list();
         return json({
@@ -555,4 +596,17 @@ function failure(text: string): CallToolResult {
 
 function newCallId(): string {
   return `call_${uuidv7()}`;
+}
+
+/** ISO 8601 with the local offset instead of Z, so the time reads as the person's clock. */
+function localIso(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? "+" : "-";
+  const abs = Math.abs(offset);
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
+  );
 }

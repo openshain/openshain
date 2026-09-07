@@ -2,7 +2,7 @@
 
 spec は [authority.md](authority.md) です。小さい縦の切れ目で進め、切れ目ごとにテストを通して commit します。各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通し、package の振る舞いを変える Task は `docs/design/` のノートを同じ commit で更新します。
 
-#### Task 0: 基本情報の Tool
+#### Task 0: 基本情報の Tool(2026-09-07 完了)
 
 社員エージェントに現在時刻、タイムゾーン、今日の業務日、会社フォルダの path、代理する Principal を渡す Runtime Tool `context`(名前は予約)を追加します。投影は記録から同じ結果になる規則なので、system prompt に時刻を直接入れず、Tool の結果として記録します。対話の開始時に client が 1 回呼ぶ形にします。
 

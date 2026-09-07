@@ -76,14 +76,19 @@ describe("a session", () => {
     expect(names).not.toContain("work_record");
     expect(names).not.toContain("work_answer");
     expect(model.requests[0]?.system).toContain("受付");
-    expect(model.requests[0]?.messages.at(-2)).toEqual({
-      role: "user",
-      content: [{ type: "text", text: "やあ" }],
-    });
+    // The basics come first, as a recorded prompt in the same user message as what the person said.
+    const opening = model.requests[0]?.messages.at(-2);
+    expect(opening?.role).toBe("user");
+    expect(JSON.stringify(opening?.content[0])).toContain("現在時刻は");
+    expect(JSON.stringify(opening?.content[0])).toContain("今日の業務日は");
+    expect(opening?.content.at(-1)).toEqual({ type: "text", text: "やあ" });
     const recorded = await store.events(session.id);
     expect(types(recorded)).toEqual([
       "work.created",
       "work.status_changed",
+      "tool.called",
+      "tool.completed",
+      "prompt.expanded",
       "human.message",
       "model.requested",
       "model.completed",
@@ -93,6 +98,7 @@ describe("a session", () => {
     expect(work.type).toBe("session");
     expect(work.agentName).toBe(session.agentName);
     expect(seen.map(([id, e]) => [id === session.id, e.type])).toEqual([
+      [true, "prompt.expanded"],
       [true, "human.message"],
       [true, "model.requested"],
       [true, "model.completed"],
@@ -126,7 +132,9 @@ describe("a session", () => {
     expect(session.currentWork()).toBeUndefined();
     const sessionTypes = types(await store.events(session.id));
     expect(sessionTypes.filter((t) => t === "model.requested")).toHaveLength(4);
-    expect(sessionTypes).not.toContain("tool.called");
+    // The only tool call recorded on the session is the context call at its start.
+    const sessionCalls = (await store.events(session.id)).filter((e) => e.type === "tool.called");
+    expect(sessionCalls.map((e) => (e as Event<"tool.called">).payload.name)).toEqual(["context"]);
     // The csv_read result is folded away once the work is closed; the summary stays.
     const lastRequest = model.requests.at(-1);
     const text = JSON.stringify(lastRequest?.messages);
@@ -314,8 +322,9 @@ describe("a session, when the model misbehaves", () => {
     expect((await store.get(session.id)).status).toBe("in_progress");
     const second = await session.turn("続き");
     expect(second.reply).toBe("まだ話せます。");
+    const calls = (await store.events(session.id)).filter((e) => e.type === "tool.called");
+    expect(calls.map((e) => (e as Event<"tool.called">).payload.name)).toEqual(["context"]);
     const types = (await store.events(session.id)).map((e) => e.type);
-    expect(types).not.toContain("tool.called");
     expect(types.filter((t) => t === "human.message")).toHaveLength(2);
   });
 

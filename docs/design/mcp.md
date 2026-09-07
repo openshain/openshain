@@ -21,6 +21,12 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 捨てた案。CLI だけがプロセス内で `WorkStore` に直接書く案。Tool の面が 2 つになり、Authority を置く場所も 2 つになります。
 
+## `context` は session でも呼べる
+
+決めたこと。`context` は現在時刻(オフセット付き)、タイムゾーン、今日の業務日、会社フォルダ、会社、依頼する人、職種、現在の Work を返す Runtime の Tool です。現在の Work があれば session でも記録します。client は会話を開くときに 1 回呼び、結果を `prompt.expanded` として記録します。
+
+理由。投影は記録から同じ結果になる規則なので、時刻を system prompt に直接入れると再現できなくなります。Tool の結果か記録されたイベントとして渡せば、後から同じ投影が作れます。ファイルには触れないので、session の中の Tool 禁止の例外にしても記録のない操作は生まれません。
+
 ## `type: session` の Work では Tool を呼べない
 
 決めたこと。`work_create` は `type: session` と `parent` を受けます。session の Work を現在の Work にはできますが、その中で Tool を呼ぶと拒否し、`parent` に session を指定して作業の Work を作るよう促します。

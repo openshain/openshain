@@ -366,6 +366,7 @@ MCP tool:
 | `work_select` | 既存の Work を現在の Work にし、`history` 付きで返します。終わった Work は受け付けません |
 | `work_get`、`work_list` | 参照します。`work_get` は `history: true` で、これまでの Tool 呼び出し(name、path、isError)、結果のない呼び出し、未回答の質問を返します。client が中断した Work を続けるための情報です |
 | `ask_user` | 質問を記録して `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client です |
+| `context` | どこで、いつ働いているか。現在時刻(オフセット付き)、タイムゾーン、今日の業務日、会社フォルダ、会社、依頼する人、職種、現在の Work を返します。現在の Work があれば(session でも)`tool.called` と `tool.completed` として記録します。ファイルには触れないので、session の中でも呼べる唯一の Tool です |
 | `work_answer` | call_id と answer を受け、`human.input_provided` を記録して `in_progress` に戻します |
 | `work_record` | client のイベント(`human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`)を、その接続で作ったか選んだ Work に書きます。会話の記録と、client のモデルの使用量のためです |
 | `work_complete` | summary と artifacts を受けます。artifacts は Runtime がファイルの存在と sha256 を検証し、Runtime の Tool で書いたファイルと合わせて `evidence.recorded` と `work.completed` を残します |
@@ -375,7 +376,7 @@ MCP tool:
 現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返します。client がモデルの使用量を `work_record` で書かないとき(Claude Code など)は、`usage.recorded` は Tool 実行の分だけになります。
 
 - `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を受け付けません。`work_get` は id を省くと現在の Work です
-- `type: session` の Work は現在の Work にできますが、その中で Tool を呼ぶと「セッションでは Tool を呼べない。`work_create` で作業の Work を作る」と拒否します。`work_record` だけが書けます
+- `type: session` の Work は現在の Work にできますが、その中で Tool を呼ぶと「セッションでは Tool を呼べない。`work_create` で作業の Work を作る」と拒否します。例外は `context` で、`work_record` だけが書けます
 - `work_complete` の artifacts は任意です。Tool が書いたファイル(`after` 付きの `tool.completed`)にエージェントの申告を合わせ、パスごとに Runtime がハッシュを計算します。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付けます。`refs` は `after` 付きの `tool.completed` の id です
 - `work_fail` の reason はエージェントの自由な短い語です。CLI の見出し表にない語はそのまま表示されます
 - Tool 呼び出しの call id は Runtime が `call_` で始まる id を振ります。結果の content は text にし、json は JSON 文字列にします。`isError` はそのままです

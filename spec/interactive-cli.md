@@ -40,6 +40,7 @@ v0.2 で加わる証明。対話型 CLI は Runtime の client の 1 つで、Cl
 - セッションは `work/<id>/events.jsonl` に、Work と同じ envelope で残ります。client が `work_create` に `type: session` を渡して開きます
 - イベント `human.message`(payload は `text`)は人の発言で、投影では user message になります
 - `work.created` の payload の任意の `parent`(親 Work の id)は、`work_create` の `parent` から入ります
+- セッションを開くとき、client は Runtime の `context` を 1 回呼び、現在時刻、タイムゾーン、今日の業務日、会社フォルダを `prompt.expanded`(name は `context`、source は `runtime`)としてセッションの Work に記録します。投影は記録から組み立てるので、時刻を system prompt に直接は入れません。会話が長くなったら社員エージェントが `context` を呼び直します
 - 社員エージェントの返答(`model.requested`、`model.completed`)、使用量(`usage.recorded`、kind は `model_inference`)、人の発言(`human.message`)、prompt コマンドの展開(`prompt.expanded`)は、client が Runtime Tool `work_record` でセッションの Work に書きます。Runtime は envelope(id、seq、時刻)を付け、payload を schema で検証します。作業の Work にもモデルの呼び出しと使用量を同じ Tool で書き、Work ごとの費用が合計できます。Claude Code のように書かない client もあり、その Work の使用量は Tool 実行の分だけになります
 - 作業の Tool 呼び出し(`tool.called`、`tool.completed`、`tool.rejected`)は、client がどれであっても Runtime が作業の Work に記録します
 - セッションの終了は `work.completed`(summary は `会話を終了`)です。端末が閉じたとき(SIGHUP)と停止の信号(SIGTERM、SIGINT)では、動いている Work を止めてから閉じて終わります。それ以外でプロセスが落ちたセッションは `in_progress` のまま残ります
@@ -55,6 +56,7 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 | `work_get`、`work_list` | 過去の作業に答えます。`work_get` は `history: true` でこれまでの Tool 呼び出しと未回答の質問を返します |
 | 登録された Tool | 現在の Work の中で、ファイルを読み書きし、集計します。現在の Work がなければ Runtime が受け付けません |
 | `ask_user` | 人に聞かないと進めないとき。Runtime が質問を記録して Work を `waiting_input` にし、client が人に聞きます。答えは `work_answer` で記録されます |
+| `context` | 日付や時刻、会社フォルダが要るとき。推測せずにこれを呼びます |
 | `work_complete`、`work_fail` | 作業を閉じます。summary は人の言葉で書きます |
 | `work_record` | 会話と自分のモデルの呼び出しをセッションと作業の Work に記録します。CLI の loop が呼び、モデルには見せません |
 
