@@ -56,6 +56,11 @@ An agent harness that turns a general agent into a professional employee of a co
 - A change is done when `bun run typecheck`, `bun run lint` and `bun test` pass and the new behavior has a test. Run them; do not claim completion from reading alone.
 - Maintainers commit to `main` once the checks pass; contributions from outside come as pull requests. Use a branch only for an experiment that may not land. Pull before starting a change, and undo a change with `git revert` rather than by rewriting history.
 
+## Releasing
+
+- Close the `[Unreleased]` section of CHANGELOG.md as `[x.y.z] - date`, set the five package versions and the workspace entries of bun.lock to x.y.z, commit, then push an annotated tag `vx.y.z`. The Release workflow checks the versions, builds the binaries, publishes the GitHub Release, tells the website, and then publishes the five packages to npm through trusted publishing (OIDC) after a person approves the `npm` environment. No npm token exists anywhere; `bun publish` is not used because it has no OIDC support. A tag with a suffix (`v0.4.0-rc.1`) becomes a prerelease and goes to the `next` dist-tag.
+- Before publishing, `scripts/pin-workspace-versions.ts` replaces `workspace:*` with the released version on the runner, since npm does not understand the workspace protocol. Do not commit that change.
+
 ## Boundaries
 
 - Examples, fixtures and tests use fictional companies and fictional data only. Never commit real company data, credentials or personal data.

@@ -7,6 +7,15 @@
 ### Added
 
 - 専門職の責務境界の spec(`spec/professional-boundary.md`)と設計原則の 1 行。処理の 5 区分、Authority の判定の種類、Expert Review の流れ、core と Profession Pack の境界を決めます。実装はまだです
+- npm への publish を Release workflow に載せました。trusted publishing(OIDC)で、token を置かず、`npm` environment の承認で走ります
+
+### Fixed
+
+- `spec/schemas/config.v1.json` が `model` を必須のままにしていました(0.3.0 の tag に含まれます)
+
+### Note
+
+- 0.3.0 は npm に publish していません。0.3.1 が npm に出る最初の版です
 
 ## [0.3.0] - 2026-09-07
 

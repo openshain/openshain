@@ -52,7 +52,7 @@
 
 ## release のときのサイトの更新
 
-Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub Release を作った後、サイトの repo へ `repository_dispatch` を送ります。
+Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub Release を作った後、サイトの repo へ `repository_dispatch` を送ります。その後、人が `npm` environment を承認すると 5 つの package を npm に publish します(trusted publishing。token は置きません)。サイトが読むのは GitHub Release で、npm の publish を待つ必要はありません。
 
 - event type: `openshain-release`
 - payload(`client_payload`): `tag`(`v0.1.0`)、`version`(`0.1.0`)、`sha`(tag が指す commit の 40 桁の SHA)、`release_url`(GitHub Release の URL)
