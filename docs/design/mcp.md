@@ -13,6 +13,24 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 - すべての Tool の入力に `work_id` を追加する案。エージェントが毎回書き、書き忘れや取り違えがそのまま記録の誤りになります。
 - 未完了の Work があるまま `work_create` を許す案。エージェントが Work を放置して次を作り、`in_progress` の Work が溜まります。先に完了か失敗を求めます。
 
+## client のための Tool(`ask_user`、`work_answer`、`work_record`、`history`)
+
+決めたこと。Runtime はモデルを呼ばないので、質問と記録の片側を client に開きます。`ask_user` は質問を記録して Work を `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client で、答えは `work_answer` が `human.input_provided` と同じ call_id の `tool.completed` に記録して `in_progress` に戻します。`work_record` は client 自身のイベント(人の発言、prompt の展開、モデルの呼び出しと使用量)を指定した Work に書きます。受け付ける type を 6 つに限り、payload は spec/schemas/events.v1.json の形で検証します。Tool の呼び出しは Runtime だけが記録します。`work_get` の `history` は、これまでの Tool 呼び出し、結果のない呼び出し、未回答の質問を返し、client が止まった Work を続けるための材料です。
+
+理由。対話型 CLI を MCP client にすると、会話の記録と自分のモデルの使用量を `work/` に残す経路が要ります。Runtime に「client のための書き込み」を 1 つだけ開き、type を限ることで、client が Tool の記録を偽る経路は作りません。Claude Code のように `work_record` を呼ばない client も成り立ちます。
+
+捨てた案。CLI だけがプロセス内で `WorkStore` に直接書く案。Tool の面が 2 つになり、Authority を置く場所も 2 つになります。
+
+## `type: session` の Work では Tool を呼べない
+
+決めたこと。`work_create` は `type: session` と `parent` を受けます。session の Work を現在の Work にはできますが、その中で Tool を呼ぶと拒否し、`parent` に session を指定して作業の Work を作るよう促します。
+
+理由。会話の記録と作業の記録を分ける規則を、client の善意ではなく Runtime が守ります。
+
+## `max_tool_calls` は Runtime が数える
+
+決めたこと。Tool 呼び出しの前に、その Work の `tool.called` と単独の `tool.rejected` を数え、設定の `max_tool_calls` に達していれば `tool.rejected`(limit_reached)を記録して `isError` で返します。Work は閉じません。閉じるかどうかは client が決めます。モデルの呼び出し回数は Runtime に見えないので、client が数えます。
+
 ## CLI と同じ名前、同じ schema
 
 登録された Tool を CLI と同じ名前、同じ schema で公開します。呼び出しは同じ検証、同じ許可判定、同じ記録を通ります。結果の JSON は文字列にして text で返します。MCP の content の型に合わせるためです。

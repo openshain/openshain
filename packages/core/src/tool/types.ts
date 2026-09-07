@@ -20,6 +20,8 @@ export const RESERVED_TOOL_NAMES: readonly string[] = [
   "work_list",
   "work_complete",
   "work_fail",
+  "work_answer",
+  "work_record",
   "work_run",
   "work_show",
 ];

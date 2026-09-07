@@ -35,6 +35,7 @@ export {
   type ToolSummary,
 } from "./runtime.ts";
 export { jsonSchemas, type SchemaName } from "./schemas.ts";
+export { ASK_USER, RUNTIME_PROVIDER_ID } from "./tool/ask-user.ts";
 export { loadToolModule } from "./tool/load-module.ts";
 export { RESERVED_PATHS, resolveWorkspacePath } from "./tool/paths.ts";
 export {
@@ -71,7 +72,9 @@ export {
   type EventType,
   eventFromFile,
   eventToFile,
+  isKnownEventType,
   type ModelUsage,
+  parsePayloadFile,
   payloadFileSchemas,
   type StopReason,
   TOOL_REJECTION_CODES,
@@ -79,6 +82,14 @@ export {
   type ToolRejectionCode,
   type UnknownEvent,
 } from "./work/events.ts";
+export {
+  countToolCalls,
+  type HistoryCall,
+  type PendingQuestion,
+  pendingQuestions,
+  type WorkHistory,
+  workHistory,
+} from "./work/history.ts";
 export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
 export { buildProjection, type Projection, type ProjectionInput } from "./work/projection.ts";
 export {

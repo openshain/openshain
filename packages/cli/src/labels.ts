@@ -28,6 +28,7 @@ export const REJECTION_LABELS: Record<ToolRejectionCode, string> = {
   reserved_path: "予約されたパス",
   outside_workspace: "workspace の外",
   invalid_path: "不正なパス",
+  limit_reached: "Tool 呼び出しの上限",
 };
 
 /** A heading for a runtime error, before the original message. */

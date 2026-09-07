@@ -41,6 +41,7 @@ export const TOOL_REJECTION_CODES = [
   "reserved_path",
   "outside_workspace",
   "invalid_path",
+  "limit_reached",
 ] as const;
 
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];
@@ -307,6 +308,22 @@ export function eventFromFile(input: unknown): AnyEvent {
     type: file.type,
     payload: payloadFromFile(file.type, payload.data),
   } as Event;
+}
+
+/**
+ * Validates a payload given in the file form (snake_case, as in spec/schemas/events.v1.json) and
+ * returns it in the in-memory form. For events a client hands the runtime to record.
+ */
+export function parsePayloadFile<T extends EventType>(type: T, payload: unknown): EventPayloads[T] {
+  const parsed = payloadFileSchemas[type].safeParse(payload);
+  if (!parsed.success) {
+    throw new OpenshainError("invalid_event", `${type} payload: ${describeIssues(parsed.error)}`);
+  }
+  return payloadFromFile(type, parsed.data as FilePayload<T>);
+}
+
+export function isKnownEventType(type: string): type is EventType {
+  return isKnownType(type);
 }
 
 function isKnownType(type: string): type is EventType {

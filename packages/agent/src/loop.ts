@@ -1,19 +1,31 @@
+export {
+  ASK_USER,
+  countToolCalls,
+  type PendingQuestion,
+  pendingQuestions,
+  RUNTIME_PROVIDER_ID,
+} from "@openshain/core";
+
+import type { PendingQuestion } from "@openshain/core";
+
 import {
   type AnyEvent,
   type Artifact,
-  ASK_USER_TOOL_NAME,
+  ASK_USER,
   type AssistantPart,
   buildProjection,
   compileInputValidator,
+  countToolCalls,
   type Event,
   isOpenshainError,
   isTerminal,
   type ModelProvider,
   type ModelResponse,
   OpenshainError,
+  pendingQuestions,
+  RUNTIME_PROVIDER_ID,
   type Runtime,
   SESSION_WORK_TYPE,
-  type ToolDefinition,
   verifyArtifact,
   type Work,
   type WorkHandle,
@@ -35,23 +47,6 @@ export interface RunWorkOptions {
 }
 
 /** The provider recorded for calls the runtime handles itself. */
-export const RUNTIME_PROVIDER_ID = "runtime";
-
-/** The one tool the runtime itself provides: stop and ask the person. */
-export const ASK_USER: Readonly<ToolDefinition> = Object.freeze({
-  name: ASK_USER_TOOL_NAME,
-  description:
-    "Ask the person you work for a question when you cannot proceed without their answer. Use it sparingly; prefer the workspace over guessing.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      question: { type: "string", description: "The question, in the person's language." },
-    },
-    required: ["question"],
-    additionalProperties: false,
-  },
-  effect: "observe",
-});
 
 const validateQuestion = compileInputValidator(ASK_USER.inputSchema);
 
@@ -275,20 +270,6 @@ async function loop(
  * How many tool calls the model made: every call that started, plus every rejection of a call
  * that never started. Counted by event, since some servers reuse call ids from turn to turn.
  */
-export function countToolCalls(events: AnyEvent[]): number {
-  let count = 0;
-  let started = new Set<string>();
-  for (const event of events) {
-    if (event.type === "model.completed") started = new Set();
-    else if (event.type === "tool.called") {
-      started.add((event as Event<"tool.called">).payload.callId);
-      count += 1;
-    } else if (event.type === "tool.rejected") {
-      if (!started.has((event as Event<"tool.rejected">).payload.callId)) count += 1;
-    }
-  }
-  return count;
-}
 
 /** The events since the model's most recent answer. Call ids are only trusted within a turn. */
 function currentTurn(events: AnyEvent[]): AnyEvent[] {
@@ -457,23 +438,4 @@ async function answerAll(
     });
   }
   await handle.transition("in_progress", "the person answered");
-}
-
-export interface PendingQuestion {
-  callId: string;
-  question: string;
-}
-
-/** The questions of the model's most recent turn that have no answer yet, oldest first. */
-export function pendingQuestions(events: AnyEvent[]): PendingQuestion[] {
-  const turn = currentTurn(events);
-  const answered = new Set(
-    turn
-      .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
-      .map((e) => e.payload.callId),
-  );
-  return turn
-    .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
-    .filter((e) => !answered.has(e.payload.callId))
-    .map((e) => ({ callId: e.payload.callId, question: e.payload.question }));
 }

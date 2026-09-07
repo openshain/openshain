@@ -8,15 +8,22 @@ import {
 import {
   type AnyEvent,
   type Artifact,
+  ASK_USER,
   compileInputValidator,
+  countToolCalls,
   createToolCaller,
   createToolRegistry,
   type Event,
+  type EventType,
   type InputValidation,
+  isKnownEventType,
   isOpenshainError,
   isTerminal,
   loadConfig,
+  parsePayloadFile,
   parseWorkId,
+  pendingQuestions,
+  RUNTIME_PROVIDER_ID,
   type RuntimeProviders,
   resolveWorkspacePath,
   SESSION_WORK_TYPE,
@@ -27,6 +34,7 @@ import {
   type Work,
   type WorkId,
   WorkStore,
+  workHistory,
 } from "@openshain/core";
 import pkg from "../package.json" with { type: "json" };
 import { Session } from "./session.ts";
@@ -42,7 +50,7 @@ const WORK_TOOLS: Tool[] = [
   {
     name: "work_create",
     description:
-      "Start a work for a request from the person you work for, and make it the current work. Tool calls are recorded against the current work. Finish the current work with work_complete or work_fail before starting another.",
+      'Start a work for a request from the person you work for, and make it the current work. Tool calls are recorded against the current work. Finish the current work with work_complete or work_fail before starting another. The type "session" records a conversation: no tool can run inside it, so start the actual work with parent set to the session\'s id.',
     inputSchema: {
       type: "object",
       properties: {
@@ -50,6 +58,10 @@ const WORK_TOOLS: Tool[] = [
         type: {
           type: "string",
           description: "A short label for the kind of work. Defaults to request.",
+        },
+        parent: {
+          type: "string",
+          description: "The id of the work this one was started from, such as the session.",
         },
       },
       required: ["objective"],
@@ -68,10 +80,11 @@ const WORK_TOOLS: Tool[] = [
   },
   {
     name: "work_get",
-    description: "The state of the current work, or of the work with the given id.",
+    description:
+      "The state of the current work, or of the work with the given id. With history, also the tool calls so far, the calls that never got a result, and the questions still waiting for an answer, so a stopped work can be picked up.",
     inputSchema: {
       type: "object",
-      properties: { id: { type: "string" } },
+      properties: { id: { type: "string" }, history: { type: "boolean" } },
       additionalProperties: false,
     },
   },
@@ -112,7 +125,61 @@ const WORK_TOOLS: Tool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: ASK_USER.name,
+    description: ASK_USER.description,
+    inputSchema: ASK_USER.inputSchema as Tool["inputSchema"],
+  },
+  {
+    name: "work_answer",
+    description:
+      "Record the person's answer to a question the current work is waiting on, and let the work continue.",
+    inputSchema: {
+      type: "object",
+      properties: { call_id: { type: "string" }, answer: { type: "string" } },
+      required: ["call_id", "answer"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "work_record",
+    description:
+      "Record an event of the client itself on a work: what the person said (human.message), a prompt command expanded for the model (prompt.expanded), a model call (model.requested, model.completed, model.failed) or its usage (usage.recorded with kind model_inference). The payload is in the file form of spec/schemas/events.v1.json. Tool calls are recorded by the runtime and cannot be recorded here.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        work_id: { type: "string" },
+        type: {
+          type: "string",
+          enum: [
+            "human.message",
+            "prompt.expanded",
+            "model.requested",
+            "model.completed",
+            "model.failed",
+            "usage.recorded",
+          ],
+        },
+        payload: { type: "object" },
+      },
+      required: ["work_id", "type", "payload"],
+      additionalProperties: false,
+    },
+  },
 ];
+
+/** The event types a client may record itself. Everything else is the runtime's to write. */
+const RECORDABLE_TYPES: ReadonlySet<string> = new Set([
+  "human.message",
+  "prompt.expanded",
+  "model.requested",
+  "model.completed",
+  "model.failed",
+  "usage.recorded",
+]);
+
+const SESSION_HAS_NO_TOOLS =
+  "a session records the conversation and runs no tools: call work_create with parent set to the session's id, then call the tool inside that work";
 
 const NO_WORK =
   "no current work: call work_create to start one for the person's request, or work_select to pick an existing one";
@@ -168,17 +235,18 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             `work ${current} is still in progress; finish it with work_complete or work_fail before starting another`,
           );
         }
-        const { objective, type } = input as { objective: string; type?: string };
-        if (type === SESSION_WORK_TYPE) {
-          return failure(
-            `type "${SESSION_WORK_TYPE}" is reserved for conversations; use another label, such as request`,
-          );
-        }
+        const { objective, type, parent } = input as {
+          objective: string;
+          type?: string;
+          parent?: string;
+        };
+        if (parent !== undefined) await works.get(parseWorkId(parent));
         const work = await works.create({
           objective,
           principal: config.principal.id,
           profession: config.profession.id,
           ...(type && { type }),
+          ...(parent !== undefined && { parent }),
         });
         await works.transition(work.id, "in_progress", "an agent took the work over MCP");
         session.select(work.id);
@@ -192,10 +260,83 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         return json(work);
       }
       case "work_get": {
-        const given = (input as { id?: string }).id;
+        const { id: given, history } = input as { id?: string; history?: boolean };
         const id = given ? parseWorkId(given) : session.current;
         if (!id) return failure(NO_WORK);
-        return json(await works.get(id));
+        const work = await works.get(id);
+        if (!history) return json(work);
+        return json({ ...work, history: workHistory(await works.events(id)) });
+      }
+      case ASK_USER.name: {
+        const gate = await openWork();
+        if ("refused" in gate) return gate.refused;
+        const work = await works.get(gate.id);
+        if (work.type === SESSION_WORK_TYPE) return failure(SESSION_HAS_NO_TOOLS);
+        if (work.status === "waiting_input") {
+          return failure(
+            `work ${gate.id} is already waiting for an answer; record it with work_answer before asking again`,
+          );
+        }
+        const { question } = input as { question: string };
+        const callId = newCallId();
+        const opened = await works.open(gate.id);
+        try {
+          await opened.append({
+            type: "tool.called",
+            payload: { callId, provider: RUNTIME_PROVIDER_ID, name: ASK_USER.name, input },
+          });
+          await opened.append({ type: "human.input_requested", payload: { callId, question } });
+          await opened.transition("waiting_input", "the agent asked the person a question");
+        } finally {
+          await opened.close();
+        }
+        return json({ pending: true, call_id: callId, question });
+      }
+      case "work_answer": {
+        const gate = await openWork();
+        if ("refused" in gate) return gate.refused;
+        const { call_id: callId, answer } = input as { call_id: string; answer: string };
+        const work = await works.get(gate.id);
+        if (work.status !== "waiting_input") {
+          return failure(`work ${gate.id} is ${work.status}, not waiting for an answer`);
+        }
+        const pending = pendingQuestions(await works.events(gate.id));
+        if (!pending.some((q) => q.callId === callId)) {
+          return failure(
+            `no unanswered question with call_id ${callId}; pending: ${pending.map((q) => q.callId).join(", ") || "none"}`,
+          );
+        }
+        const opened = await works.open(gate.id);
+        try {
+          await opened.append({ type: "human.input_provided", payload: { callId, answer } });
+          await opened.append({
+            type: "tool.completed",
+            payload: { callId, content: [{ type: "text", text: answer }], isError: false },
+          });
+          await opened.transition("in_progress", "the person answered");
+          return json(await opened.current());
+        } finally {
+          await opened.close();
+        }
+      }
+      case "work_record": {
+        const { work_id, type, payload } = input as {
+          work_id: string;
+          type: string;
+          payload: unknown;
+        };
+        const id = parseWorkId(work_id);
+        if (!RECORDABLE_TYPES.has(type) || !isKnownEventType(type)) {
+          return failure(`type ${type} cannot be recorded by a client`);
+        }
+        const work = await works.get(id);
+        if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
+        const parsed = parsePayloadFile(type as EventType, payload);
+        if (type === "usage.recorded" && (parsed as { kind: string }).kind !== "model_inference") {
+          return failure("usage.recorded from a client must have kind model_inference");
+        }
+        const event = await works.append(id, { type, payload: parsed } as never);
+        return json({ id: event.id, seq: event.seq });
       }
       case "work_list": {
         const { works: all, problems } = await works.list();
@@ -240,8 +381,24 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
       default: {
         const gate = await openWork();
         if ("refused" in gate) return gate.refused;
+        const work = await works.get(gate.id);
+        if (work.type === SESSION_WORK_TYPE) return failure(SESSION_HAS_NO_TOOLS);
+        if (work.status === "waiting_input") {
+          return failure(
+            `work ${gate.id} is waiting for the person's answer; record it with work_answer before calling tools`,
+          );
+        }
         const opened = await works.open(gate.id);
         try {
+          const limit = config.limits.maxToolCalls;
+          if (countToolCalls(await opened.events()) >= limit) {
+            const reason = `this work has reached its limit of ${limit} tool calls; finish it with work_complete or work_fail`;
+            await opened.append({
+              type: "tool.rejected",
+              payload: { callId: newCallId(), name, code: "limit_reached", reason },
+            });
+            return failure(`limit_reached: ${reason}`);
+          }
           const result = await callTool(opened, { id: newCallId(), name, input });
           return toMcpResult(result);
         } finally {

@@ -9,7 +9,7 @@ import { WorkStore } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { createMcpServer } from "./server.ts";
 
-async function connected() {
+async function connected(extraYaml = "") {
   const root = await mkdtemp(join(tmpdir(), "openshain-mcp-"));
   await writeFile(
     join(root, "openshain.yaml"),
@@ -28,7 +28,7 @@ model:
   api_key_env: ANTHROPIC_API_KEY
 tools:
   - provider: standard
-`,
+${extraYaml}`,
   );
   await mkdir(join(root, "receipts"));
   await writeFile(
@@ -56,15 +56,22 @@ tools:
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
 describe("openshain over MCP", () => {
-  test("offers the work tools and the workspace's tools, but not ask_user", async () => {
+  test("offers the work tools, ask_user, work_answer, work_record and the workspace's tools", async () => {
     const { client } = await connected();
 
     const names = (await client.listTools()).tools.map((t) => t.name);
 
     expect(names).toEqual(
-      expect.arrayContaining(["work_create", "work_complete", "fs_read", "csv_read"]),
+      expect.arrayContaining([
+        "work_create",
+        "work_complete",
+        "ask_user",
+        "work_answer",
+        "work_record",
+        "fs_read",
+        "csv_read",
+      ]),
     );
-    expect(names).not.toContain("ask_user");
   });
 
   test("a tool call without a current work says how to get one", async () => {
@@ -76,14 +83,135 @@ describe("openshain over MCP", () => {
     expect(result.text).toContain("work_create");
   });
 
-  test("work_create refuses the type that records conversations", async () => {
+  test("a session is a work that runs no tools; the work under it carries parent", async () => {
     const { call, store } = await connected();
 
-    const result = await call("work_create", { objective: "x", type: "session" });
+    const session = await call("work_create", { objective: "会話", type: "session" });
+    expect(session.isError).toBe(false);
+    const sessionId = session.json().id as string;
 
-    expect(result.isError).toBe(true);
-    expect(result.text).toContain("reserved");
-    expect((await store.list()).works).toHaveLength(0);
+    const inSession = await call("fs_list", { path: "." });
+    expect(inSession.isError).toBe(true);
+    expect(inSession.text).toContain("parent");
+
+    const closed = await call("work_complete", { summary: "会話を終了" });
+    expect(closed.json().status).toBe("completed");
+
+    const child = await call("work_create", { objective: "集計", parent: sessionId });
+    expect(child.isError).toBe(false);
+    expect(child.json().parent).toBe(sessionId);
+    expect((await store.get(child.json().id)).parent).toBe(sessionId);
+
+    const orphan = await call("work_fail", { reason: "test" });
+    expect(orphan.isError).toBe(false);
+    const missingParent = await call("work_create", { objective: "x", parent: "work_nope" });
+    expect(missingParent.isError).toBe(true);
+  });
+
+  test("ask_user makes the work wait, work_answer records the answer and resumes it, history shows both", async () => {
+    const { call, store } = await connected();
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
+    await call("fs_list", { path: "." });
+
+    const asked = await call("ask_user", { question: "どの月ですか" });
+    expect(asked.isError).toBe(false);
+    expect(asked.json()).toMatchObject({ pending: true, question: "どの月ですか" });
+    const callId = asked.json().call_id as string;
+    expect((await store.get(id as never)).status).toBe("waiting_input");
+
+    const twice = await call("ask_user", { question: "もう一つ" });
+    expect(twice.isError).toBe(true);
+    expect(twice.text).toContain("work_answer");
+    const blocked = await call("fs_list", { path: "." });
+    expect(blocked.isError).toBe(true);
+
+    const waiting = await call("work_get", { history: true });
+    expect(waiting.json().history.pending).toEqual([{ callId, question: "どの月ですか" }]);
+    expect(waiting.json().history.calls.map((c: { name: string }) => c.name)).toEqual([
+      "fs_list",
+      "ask_user",
+    ]);
+
+    const wrong = await call("work_answer", { call_id: "call_x", answer: "7 月" });
+    expect(wrong.isError).toBe(true);
+    const answered = await call("work_answer", { call_id: callId, answer: "7 月" });
+    expect(answered.isError).toBe(false);
+    expect(answered.json().status).toBe("in_progress");
+
+    const types = (await store.events(id as never)).map((e) => e.type);
+    expect(types).toEqual(
+      expect.arrayContaining(["human.input_requested", "human.input_provided", "tool.completed"]),
+    );
+    const after = await call("work_get", { history: true });
+    expect(after.json().history.pending).toEqual([]);
+    expect(after.json().history.unfinished).toEqual([]);
+  });
+
+  test("work_record accepts the client's own events, checks their payload, and refuses the rest", async () => {
+    const { call, store } = await connected();
+    const id = (await call("work_create", { objective: "会話", type: "session" })).json()
+      .id as string;
+
+    const said = await call("work_record", {
+      work_id: id,
+      type: "human.message",
+      payload: { text: "7 月を集計して" },
+    });
+    expect(said.isError).toBe(false);
+    expect(said.json().seq).toBeGreaterThan(1);
+
+    const usage = await call("work_record", {
+      work_id: id,
+      type: "usage.recorded",
+      payload: {
+        kind: "model_inference",
+        provider: "anthropic",
+        model: "m",
+        usage: { input_tokens: 10, output_tokens: 2 },
+      },
+    });
+    expect(usage.isError).toBe(false);
+
+    const toolUsage = await call("work_record", {
+      work_id: id,
+      type: "usage.recorded",
+      payload: { kind: "tool_execution", provider: "standard", usage: { duration_ms: 1 } },
+    });
+    expect(toolUsage.isError).toBe(true);
+    const bad = await call("work_record", {
+      work_id: id,
+      type: "human.message",
+      payload: { nope: 1 },
+    });
+    expect(bad.isError).toBe(true);
+    const runtimeOnly = await call("work_record", {
+      work_id: id,
+      type: "tool.called",
+      payload: { call_id: "c", provider: "standard", name: "fs_list", input: {} },
+    });
+    expect(runtimeOnly.isError).toBe(true);
+
+    const types = (await store.events(id as never)).map((e) => e.type);
+    expect(types).toEqual([
+      "work.created",
+      "work.status_changed",
+      "human.message",
+      "usage.recorded",
+    ]);
+  });
+
+  test("rejects tool calls past max_tool_calls with limit_reached and keeps the work open", async () => {
+    const { call, store } = await connected("limits:\n  max_tool_calls: 1\n");
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
+
+    expect((await call("fs_list", { path: "." })).isError).toBe(false);
+    const over = await call("fs_list", { path: "." });
+
+    expect(over.isError).toBe(true);
+    expect(over.text).toContain("limit_reached");
+    const events = await store.events(id as never);
+    expect(events.filter((e) => e.type === "tool.rejected")).toHaveLength(1);
+    expect((await store.get(id as never)).status).toBe("in_progress");
   });
 
   test("drives a work from creation to completion, recording the calls and the evidence", async () => {

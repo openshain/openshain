@@ -319,7 +319,7 @@ client                                  Runtime(MCP Tool)
 
 Runtime が持つ規則:
 
-- 現在の Work がない Tool 呼び出しと、`type: session` の Work の中の Tool 呼び出しは受け付けません。
+- 現在の Work がない Tool 呼び出し、`type: session` の Work の中の Tool 呼び出し、`waiting_input` の Work での Tool 呼び出し(先に `work_answer`)は受け付けません。
 - 判定の差し込み口: Tool を実行する直前に `authorize(call)` を通します。この段階の判定は許可リストだけで、それ以外は常に許可です。Authority engine はここに差し込みます。
 - Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。設定の `max_tool_calls` を超えた呼び出しは `tool.rejected`(limit_reached)で返し、Work は続きます。閉じるかどうかは client が決めます。
 - Tool の失敗は client に `isError` で返し、Work は続きます。
