@@ -41,6 +41,16 @@ envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に�
 
 Tool 定義の schema は登録時に検証します。`pattern` と `patternProperties` にバックトラックが爆発する正規表現(ReDoS)があれば登録を拒否します。入力の値を渡すのは model なので、検証自体を止められる schema を受け付けません。
 
+## 権限の表は `authority/` の YAML、判定は最初の一致
+
+決めたこと。`authority/policy.yaml` の規則を上から順に見て、`match` のすべての条件が成り立つ最初の規則の判定を採り、無ければ `default` です。`authority/delegations.yaml` に Principal と職種の委任が無ければ、その組の Action はすべて拒否です。`authority/` の無い workspace は今までどおりすべて許可で、委任も要りません。判定は Tool の許可リストの後、schema 検証の後、実行の前の 1 か所(`callTool`)で行い、拒否は `tool.rejected`(code `denied`)として記録します。`principals/` と `authority/` は予約パスで、Tool からは読み書きできません。
+
+理由。「最初の一致」は人が表を読んで結果を追えます。重み付けや最も具体的な規則を選ぶ方式は、規則が増えたときに結果を予想しにくくなります。委任の無い組を拒否にするのは、表を書き忘れたときに開くのではなく閉じるためです。既存の workspace を変えずに動かすのは、権限の機能を入れたことで今の利用者の作業を止めないためです。
+
+path の一致は自前の小さな glob です。`*` は 1 つの区切りの中、`**` は区切りをまたぎます。依存を足さないためと、規則で使う形がその 2 つで足りるためです。判定の対象のパスは入力の `path` を正規化したもので、path guard(絶対パス、`..`、symlink)は実行のときに別に働きます。
+
+変える条件。金額や件数のような値の条件が要るとき(ChangeSet の差分が取れてから)。規則が数十を超えて「最初の一致」で追えなくなったとき。
+
 ## 専門家の Review は Tool ではなく Authority の結果
 
 決めたこと。資格を要する判断が要る Action は、Authority が `review_required` と判定して Work を止め、Runtime が Review Package を作ります。会社が指名した専門家(Reviewer)が承認し、その Decision を参照して初めて Action が進みます。社員エージェントが専門家を Tool として呼ぶ形にはしません(spec/professional-boundary.md)。

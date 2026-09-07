@@ -19,6 +19,7 @@ import {
   isKnownEventType,
   isOpenshainError,
   isTerminal,
+  loadAuthority,
   loadConfig,
   parsePayloadFile,
   parseWorkId,
@@ -229,7 +230,8 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
   const { workspaceRoot } = options;
   const config = await loadConfig(workspaceRoot);
   const registry = await createToolRegistry(workspaceRoot, config, options.tools);
-  const callTool = createToolCaller({ registry, config, workspaceRoot });
+  const authority = await loadAuthority(workspaceRoot);
+  const callTool = createToolCaller({ registry, config, workspaceRoot, authority });
   const works = new WorkStore(workspaceRoot);
   const session = new Session();
   const server = new Server(

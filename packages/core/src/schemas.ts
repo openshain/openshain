@@ -1,10 +1,16 @@
 import { z } from "zod";
+import { DelegationsFileSchema, PolicyFileSchema } from "./authority/policy.ts";
 import { ConfigFileSchema } from "./config/schema.ts";
 import type { JsonSchema } from "./tool/types.ts";
 import { EventFileSchema, payloadFileSchemas } from "./work/events.ts";
 import { WorkFileSchema } from "./work/work.ts";
 
-export type SchemaName = "config.v1" | "events.v1" | "work.v1";
+export type SchemaName =
+  | "config.v1"
+  | "events.v1"
+  | "work.v1"
+  | "authority-policy.v1"
+  | "authority-delegations.v1";
 
 /**
  * The JSON Schemas (draft 2020-12) of the files openshain reads and writes, derived from the zod
@@ -24,6 +30,16 @@ export function jsonSchemas(): Record<SchemaName, JsonSchema> {
       WorkFileSchema,
       "work.json",
       "The state of a work as projected from its event log. Never the source of truth.",
+    ),
+    "authority-policy.v1": describe(
+      PolicyFileSchema,
+      "authority/policy.yaml",
+      "The rules that judge tool calls: the first matching rule decides, else the default.",
+    ),
+    "authority-delegations.v1": describe(
+      DelegationsFileSchema,
+      "authority/delegations.yaml",
+      "Who the agent may act for, as which profession, and when.",
     ),
   };
 }

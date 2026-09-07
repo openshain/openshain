@@ -1,3 +1,4 @@
+import { type Authority, evaluate, loadAuthority, OPEN_AUTHORITY } from "./authority/policy.ts";
 import { loadConfig } from "./config/load.ts";
 import type { Config, ModelConfig } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
@@ -72,6 +73,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
   }
 
   const registry = await createToolRegistry(workspaceRoot, config, providers.tools);
+  const authority = await loadAuthority(workspaceRoot);
   const works = new WorkStore(workspaceRoot);
   return {
     workspaceRoot,
@@ -81,7 +83,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
     tools: {
       list: () => registry.list().map(({ definition, providerId }) => ({ definition, providerId })),
       hidden: () => registry.hiddenTools(),
-      call: createToolCaller({ registry, config, workspaceRoot }),
+      call: createToolCaller({ registry, config, workspaceRoot, authority }),
     },
   };
 }
@@ -91,8 +93,11 @@ export function createToolCaller(input: {
   registry: ToolRegistry;
   config: Config;
   workspaceRoot: string;
+  /** Who may do what. Omitted: the workspace is open, as one without authority/ is. */
+  authority?: Authority;
 }): (work: WorkHandle, call: ToolCall) => Promise<ToolResult> {
-  return (work, call) => callTool({ ...input, work, call });
+  const authority = input.authority ?? OPEN_AUTHORITY;
+  return (work, call) => callTool({ ...input, authority, work, call });
 }
 
 /** Registers the tool providers the config names: the caller's factories by id, and modules from the workspace. Needs no model. */
@@ -143,10 +148,11 @@ async function callTool(input: {
   registry: ToolRegistry;
   config: Config;
   workspaceRoot: string;
+  authority: Authority;
   work: WorkHandle;
   call: ToolCall;
 }): Promise<ToolResult> {
-  const { registry, config, workspaceRoot, work, call } = input;
+  const { registry, config, workspaceRoot, authority, work, call } = input;
   const reject = async (code: ToolRejectionCode, reason: string): Promise<ToolResult> => {
     await work.append({
       type: "tool.rejected",
@@ -163,6 +169,25 @@ async function callTool(input: {
     return reject(
       "schema_mismatch",
       `input does not match the schema of ${call.name}: ${validation.reason}`,
+    );
+  }
+  // The policy judges after the allow list. Approval and review are not available in this
+  // version, so a call that would need them is refused rather than run.
+  const path = pathOf(call.input);
+  const judged = evaluate(authority, {
+    tool: call.name,
+    effect: tool.definition.effect,
+    ...(path !== undefined && { path }),
+    principal: config.principal.id,
+    profession: config.profession.id,
+    workType: (await work.current()).type,
+    businessDate: businessDate(),
+  });
+  if (judged.kind === "deny") return reject("denied", judged.reason);
+  if (judged.kind !== "allow") {
+    return reject(
+      "denied",
+      `rule ${judged.rule.id} needs ${judged.kind.replace("_", " ")}, which this version cannot record yet; the call was not run`,
     );
   }
 
@@ -201,6 +226,26 @@ async function callTool(input: {
     payload: { kind: "tool_execution", provider: tool.providerId, usage: { durationMs } },
   });
   return result;
+}
+
+/** The path a call names, normalized to a workspace-relative posix path, when its input has one. */
+function pathOf(input: unknown): string | undefined {
+  const path = (input as { path?: unknown } | null)?.path;
+  if (typeof path !== "string" || path === "") return undefined;
+  const segments: string[] = [];
+  for (const segment of path.replaceAll("\\", "/").split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+  return segments.join("/");
+}
+
+/** Today's date on this machine's clock, YYYY-MM-DD. */
+function businessDate(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 function isRejectionCode(code: string): code is ToolRejectionCode {

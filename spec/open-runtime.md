@@ -50,7 +50,7 @@ openshain で最初に作る部分です。Model、Tool、エージェントの�
 └── (利用者のファイル)      Tool が読み書きしてよいのはこの下だけ
 ```
 
-`openshain.yaml` と `work/`、および先頭が `.` の項目(`.git`、`.github`、`.env` など)は Runtime の予約パスです。Tool からは読み書きとも拒否します。
+`openshain.yaml` と `work/`、`principals/`、`authority/`、および先頭が `.` の項目(`.git`、`.github`、`.env` など)は Runtime の予約パスです。Tool からは読み書きとも拒否します。
 
 lock は取得した書き手(pid と開始時刻)だけが解放できます。pid が 1 以下か整数でない lock は死んだものとして引き継ぎます。既知の限界として、別のプロセスに再利用された pid は検出できません。手で lock を消すまで `lock_held` のままになります。
 
@@ -122,7 +122,7 @@ outcome:
 | `model.failed` | code、message |
 | `tool.called` | call_id、provider、name、input |
 | `tool.completed` | call_id、content、is_error、observation、after(mutate のとき、書き込み後の path と sha256) |
-| `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`)、reason |
+| `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`、`limit_reached`、`denied`)、reason |
 | `human.input_requested` | call_id(`ask_user` の呼び出し)、question |
 | `human.input_provided` | call_id、answer。答えは同じ call_id の `tool.completed` としても記録し、投影はそちらを使います |
 | `human.message` | text。セッションで人が言ったことです。投影では user message になります |
@@ -320,7 +320,7 @@ client                                  Runtime(MCP Tool)
 Runtime が持つ規則:
 
 - 現在の Work がない Tool 呼び出し、`type: session` の Work の中の Tool 呼び出し、`waiting_input` の Work での Tool 呼び出し(先に `work_answer`)は受け付けません。
-- 判定の差し込み口: Tool を実行する直前に `authorize(call)` を通します。この段階の判定は許可リストだけで、それ以外は常に許可です。Authority engine はここに差し込みます。
+- 判定の差し込み口: Tool を実行する直前に `authorize(call)` を通します。許可リストの判定に続けて `authority/` の規則の表を評価します(authority.md)。`authority/` の無い workspace ではすべて許可です。
 - Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。設定の `max_tool_calls` を超えた呼び出しは `tool.rejected`(limit_reached)で返し、Work は続きます。閉じるかどうかは client が決めます。
 - Tool の失敗は client に `isError` で返し、Work は続きます。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。

@@ -10,7 +10,7 @@ spec は [authority.md](authority.md) です。小さい縦の切れ目で進め
 - 検証: `bun test packages/mcp packages/agent`
 - サイズ: S
 
-#### Task 1: Policy の読み込みと判定
+#### Task 1: Policy の読み込みと判定(2026-09-07 完了。approval_required と review_required は承認の仕組みが入るまで拒否)
 
 `authority/policy.yaml` と `authority/delegations.yaml` の schema(zod)、読み込み、判定の関数(規則の順、`match` の AND、glob、`default`)。`authorize()` に差し込み、`allow` と `deny` を動かします。`principals/` と `authority/` を予約パスにします。JSON Schema を生成します。
 

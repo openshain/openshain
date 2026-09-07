@@ -42,6 +42,7 @@ export const TOOL_REJECTION_CODES = [
   "outside_workspace",
   "invalid_path",
   "limit_reached",
+  "denied",
 ] as const;
 
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];

@@ -9,11 +9,12 @@ import { WorkStore } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { createMcpServer } from "./server.ts";
 
-async function connected(extraYaml = "") {
-  const root = await mkdtemp(join(tmpdir(), "openshain-mcp-"));
-  await writeFile(
-    join(root, "openshain.yaml"),
-    `version: 1
+async function connected(extraYaml = "", existingRoot?: string) {
+  const root = existingRoot ?? (await mkdtemp(join(tmpdir(), "openshain-mcp-")));
+  if (!existingRoot)
+    await writeFile(
+      join(root, "openshain.yaml"),
+      `version: 1
 company:
   name: サンプル株式会社
 principal:
@@ -29,12 +30,14 @@ model:
 tools:
   - provider: standard
 ${extraYaml}`,
-  );
-  await mkdir(join(root, "receipts"));
-  await writeFile(
-    join(root, "receipts", "2026-07.csv"),
-    "date,amount\n2026-07-01,100\n2026-07-02,250\n",
-  );
+    );
+  if (!existingRoot) {
+    await mkdir(join(root, "receipts"));
+    await writeFile(
+      join(root, "receipts", "2026-07.csv"),
+      "date,amount\n2026-07-01,100\n2026-07-02,250\n",
+    );
+  }
   const server = await createMcpServer({
     workspaceRoot: root,
     tools: { standard: () => standardTools() },
@@ -271,6 +274,52 @@ describe("openshain over MCP", () => {
     expect(longName.text).toContain("schema_mismatch");
     const longQuestion = await call("ask_user", { question: "?".repeat(10_001) });
     expect(longQuestion.isError).toBe(true);
+  });
+
+  test("authority/ judges tool calls: a denied write is recorded and not run, principals/ and authority/ are reserved", async () => {
+    const { root, call, store } = await connected();
+    await mkdir(join(root, "authority"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: receipts-are-read-only
+    match: { effect: mutate, path: "receipts/**" }
+    decision: deny
+    reason: 領収書は変更しません
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged } = await connected(undefined, root);
+    void call;
+    const id = (await judged("work_create", { objective: "x" })).json().id as string;
+
+    const read = await judged("csv_read", { path: "receipts/2026-07.csv" });
+    expect(read.isError).toBe(false);
+    const denied = await judged("fs_write", { path: "receipts/2026-07.csv", content: "x" });
+    expect(denied.isError).toBe(true);
+    expect(denied.text).toContain("領収書は変更しません");
+    expect(await readFile(join(root, "receipts", "2026-07.csv"), "utf8")).toContain("2026-07-01");
+    const needsApproval = await judged("fs_write", { path: "ledger/2026-07.csv", content: "x" });
+    expect(needsApproval.isError).toBe(true);
+    expect(needsApproval.text).toContain("approval required");
+    const reserved = await judged("fs_read", { path: "authority/policy.yaml" });
+    expect(reserved.isError).toBe(true);
+    const events = await store.events(id as never);
+    const rejected = events.filter((e) => e.type === "tool.rejected");
+    expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "denied",
+      "denied",
+      "reserved_path",
+    ]);
   });
 
   test("rejects tool calls past max_tool_calls with limit_reached and keeps the work open", async () => {

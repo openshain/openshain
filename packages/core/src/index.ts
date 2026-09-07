@@ -1,4 +1,24 @@
 // @openshain/core: Contracts (provider interfaces), fundamental objects, and the work runtime
+
+export {
+  AUTHORITY_DIR_NAME,
+  type Authority,
+  type AuthorityRequest,
+  DECISION_KINDS,
+  DELEGATIONS_FILE_NAME,
+  type Decision,
+  type DecisionKind,
+  type Delegation,
+  DelegationsFileSchema,
+  evaluate,
+  loadAuthority,
+  matchGlob,
+  OPEN_AUTHORITY,
+  POLICY_FILE_NAME,
+  type PolicyFile,
+  PolicyFileSchema,
+  type Rule,
+} from "./authority/policy.ts";
 export {
   CONFIG_FILE_NAME,
   loadConfig,

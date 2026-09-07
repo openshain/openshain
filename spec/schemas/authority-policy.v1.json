@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "authority/policy.yaml",
+  "description": "The rules that judge tool calls: the first matching rule decides, else the default.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "default": {
+      "default": "allow",
+      "type": "string",
+      "enum": [
+        "allow",
+        "approval_required",
+        "review_required",
+        "deny",
+        "decision_backed"
+      ]
+    },
+    "rules": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "match": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  }
+                ]
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "observe",
+                  "mutate"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "principal": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  }
+                ]
+              },
+              "work_type": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  }
+                ]
+              },
+              "action": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "approval_required",
+              "review_required",
+              "deny",
+              "decision_backed"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "approvers": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]*$"
+            }
+          },
+          "reviewer": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]*$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "role"
+            ],
+            "additionalProperties": false
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "id",
+          "match",
+          "decision"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false
+}

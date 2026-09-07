@@ -6,6 +6,7 @@
 
 ### Added
 
+- `authority/policy.yaml` と `authority/delegations.yaml`。Tool 呼び出しを規則の表で判定し(最初の一致、`*` と `**` の glob)、委任の無い代理と規則で拒否した呼び出しを `tool.rejected`(`denied`)として記録します。承認と Review が要る規則は、その仕組みが入るまで拒否として動きます。`principals/` と `authority/` は予約パスです。JSON Schema は `spec/schemas/authority-*.v1.json` にあります
 - Runtime の Tool `context`。現在時刻、タイムゾーン、今日の業務日、会社フォルダ、依頼する人、現在の Work を返します。対話型 CLI は会話の開始時に 1 回呼んで記録し、社員エージェントは日付が要るときに呼び直します
 
 ## [0.3.1] - 2026-09-07

@@ -673,7 +673,8 @@
                 "reserved_path",
                 "outside_workspace",
                 "invalid_path",
-                "limit_reached"
+                "limit_reached",
+                "denied"
               ]
             },
             "reason": {
