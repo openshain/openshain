@@ -4,12 +4,18 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Publish this existing tag to npm again (the build and the GitHub Release are not repeated)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: inputs.tag == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -105,15 +111,19 @@ jobs:
     # stored anywhere. The environment carries the required reviewer, so a person approves
     # each publish. bun publish has no OIDC support yet, so the publish step itself is npm's.
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: always() && ((startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success') || inputs.tag != '')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: npm
     permissions:
       id-token: write
       contents: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -134,13 +144,24 @@ jobs:
           bun run build:packages
 
       - name: Pin workspace dependencies to the released version
-        run: bun scripts/pin-workspace-versions.ts "${GITHUB_REF_NAME#v}"
+        run: bun scripts/pin-workspace-versions.ts "${RELEASE_TAG#v}"
+
+      - name: Show what npm will present to the registry
+        # The OIDC token's claims (no signature) and the registry's answer to the exchange, so a
+        # mismatch with the trusted publisher settings on npmjs.com is visible in the log.
+        run: |
+          id_token="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org" | jq -r .value)"
+          echo "$id_token" | cut -d. -f2 | tr '_-' '/+' | awk '{ l = length($0) % 4; if (l) printf "%s%s", $0, substr("==", 1, 4 - l); else print $0 }' | base64 -d 2>/dev/null | jq '{repository, repository_owner, workflow_ref, job_workflow_ref, environment, ref, event_name, aud}'
+          status="$(curl -sS -o /tmp/exchange.json -w '%{http_code}' -X POST -H "Authorization: Bearer $id_token" -H 'Content-Type: application/json' https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/%40openshain%2Fcore)"
+          echo "exchange for @openshain/core: HTTP $status"
+          jq 'del(.token)' /tmp/exchange.json 2>/dev/null || cat /tmp/exchange.json
 
       - name: Publish in dependency order
         # A tag with a suffix goes to the next dist-tag and leaves latest alone.
         run: |
           tag=latest
-          case "$GITHUB_REF_NAME" in *-*) tag=next ;; esac
+          case "$RELEASE_TAG" in *-*) tag=next ;; esac
           for p in core tools agent mcp cli; do
-            (cd "packages/$p" && npm publish --access public --provenance --tag "$tag")
+            (cd "packages/$p" && npm publish --access public --provenance --tag "$tag" --loglevel verbose 2>&1 | grep -viE 'authorization|_authToken|bearer' )
+            test "${PIPESTATUS[0]}" -eq 0
           done
