@@ -20,9 +20,19 @@ export async function previewCall(
   workspaceRoot: string,
   call: { name: string; input: unknown },
 ): Promise<PreviewLine[]> {
-  const input = (call.input ?? {}) as { path?: unknown; content?: unknown; rows?: unknown };
+  const input = (call.input ?? {}) as {
+    path?: unknown;
+    content?: unknown;
+    rows?: unknown;
+    columns?: unknown;
+  };
   const path = typeof input.path === "string" ? input.path : undefined;
-  const content = typeof input.content === "string" ? input.content : undefined;
+  const content =
+    typeof input.content === "string"
+      ? input.content
+      : Array.isArray(input.rows)
+        ? csvText(input.rows as Record<string, unknown>[], input.columns)
+        : undefined;
   if (path === undefined || content === undefined) {
     return [{ kind: "note", text: JSON.stringify(call.input) }];
   }
@@ -46,6 +56,26 @@ export async function previewCall(
   }
   const body = diff(oldLines, newLines);
   return cap([{ kind: "note", text: `${path} を書き換えます` }, ...body]);
+}
+
+/**
+ * The rows of a csv_write as the file will read: the header, then one line per row, quoted the
+ * way a CSV writer does. Close enough for a person to check what the columns and the numbers are.
+ */
+function csvText(rows: Record<string, unknown>[], columns: unknown): string {
+  const header = Array.isArray(columns)
+    ? (columns as unknown[]).map(String)
+    : Object.keys(rows[0] ?? {});
+  const cell = (value: unknown) => {
+    const text = value === undefined || value === null ? "" : String(value);
+    return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  };
+  return [
+    header.map(cell).join(","),
+    ...rows.map((row) => header.map((c) => cell(row[c])).join(",")),
+  ]
+    .join("\n")
+    .concat("\n");
 }
 
 function cap(lines: PreviewLine[]): PreviewLine[] {
