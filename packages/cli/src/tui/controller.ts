@@ -1,6 +1,5 @@
 import { connectInMemory, createSession, type Session, type TurnResult } from "@openshain/agent";
 import {
-  type AnyEvent,
   type Event,
   loadConfig,
   OpenshainError,

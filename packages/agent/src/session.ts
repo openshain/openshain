@@ -13,7 +13,6 @@ import {
   type ModelResponse,
   newEventId,
   SESSION_WORK_TYPE,
-  type ToolContent,
   type ToolDefinition,
   type Work,
   type WorkId,
