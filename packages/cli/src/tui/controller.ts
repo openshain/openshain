@@ -1,4 +1,5 @@
 import {
+  type ApprovalAnswer,
   type ApprovalChoice,
   connectInMemory,
   createSession,
@@ -55,9 +56,13 @@ export interface ControllerState {
     title: string;
     ruleId: string;
     preview: PreviewLine[];
-    choices: { key: ApprovalChoice; label: string }[];
+    choices: { key: ApprovalChoice | "reject_with_reason"; label: string }[];
     at: number;
   };
+  /** After "no, and tell the agent why": the next line the person types is that reason. */
+  reason?: string;
+  /** Lines typed while the screen was busy. They are sent in order once it is free. */
+  queued: string[];
   closed: boolean;
   status: {
     company: string;
@@ -80,7 +85,7 @@ export interface Controller {
   /** Moves the highlight in the approval choices. */
   moveApproval(delta: number): void;
   /** Answers the approval being shown: the highlighted choice, or the one given. */
-  decideApproval(choice?: ApprovalChoice): void;
+  decideApproval(choice?: ApprovalChoice | "reject_with_reason"): void;
   /** Stops whatever is running, then ends the session. A second call waits for the same close. */
   close(): Promise<void>;
 }
@@ -105,10 +110,11 @@ const HELP = [
 ];
 
 /** The choices the screen offers for a held call, in the order they are shown. */
-const APPROVAL_CHOICES: { key: ApprovalChoice; label: string }[] = [
+const APPROVAL_CHOICES: { key: ApprovalChoice | "reject_with_reason"; label: string }[] = [
   { key: "approve", label: "はい。実行する" },
   { key: "always", label: "はい。この会話では同じ規則の呼び出しを常に承認する" },
   { key: "reject", label: "いいえ。実行しない" },
+  { key: "reject_with_reason", label: "いいえ。理由を伝えて実行しない" },
 ];
 
 /** What the session's model hears when the person stops a work that waits for their answer. */
@@ -154,6 +160,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     entries: [],
     busy: false,
     closed: false,
+    queued: [],
     status: {
       company: config.company.name,
       model: `${config.model.provider}/${config.model.model}`,
@@ -185,7 +192,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
 
   let pending: { resolve: (text: string) => void; reject: (reason: Error) => void } | undefined;
   let deciding:
-    | { resolve: (choice: ApprovalChoice) => void; reject: (reason: Error) => void }
+    | { resolve: (answer: ApprovalAnswer) => void; reject: (reason: Error) => void }
     | undefined;
   let aborter: AbortController | undefined;
   let running: Promise<void> | undefined;
@@ -200,7 +207,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     });
   };
   /** Shows a held call and waits for the person to pick one of the choices. */
-  const askApproval = async (approval: HeldApproval): Promise<ApprovalChoice> => {
+  const askApproval = async (approval: HeldApproval): Promise<ApprovalAnswer> => {
     const preview = await previewCall(workspaceRoot, {
       name: approval.name,
       input: approval.input,
@@ -221,14 +228,18 @@ export async function createController(options: ControllerOptions): Promise<Cont
         `${line.kind === "added" ? "+ " : line.kind === "removed" ? "- " : "  "}${line.text}`,
       );
     }
-    return new Promise<ApprovalChoice>((resolve, reject) => {
+    return new Promise<ApprovalAnswer>((resolve, reject) => {
       deciding = { resolve, reject };
     });
   };
   /** Settles the approval being shown, or takes it back when there is no choice. */
-  const settleApproval = (choice?: ApprovalChoice) => {
+  const settleApproval = (choice?: ApprovalChoice, comment?: string) => {
     const waiting = deciding;
     deciding = undefined;
+    if (state.reason !== undefined) {
+      delete state.reason;
+      notify();
+    }
     if (state.approval !== undefined) {
       const decided = choice ? APPROVAL_CHOICES.find((c) => c.key === choice)?.label : undefined;
       delete state.approval;
@@ -237,7 +248,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     }
     if (!waiting) return;
     if (choice === undefined) waiting.reject(new Error(APPROVAL_WITHDRAWN));
-    else waiting.resolve(choice);
+    else waiting.resolve({ choice, ...(comment !== undefined && comment !== "" && { comment }) });
   };
 
   /** Answers the pending question, or takes it back when there is no answer. */
@@ -360,6 +371,16 @@ export async function createController(options: ControllerOptions): Promise<Cont
     }
   };
 
+  /** Sends what the person typed while the agent was working, oldest first. */
+  const drainQueue = async () => {
+    while (state.queued.length > 0 && !closing) {
+      const [next, ...rest] = state.queued as [string, ...string[]];
+      state.queued = rest;
+      notify();
+      await self.submit(next);
+    }
+  };
+
   const capture = async (fn: (write: (line: string) => void) => Promise<unknown>) => {
     try {
       await fn((line) => push("line", line));
@@ -440,7 +461,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     return closing;
   }
 
-  return {
+  const self: Controller = {
     sessionId: session.id,
     state: () => state,
     subscribe(listener) {
@@ -454,6 +475,11 @@ export async function createController(options: ControllerOptions): Promise<Cont
         push("notice", "承認を先に決めてください。数字か ↑↓ と Enter で選びます。");
         return;
       }
+      if (state.reason !== undefined) {
+        push("user", text);
+        settleApproval("reject", text);
+        return;
+      }
       if (pending) {
         push("user", text);
         // Everything typed answers the question, except leaving: that takes the question back.
@@ -462,7 +488,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
         return;
       }
       if (state.busy) {
-        push("notice", "いま動いています。止めるなら Ctrl-C。");
+        // Typing while the agent works is not a mistake: the line waits its turn.
+        state.queued = [...state.queued, text];
+        push("notice", `順番待ち(${state.queued.length} 件): ${text}`);
+        notify();
         return;
       }
       if (text.startsWith("/")) {
@@ -481,6 +510,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
           push("notice", message(err));
         }
       });
+      await drainQueue();
     },
     interrupt() {
       if (!aborter) return false;
@@ -499,10 +529,22 @@ export async function createController(options: ControllerOptions): Promise<Cont
     decideApproval(choice) {
       const approval = state.approval;
       if (!approval) return;
-      settleApproval(choice ?? approval.choices[approval.at]?.key ?? "reject");
+      const picked = choice ?? approval.choices[approval.at]?.key ?? "reject";
+      if (picked === "reject_with_reason") {
+        // The palette closes and the input box takes the reason; the loop still waits.
+        const shown = APPROVAL_CHOICES.find((c) => c.key === picked)?.label;
+        delete state.approval;
+        state.reason = "実行しない理由(社員エージェントに伝わります)";
+        if (shown) push("line", `> ${shown}`);
+        push("question", state.reason);
+        notify();
+        return;
+      }
+      settleApproval(picked);
     },
     close,
   };
+  return self;
 }
 
 /** Lines that close a work in the screen: the CLI's closing lines without the summary, which the agent relays. */

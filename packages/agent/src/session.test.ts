@@ -345,7 +345,7 @@ describe("a session and approvals", () => {
       onApproval: async (held) => {
         asked.push(`${held.name} ${(held.input as { path: string }).path} ${held.ruleId}`);
         // The first answer stands for the rest of the conversation, so the second call is silent.
-        return "always";
+        return { choice: "always" };
       },
     });
 
@@ -373,13 +373,17 @@ describe("a session and approvals", () => {
           input: { path: "ledger/2026-07.csv", content: "a,b\n" },
         }),
         (request) => {
-          expect(JSON.stringify(request.messages.at(-2))).toContain("refused this call");
+          const back = JSON.stringify(request.messages.at(-2));
+          expect(back).toContain("refused this call");
+          expect(back).toContain("先に規程を直したい");
           return say("承認されなかったので書きませんでした。");
         },
       ],
       { authority: true },
     );
-    const session = await open({ onApproval: async () => "reject" });
+    const session = await open({
+      onApproval: async () => ({ choice: "reject", comment: "先に規程を直したい" }),
+    });
 
     const result = await session.turn("7 月の帳簿を書いて");
 
@@ -387,6 +391,12 @@ describe("a session and approvals", () => {
     expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
     const work = (await store.list()).works.find((w) => w.type !== "session");
     expect(work?.status).toBe("in_progress");
+    const decided = (await store.events(work?.id as WorkId)).find(
+      (e) => e.type === "approval.decided",
+    );
+    expect((decided as { payload: { comment?: string } }).payload.comment).toBe(
+      "先に規程を直したい",
+    );
   });
 
   test("without a way to ask, the held call ends the turn; approve runs it and the work comes back as the candidate", async () => {

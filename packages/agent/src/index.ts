@@ -15,6 +15,7 @@ export {
   openaiCompatibleProvider,
 } from "./providers/openai-compatible.ts";
 export {
+  type ApprovalAnswer,
   type ApprovalChoice,
   createSession,
   type HeldApproval,

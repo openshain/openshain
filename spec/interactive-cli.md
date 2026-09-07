@@ -68,9 +68,10 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 - 会話の投影は client(CLI の loop)が組み立てます。セッションの Work の記録から作り、作業の Work の中で得た Tool の結果は、その Work を閉じた後は要約(`work_complete` の summary)だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです
 - 1 ターン(人の発言から次の返答まで)の上限は model 呼び出し 25 回、Tool 呼び出し 40 回です。作業の Tool 呼び出しもこのターンの中で起きるので、v0.1 より大きい値です。投影の末尾の残り回数の行はこの値を表示します。超えたらそのターンを打ち切り、人に知らせ、セッションは続きます。作業の Work には `limits` の `max_tool_calls` を Runtime が数えます。`max_model_calls` は client が Work ごとに数え、超えたら `work_fail`(limit_reached)します
 - `ask_user` の結果が pending なら、client は人に質問を表示し、答えを `work_answer` で記録してから続けます。Ctrl-C で質問を取り下げると Work は `waiting_input` のまま残ります
-- Tool 呼び出しの結果が承認待ち(`pending: "approval"`)なら、ターンは止まったまま、入力欄が選択の画面(承認パレット)に変わります。上に呼び出しと規則の id、その下に何が変わるか(ファイルへの書き込みなら差分)、そして 3 つの選択肢が並びます。1「はい。実行する」、2「はい。この会話では同じ規則の呼び出しを常に承認する」、3「いいえ。実行しない」。↑ と ↓ と Enter、または数字で選び、Esc は 3 と同じです。選ぶと Runtime の `approval_decide` が走り、承認なら Runtime がその場で Tool を実行して、ターンはそのまま続きます
+- Tool 呼び出しの結果が承認待ち(`pending: "approval"`)なら、ターンは止まったまま、入力欄が選択の画面(承認パレット)に変わります。上に呼び出しと規則の id、その下に何が変わるか(ファイルへの書き込みなら差分)、そして 3 つの選択肢が並びます。1「はい。実行する」、2「はい。この会話では同じ規則の呼び出しを常に承認する」、3「いいえ。実行しない」、4「いいえ。理由を伝えて実行しない」。↑ と ↓ と Enter、または数字で選び、Esc は 3 と同じです。4 を選ぶと入力欄が理由を聞き、書いた文は `approval.decided` の comment に残り、社員エージェントにも渡ります。選ぶと Runtime の `approval_decide` が走り、承認なら Runtime がその場で Tool を実行して、ターンはそのまま続きます
 - 2 を選ぶと、その規則が保留した呼び出しは、この会話の間は聞かずに承認します。`authority/` には何も書きません。会話を閉じれば消えます。承認の記録は毎回残り、`approval.decided` の comment に「この会話では常に承認する、と決めた」と入ります。Review(資格者の承認)には 2 の選択肢を出しません
 - Ctrl-C は決めずに止めます。その呼び出しは `waiting_approval` のまま残り、後から `/approve <id>` で決められます
+- 社員エージェントが動いている間に打った行は、断らずに順番待ちにします。入力欄の下に待っている行が並び、ターンが終わると古い順に送ります
 - 端末のない client(Claude Code、Codex)には選択の画面がないので、承認待ちは `pending` として返り、人が `openshain` の画面か `approval_decide` で決めます
 - `/work resume <id>` で名指しされた Work は、人の次の依頼がその Work の objective に沿うときだけ `work_select` して続けます。沿わなければ、その旨を伝えたうえで新しい Work を作るか、`work_list` で探し直します。名指しは候補であって命令ではなく、次の 1 ターンだけ有効です
 - モデルが `work_record` と `work_answer` を呼ぶこと、作業の Work が無いのに `work_complete` や `work_fail` を呼ぶことは、loop が Runtime に渡さずに拒否します。会話の Work を閉じたり偽の記録を書いたりする経路をモデルに与えません

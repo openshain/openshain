@@ -73,9 +73,10 @@ export function App({ controller }: { controller: Controller }) {
   }, [state.busy]);
 
   // One row is left to the terminal: drawing exactly its height makes it scroll on every redraw.
-  const chromeRows = state.approval
-    ? CHROME_ROWS + APPROVAL_EXTRA_ROWS + state.approval.choices.length
-    : CHROME_ROWS;
+  const chromeRows =
+    (state.approval
+      ? CHROME_ROWS + APPROVAL_EXTRA_ROWS + state.approval.choices.length
+      : CHROME_ROWS) + (state.queued.length > 0 && !state.approval ? 1 : 0);
   const height = Math.max(chromeRows + 1, size.rows - 1);
   const width = Math.max(20, size.columns);
   const paneRows = height - chromeRows;
@@ -183,6 +184,7 @@ export function App({ controller }: { controller: Controller }) {
 
   const approval = state.approval;
   const asking = state.question !== undefined;
+  const queued = state.queued;
   const chars = [...input];
   const at = Math.min(cursor, chars.length);
   const before = chars.slice(0, at).join("");
@@ -254,6 +256,11 @@ export function App({ controller }: { controller: Controller }) {
           <Text>{after}</Text>
         </Box>
       )}
+      {queued.length > 0 && !approval ? (
+        <Text dimColor wrap="truncate">
+          順番待ち {queued.length} 件: {queued.join(" / ")}
+        </Text>
+      ) : null}
       <Text dimColor wrap="truncate">
         {approval
           ? "↑ ↓ と Enter、または数字で選ぶ。Esc は実行しない。Ctrl-C で保留のまま止める"

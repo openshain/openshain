@@ -15,6 +15,7 @@ function fakeController(entries?: Entry[]) {
     ],
     busy: false,
     closed: false,
+    queued: [],
     status: {
       company: "サンプル株式会社",
       model: "fake/fake-1",
@@ -265,6 +266,7 @@ describe("the approval palette", () => {
         { key: "approve", label: "はい。実行する" },
         { key: "always", label: "はい。この会話では同じ規則の呼び出しを常に承認する" },
         { key: "reject", label: "いいえ。実行しない" },
+        { key: "reject_with_reason", label: "いいえ。理由を伝えて実行しない" },
       ],
       at: 0,
     };
@@ -301,6 +303,15 @@ describe("the approval palette", () => {
     stdin.write("\u001B");
     await tick();
     expect(decided).toEqual(["always", "reject"]);
+  });
+
+  test("the queued lines are listed under the input box", async () => {
+    const { controller, state } = fakeController();
+    state.queued = ["あとで集計して", "月末の確認も"];
+    const { lastFrame } = render(<App controller={controller} />);
+    await tick();
+
+    expect(lastFrame()).toContain("順番待ち 2 件: あとで集計して / 月末の確認も");
   });
 
   test("typing does not reach the input while the palette is up", async () => {

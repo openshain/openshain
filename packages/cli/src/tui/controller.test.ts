@@ -379,7 +379,12 @@ describe("the screen's controller", () => {
     const approval = controller.state().approval as NonNullable<ControllerState["approval"]>;
     expect(approval.title).toBe("fs_write ledger/2026-07.csv");
     expect(approval.ruleId).toBe("ledger-needs-approval");
-    expect(approval.choices.map((c) => c.key)).toEqual(["approve", "always", "reject"]);
+    expect(approval.choices.map((c) => c.key)).toEqual([
+      "approve",
+      "always",
+      "reject",
+      "reject_with_reason",
+    ]);
     expect(approval.preview.map((l) => `${l.kind}:${l.text}`)).toEqual([
       "note:ledger/2026-07.csv を新しく作ります(3 行)",
       "added:a,b",
@@ -403,6 +408,46 @@ describe("the screen's controller", () => {
     expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("a,b\n1,2\n");
     const work = (await requestWork(store)) as { status: string };
     expect(work.status).toBe("completed");
+  });
+
+  test("no, and tell the agent why: the reason is recorded and reaches the model", async () => {
+    const { controller, store, root } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a\n" },
+        }),
+        (request) => {
+          expect(JSON.stringify(request.messages.at(-2))).toContain("先に規程を直したい");
+          return say("わかりました。規程を直してからにします。");
+        },
+      ],
+      undefined,
+      { authority: true },
+    );
+
+    const turn = controller.submit("7 月の帳簿を書いて");
+    await waitFor(() => controller.state().approval !== undefined);
+    controller.decideApproval("reject_with_reason");
+    await waitFor(() => controller.state().reason !== undefined);
+    expect(controller.state().approval).toBeUndefined();
+    expect(texts(controller, "question").at(-1)).toContain("実行しない理由");
+
+    await controller.submit("先に規程を直したい");
+    await turn;
+
+    expect(controller.state().reason).toBeUndefined();
+    expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
+    expect(texts(controller, "assistant").at(-1)).toBe("わかりました。規程を直してからにします。");
+    const work = await requestWork(store);
+    const decided = (await store.events(work?.id as never)).find(
+      (e) => e.type === "approval.decided",
+    );
+    expect((decided as { payload: { comment?: string } }).payload.comment).toBe(
+      "先に規程を直したい",
+    );
   });
 
   test("always approves the rest of the conversation for that rule, and reject stops the call", async () => {
@@ -457,12 +502,13 @@ describe("the screen's controller", () => {
     expect(second.state().approval).toBeUndefined();
   });
 
-  test("ignores empty lines and refuses a new message while busy", async () => {
+  test("ignores empty lines and queues what is typed while busy, then sends it", async () => {
     const { controller } = await setup([
       workCreate("c1", "集計して"),
       csvRead("c2"),
       workComplete("c3", "done"),
       say("終わりました"),
+      say("はい"),
     ]);
 
     await controller.submit("   ");
@@ -471,9 +517,13 @@ describe("the screen's controller", () => {
     const turn = controller.submit("集計して");
     await waitFor(() => controller.state().busy);
     await controller.submit("もう一つ");
+    expect(controller.state().queued).toEqual(["もう一つ"]);
+    expect(texts(controller, "notice").at(-1)).toBe("順番待ち(1 件): もう一つ");
     await turn;
 
-    expect(texts(controller, "notice")).toContain("いま動いています。止めるなら Ctrl-C。");
-    expect(texts(controller, "assistant")).toEqual(["終わりました"]);
+    // The queued line is sent once the turn ends, and the queue empties.
+    expect(controller.state().queued).toEqual([]);
+    expect(texts(controller, "user")).toEqual(["集計して", "もう一つ"]);
+    expect(texts(controller, "assistant")).toEqual(["終わりました", "はい"]);
   });
 });

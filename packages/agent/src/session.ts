@@ -45,7 +45,7 @@ export interface SessionOptions {
    * Asks the person about a call the policy held, while the turn waits. Without it, the turn
    * ends and the call stays held for `/approve` or for another client.
    */
-  onApproval?: (held: HeldApproval) => Promise<ApprovalChoice>;
+  onApproval?: (held: HeldApproval) => Promise<ApprovalAnswer>;
 }
 
 export type TurnStop =
@@ -72,6 +72,13 @@ export interface HeldApproval {
  * call is still recorded as requested and decided.
  */
 export type ApprovalChoice = "approve" | "always" | "reject";
+
+/** The person's answer: what they chose, and what they want the agent to know. */
+export interface ApprovalAnswer {
+  choice: ApprovalChoice;
+  /** Why, in the person's words. Recorded with the decision and handed to the model. */
+  comment?: string;
+}
 
 export interface TurnResult {
   /** What the model said to the person, possibly empty when the turn stopped early. */
@@ -482,12 +489,12 @@ export async function createSession(
         });
         return "held";
       }
-      let choice: ApprovalChoice;
+      let answer: ApprovalAnswer;
       if (standing.has(pending.ruleId)) {
-        choice = "approve";
+        answer = { choice: "approve" };
       } else {
         try {
-          choice = await options.onApproval(pending);
+          answer = await options.onApproval(pending);
         } catch {
           // The person left it undecided: the work stays waiting_approval and the turn ends.
           held = pending;
@@ -503,16 +510,19 @@ export async function createSession(
           });
           return "held";
         }
-        if (choice === "always") standing.add(pending.ruleId);
+        if (answer.choice === "always") standing.add(pending.ruleId);
       }
+      const standingNote =
+        answer.choice === "always"
+          ? `この会話では規則 ${pending.ruleId} を常に承認する、と決めた`
+          : undefined;
+      const comment = [answer.comment, standingNote].filter(Boolean).join(" / ");
       const decided = await client.call(
         "approval_decide",
         {
           approval_id: pending.approvalId,
-          decision: choice === "reject" ? "reject" : "approve",
-          ...(choice === "always" && {
-            comment: `この会話では規則 ${pending.ruleId} を常に承認する、と決めた`,
-          }),
+          decision: answer.choice === "reject" ? "reject" : "approve",
+          ...(comment !== "" && { comment }),
         },
         signal,
       );
@@ -521,12 +531,13 @@ export async function createSession(
         | undefined;
       if (decided.isError) {
         finish(call.id, decided);
-      } else if (choice === "reject") {
+      } else if (answer.choice === "reject") {
+        const said = answer.comment ? ` They said: ${answer.comment}` : "";
         finish(call.id, {
           content: [
             {
               type: "text",
-              text: "the person refused this call; it did not run and the work is not waiting for anyone. Do not call it again unchanged: say what you would need, or propose another way.",
+              text: `the person refused this call; it did not run and the work is not waiting for anyone.${said} Do not call it again unchanged: say what you would need, or propose another way.`,
             },
           ],
           isError: true,
