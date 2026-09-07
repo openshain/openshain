@@ -6,7 +6,7 @@ Status: v0.3(実装済み。完了の条件 1 から 10 を満たし、対応す
 
 openshain で最初に作る部分です。Model、Tool、エージェントの入口を交換できる Runtime を作ります。
 
-利用者は、会社のフォルダで `openshain run "<依頼>"` と打つか、Claude Code や Codex から MCP 経由で同じ Runtime を使います。どちらの経路でも、Work の状態、Tool の呼び出し、model の使用量が同じ形式で `work/<id>/` に残ります。
+利用者は、会社のフォルダで `openshain` と実行して社員エージェントに依頼するか、Claude Code や Codex から MCP 経由で同じ Runtime を使います。どちらの経路でも、Work の状態、Tool の呼び出し、model の使用量が同じ形式で `work/<id>/` に残ります。
 
 この段階で証明したいことは 1 つです。設定ファイルを書き換えるだけで model provider が切り替わり、Tool provider を足せて、CLI と MCP のどちらからでも同じ Work を進められることです。
 
@@ -140,7 +140,7 @@ outcome:
 model に渡す内容は events.jsonl から組み立てます。会話履歴を別に保存しません。
 
 - system: profession の指示文、会社名、依頼する人(principal。model はその人の代理として働き、その人と話す。model 自身はその人ではなく、この会社の社員エージェント)、記録に `agent_name` があればその名前、Runtime の決まり(件数、合計、検索は Tool の値をそのまま使う。末尾の残量の 1 行は通知で返事は要らない。依頼が終わったら要約して終える)です
-- messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたものです。`type: session` の Work では objective は入れません。`session` は会話の記録に予約した type で、`work_create` と `work_run` は受け付けず、`work resume` でも動きません
+- messages: objective、人の発言(`human.message`)、model の出力、Tool の結果を発生順に並べたものです。`type: session` の Work では objective は入れません。`session` は会話の記録に予約した type で、client が `work_create` で開きます。その Work の中では Tool を呼べません
 - tools: 許可リストを通った Tool 定義です
 
 規則:
@@ -300,38 +300,41 @@ Tool の結果は観測であって転送ではありません。ファイルを
 - 1 MiB を超えるファイルは開きません(`fs_read`、`csv_read`、`csv_aggregate`、`markdown_read` はエラー、`fs_search` は飛ばします)。書き込みも同じ 1 MiB で止めます。Tool が書いたものは Tool が開けます。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返します。グループはグループの値の順に並べ、同じ入力には同じ出力を返します。
 - すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても行き先で判定します。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
-- Runtime 自身が 1 つ Tool を追加します。`ask_user`(effect: observe)です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます(MCP Server の `work_create`、`work_select`、`work_get`、`work_list`、`work_complete`、`work_fail` と、セッションの `work_run`、`work_show` も同じく予約です)。呼び出しは provider `runtime` として `tool.called` に記録し、入力は他の Tool と同じく schema で検証して、外れたら `tool.rejected`(schema_mismatch)にします。model がこれを呼ぶと、同じターンの他の Tool 呼び出しを先に実行してから質問を記録し、Work は `waiting_input` になります。同じターンの質問が複数でも待つのは 1 回で、再開時は古い順にすべて答えます。CLI では利用者に質問を表示して答えを受け取り、続行します。MCP では外部エージェント側が利用者に聞くので登録しません。
+- Runtime 自身が Tool を追加します。`ask_user`(effect: observe)と、MCP Server の `work_*` と `work_record` です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます。`ask_user` の振る舞いは次の節にあります。
 
-## Runtime の振る舞い(`packages/agent`)
+## Runtime と client の分担(v0.2 draft)
+
+Runtime(`packages/core`、`packages/tools`、`packages/mcp`)はモデルを呼びません。Work の状態、Tool、記録を持ち、MCP の Tool として公開します。モデルを持ち、Work を作り、Tool を呼び、Work を閉じるのは client(Claude Code、Codex、対話型 CLI)です。対話型 CLI のモデルの loop は `packages/agent` にあり、MCP の in-memory transport で自分の MCP server に接続します。Runtime の Tool の面は MCP の 1 つだけです。
 
 ```
-Work を作る(work.created)。lock を取る
-  ↓
-投影を組み立てる
-  ↓
-ModelProvider.generate(model.requested → model.completed → usage.recorded)
-  ↓
-stop_reason で分岐
-  end_turn   → evidence.recorded → work.completed
-  tool_call  → 各 tool_call を検証 → 実行(tool.called → tool.completed | tool.rejected) → 結果を追記 → 先頭へ
-  max_tokens → 途中の出力を model.completed に残し、work.failed(limit_reached)
-  refusal    → work.failed(model_refusal)
-provider が throw → model.failed → work.failed(model_error)
+client                                  Runtime(MCP Tool)
+  work_create ────────────────────────▶ work.created、in_progress
+  投影を組み立て、モデルを呼ぶ
+  (work_record: model.requested、model.completed、usage.recorded)
+  tool_call ごとに Tool を呼ぶ ────────▶ authorize → 実行(tool.called → tool.completed | tool.rejected)
+  ask_user ───────────────────────────▶ human.input_requested、waiting_input(pending を返す)
+  人に聞く → work_answer ─────────────▶ human.input_provided、in_progress
+  work_complete ───────────────────────▶ evidence.recorded、work.completed
 ```
 
-- 停止条件: 完了、`ask_user`、上限到達、model の refusal、回復できないエラーです。
-- 再開: `in_progress` のまま止まった Work(Tool 実行中の中断など)を再び動かすときは、直前のターンで結果のない Tool 呼び出しに「途中で止まった」という失敗の結果を記録してから続けます。答えのない質問が残っていれば `waiting_input` として扱います。
-- 上限は設定ファイルで持ちます。初期値は `max_model_calls: 30`、`max_tool_calls: 100`、`max_output_tokens: 16000` です。計測して直します。超えたら `work.failed`(reason: `limit_reached`)です。
-- Tool の失敗は model に `isError` で返し、Work は続きます。Tool 呼び出しの回数には数えます。
-- model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を残して `work.failed`(reason: `model_error`)にします。
-- 判定の差し込み口: Tool を実行する直前に Runtime の `authorize(call)` を通します。この段階の判定は許可リストだけで、それ以外は常に許可です。将来の Authority engine はここに差し込みます。
-- Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。同じターン内で call id が重複したら `work.failed`(model_error)です。前のターンの id を使い回すサーバーはあるので、ターンをまたぐ重複は許します。中断の後始末と質問の突き合わせは直前の model のターン以降のイベントだけを確認します。
-- 中断された呼び出しには `the run stopped before this tool call finished; call it again if it is still needed` という文言で `isError: true` の `tool.completed` を残します。
-- 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
+Runtime が持つ規則:
+
+- 現在の Work がない Tool 呼び出しと、`type: session` の Work の中の Tool 呼び出しは受け付けません。
+- 判定の差し込み口: Tool を実行する直前に `authorize(call)` を通します。この段階の判定は許可リストだけで、それ以外は常に許可です。Authority engine はここに差し込みます。
+- Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。設定の `max_tool_calls` を超えた呼び出しは `tool.rejected`(limit_reached)で返し、Work は続きます。閉じるかどうかは client が決めます。
+- Tool の失敗は client に `isError` で返し、Work は続きます。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。
-- `ask_user` の入力が schema に合わないときは `tool.rejected`(schema_mismatch)を同じターンで返し、`waiting_input` にはなりません。
+- `ask_user` は Runtime の Tool です。質問を `human.input_requested` に記録して `waiting_input` にし、`pending: true` と call_id を返します。入力が schema に合わないときは `tool.rejected`(schema_mismatch)で、`waiting_input` にはなりません。`work_answer` が答えを `human.input_provided` と同じ call_id の `tool.completed` に記録し、`in_progress` に戻します。
+- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。payload は schema で検証し、envelope は Runtime が付けます。
+- 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
 - lock: `work/<id>/lock` に pid と開始時刻を書きます。すでにあり、その pid が生きていればエラーです。死んでいれば引き継ぎます。
 - 書き込みは `WorkStore.open(id)` が返す handle を通します。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まります。読み取りに lock は要りません。
+
+client(対話型 CLI の loop)が持つ規則:
+
+- 投影は client が組み立てます。会話の投影はセッションの Work の記録から、作業中は作業の Work の記録も合わせて作ります。作業の Work を閉じた後は summary だけを会話に残します。
+- `max_model_calls` と `max_output_tokens` は client が守ります。超えたら `work_fail`(limit_reached)です。model の API エラーは SDK の再試行に任せ、それでもだめなら `model.failed` を `work_record` で残して `work_fail`(model_error)です。refusal は `work_fail`(model_refusal)です。
+- 中断した Work を続けるときは、`work_get` の `history` で結果のない Tool 呼び出しと未回答の質問を読み、投影の規則(tool_call は次の message までに結果を持つ)を満たす形で続けます。
 
 ## 入口
 
@@ -341,16 +344,14 @@ provider が throw → model.failed → work.failed(model_error)
 |---|---|
 | `openshain` | 引数なしで端末があれば、社員エージェントと話す画面を開きます(spec は interactive-cli.md)。端末がなければ使い方を表示します |
 | `openshain init` | カレントディレクトリに `openshain.yaml`、`.mcp.json`、`AGENTS.md`、`CLAUDE.md` のひな型を書きます。`openshain.yaml` があれば受け付けません。`.mcp.json` が既にあれば他のサーバーを残して openshain の項目だけ追加し、`AGENTS.md` と `CLAUDE.md` は無いときだけ書きます |
-| `openshain run "<依頼>"` | Work を作って完了か停止まで進めます。Tool 呼び出しごとに 1 行表示します。最後に状態、結果、使用量の合計、次に動くのが誰か(利用者、model、なし)を表示します |
 | `openshain work list` | Work の一覧(id、status、objective、created_at)です。読めない Work は別枠で示します |
 | `openshain work show <id>` | 状態、イベントの要約、使用量の合計、次に動くのが誰かを表示します |
-| `openshain work resume <id>` | 途中で止まった Work を続けます。`waiting_input` なら端末で質問に答えて続け、`in_progress` なら中断した呼び出しを閉じてから続け、`queued` なら最初から進めます。終わった Work は受け付けません。端末がなければ質問せず、待機のまま質問文を表示して終わります |
 | `openshain tools list` | 登録された Tool の一覧(name、provider、effect、許可の有無)です |
 | `openshain mcp` | MCP Server を stdio で起動します |
 
 `--workspace <dir>` で起点を指定できます。`init` はそこに書き、他のコマンドはそこから上に向かって `openshain.yaml` を探します。省略時はカレントディレクトリです。
 
-- `run` と `work resume` の進捗行は `tool.called`(名前と、path があればその値)、`tool.rejected`(拒否の理由)、`isError` の `tool.completed`(失敗)だけです。model の呼び出しと質問の記録は表示せず、最後の報告(結果、使用量の合計、次に動く人)にまとめます。
+- 止まった Work は対話の中で `/work resume <id>` で続けます(interactive-cli.md)。端末なしで Work を進めるコマンドはこの版にありません。
 - exit code は 0 が完了、1 が完了しなかった Work か実行時のエラー、2 が引数の誤りです。
 
 ### MCP Server(`packages/mcp`)
@@ -361,16 +362,20 @@ MCP tool:
 
 | name | 内容 |
 |---|---|
-| `work_create` | objective と type を受けて Work を作り、そのセッションの現在の Work にします。type に `session` は使えません |
-| `work_select` | 既存の Work を現在の Work にします |
-| `work_get`、`work_list` | 参照します |
+| `work_create` | objective、type、任意の `parent` を受けて Work を作り、その接続の現在の Work にします。`type: session` は会話の記録で、その Work の中では Tool を呼べません |
+| `work_select` | 既存の Work を現在の Work にします。終わった Work は受け付けません |
+| `work_get`、`work_list` | 参照します。`work_get` は `history: true` で、これまでの Tool 呼び出し(name、path、isError)、結果のない呼び出し、未回答の質問を返します。client が中断した Work を続けるための情報です |
+| `ask_user` | 質問を記録して `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client です |
+| `work_answer` | call_id と answer を受け、`human.input_provided` を記録して `in_progress` に戻します |
+| `work_record` | client のイベント(`human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`)を、指定した Work に書きます。会話の記録と、client のモデルの使用量のためです |
 | `work_complete` | summary と artifacts を受けます。artifacts は Runtime がファイルの存在と sha256 を検証し、Runtime の Tool で書いたファイルと合わせて `evidence.recorded` と `work.completed` を残します |
 | `work_fail` | reason を受けて `work.failed` を残します |
 | 登録された全 Tool | CLI と同じ名前、同じ schema です。呼び出しは現在の Work に記録されます |
 
-現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返します。外部エージェントの model 使用量は Runtime から見えないので、この経路では `usage.recorded` は Tool 実行の分だけになります。
+現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返します。client がモデルの使用量を `work_record` で書かないとき(Claude Code など)は、`usage.recorded` は Tool 実行の分だけになります。
 
 - `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を受け付けません。`work_get` は id を省くと現在の Work です
+- `type: session` の Work は現在の Work にできますが、その中で Tool を呼ぶと「セッションでは Tool を呼べない。`work_create` で作業の Work を作る」と拒否します。`work_record` だけが書けます
 - `work_complete` の artifacts は任意です。Tool が書いたファイル(`after` 付きの `tool.completed`)にエージェントの申告を合わせ、パスごとに Runtime がハッシュを計算します。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付けます。`refs` は `after` 付きの `tool.completed` の id です
 - `work_fail` の reason はエージェントの自由な短い語です。CLI の見出し表にない語はそのまま表示されます
 - Tool 呼び出しの call id は Runtime が `call_` で始まる id を振ります。結果の content は text にし、json は JSON 文字列にします。`isError` はそのままです
@@ -379,24 +384,18 @@ MCP tool:
 - `work_*` の入力も他の Tool と同じく schema で検証し、外れたら schema_mismatch の文で返します。`work_complete` の artifacts のパスは path guard を通し、workspace の外なら何も記録せずに受け付けません
 - 終わった Work への呼び出しは受け付けず、接続の現在の Work を空にします。未完了の現在の Work があるときの `work_create` は断り、先に work_complete か work_fail を求めます
 
-### SDK(`@openshain/core`、`@openshain/agent`)
+### SDK(`@openshain/core`、`@openshain/mcp`、`@openshain/agent`)
 
 ```ts
-import { createRuntime } from "@openshain/core";
-import { runWork } from "@openshain/agent";
+import { createMcpServer } from "@openshain/mcp";
+import { connectInMemory, createSession } from "@openshain/agent";
 
-const runtime = await createRuntime({
-  workspaceRoot: ".",
-  providers: {
-    models: { /* provider の id → ModelProvider を作る関数 */ },
-    tools: { standard: () => standardTools() },
-  },
-});
-const work = await runtime.works.create({ objective: "…", principal: "alice", profession: "generic" });
-await runWork(runtime, work.id, { onInput: async (question) => "…" });
+const server = await createMcpServer({ workspaceRoot: ".", tools: { standard: () => standardTools() } });
+const client = await connectInMemory(server);           // MCP client。Runtime の Tool の面はこれだけ
+const session = await createSession(client, { model }); // 対話型 CLI の loop。model は ModelProvider
 ```
 
-`runtime.works`(create、get、list、open、events)、`runtime.tools`(list、hidden、call)、`runtime.model`、`runtime.config` を公開します。`hidden` は allow list が外した Tool の name、provider、effect を返します。`createToolRegistry` は model なしで Tool の登録だけを行います。イベントの読み取りは `works.events`、追記は `works.open` が返す handle を通します。CLI と MCP はこの SDK の上に載ります。
+`@openshain/core` は `WorkStore`(create、get、list、open、events)、`ToolRegistry`、`createToolCaller`、`loadConfig` と型を公開し、Runtime を組む側(`@openshain/mcp`)が使います。`@openshain/agent` は ModelProvider の実装(Anthropic、OpenAI 互換)と、MCP client の上で回る loop(`createSession`)を公開し、自分の client を作る人が使います。`@openshain/agent` は `WorkStore` と `ToolRegistry` を import しません。
 
 ## 設定ファイル `openshain.yaml`
 
@@ -489,7 +488,7 @@ export function transition(from: WorkStatus, to: WorkStatus): void {
 
 1. 同じ依頼を、`openshain.yaml` の `model` を書き換えるだけで Anthropic と OpenAI 互換 API の両方で完走します。コードは変えません。
 2. Claude Code か Codex を MCP client として接続し、`work_create` → Tool 呼び出し → `work_complete` で同じ依頼を完走します。Runtime 側のコードは変えません。
-3. `examples/tools/echo` の Tool を設定ファイルに書くだけで、`openshain tools list`、`openshain run`、MCP の 3 つから呼べます。
+3. `examples/tools/echo` の Tool を設定ファイルに書くだけで、`openshain tools list`、対話型 CLI、MCP の 3 つから呼び出せます。
 4. すべての model 呼び出しが `usage.recorded` として残り、`openshain work show <id>` が Work ごとの合計を表示します。
 5. 1 から 4 を `bun test` で再現できます。
 6. workspace 外と予約パスへの読み書きは拒否され、`tool.rejected` として残ります。

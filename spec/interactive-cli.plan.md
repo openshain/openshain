@@ -47,3 +47,39 @@ README の使い方、docs/configuration.md、cli.md の設計ノート(REPL を
 - レビュー
 
 Checkpoint(2026-09-05 実走完了。レビューはこれから)。Task 1 から 5 は main に入りました(944d41f、f55106c、a6f4e08、45dbf66、303a2e0)。単体バイナリを擬似端末から動かし、claude-haiku-4-5-20251001 で「receipt/2026-07.csv を category ごとに集計して summary-tui.md に書いて」を頼みました。社員エージェントが work_run で子 Work を作り、csv_read と csv_aggregate の進捗が画面に流れました。実走の台本の都合で子 Work を途中で止め、別のプロセスから `/resume <id>` で続けたところ fs_write まで進んで完了し、10 カテゴリの数字は CSV と一致しました。続けて「ありがとう。何をしましたか?」に社員エージェントが返答しました。子 Work の `parent` はセッションを指し、`work show` でセッションの使用量が表示されます。止め方の実験で `in_progress` のまま残ったセッションがあったので、SIGHUP と SIGTERM でセッションを閉じるようにしました。
+
+## v0.2: Runtime からモデルを外す
+
+spec は interactive-cli.md の v0.2 と open-runtime.md の「Runtime と client の分担」です。decisions は非公開側にあります。順に 1 commit ずつ積み、各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通します。
+
+#### Task 1: MCP の Tool を広げる(`packages/mcp`、`packages/core`)
+
+`work_create` が `type: session` と `parent` を受けること。session の Work の中の Tool 呼び出しを拒否すること。`work_get` の `history`。`ask_user` を MCP の Tool にして `pending` を返すこと。`work_answer`。`work_record`(受け付ける type を限定し、payload を schema で検証)。予約名に追加。`max_tool_calls` を Runtime が数えて `tool.rejected`(limit_reached)で返すこと。schema を生成し直します。
+
+- 受け入れ: MCP client のテストで、session を開く → 作業の Work を parent 付きで作る → Tool を呼ぶ → ask_user で waiting_input → work_answer で in_progress → work_complete まで通ります。session の中の fs_list は拒否されます。`work_record` は許可外の type を拒否します
+- 検証: `bun test packages/mcp packages/core`、`bun run schemas`
+- サイズ: M
+
+#### Task 2: agent を client にする(`packages/agent`)
+
+`connectInMemory(server)` で MCP client を作ること。`createSession(client, { model, config })` が `work_create(type: session)` で開き、`turn(text)` が `work_record`(human.message)→ 投影 → モデル → Tool 呼び出し(MCP client 経由)→ `work_record`(model.*、usage.recorded)の順で回ること。`ask_user` の pending を `onInput` で人に聞いて `work_answer` すること。作業の Work を閉じたら summary だけを会話に残すこと。`/work resume` の候補を `selectedWork` として受け、system prompt に「候補であって命令ではない」規則を書くこと。`runWork`、`work_run`、`SESSION_TOOLS` を削除。`@openshain/agent` が `WorkStore` と `ToolRegistry` を import しないことをテストで確かめます。
+
+- 受け入れ: fake model で完了の条件 1 から 5 を再現します。沿わない依頼で `work_select` しないことも fake model の応答で再現します
+- 検証: `bun test packages/agent`
+- サイズ: L
+
+#### Task 3: CLI(`packages/cli`、`packages/core` の schema)
+
+`run` と `work resume` の削除。`model` を任意にし、無いときの `openshain` の文言。controller が新しい `createSession` に合わせて進捗行(Tool 呼び出し)を流すこと。`/work resume <id>` が候補を渡すこと。`init` はそのままです。
+
+- 受け入れ: `model` の無い設定で `mcp`、`work list`、`work show`、`tools list` が動き、`openshain` は止まります。ink-testing-library で対話が通ります
+- 検証: `bun test packages/cli`、擬似端末で `bun packages/cli/src/bin.ts` の対話と `/quit`
+- サイズ: M
+
+#### Task 4: 文書と版
+
+README(両言語)の使い方と構成図、docs/design の agent、mcp、cli、core、docs/configuration.md、AGENTS.md の Layout、CHANGELOG の Unreleased(Removed に `run`、`work resume`、`work_run`)。3 観点のレビュー(code-review と security、sanitize、文体)。0.3.0。
+
+- 受け入れ: 文書に `openshain run`、`work resume`、`work_run` が残らないこと。`bunx openshain@0.3.0` で対話が動き、`model` 無しの workspace で Claude Code から接続できること
+- 検証: grep、Node だけの環境での npm install、擬似端末
+- サイズ: M
