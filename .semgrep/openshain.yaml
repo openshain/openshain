@@ -1,0 +1,36 @@
+# Rules for the invariants of this codebase, on top of the public rulesets.
+# Run: docker run --rm -v "$PWD:/src:ro" -w /src semgrep/semgrep semgrep --config .semgrep packages
+rules:
+- id: openshain-tool-runs-without-the-policy
+  languages:
+  - typescript
+  severity: ERROR
+  message: A tool provider is called outside callTool, so authority/ never judged this call. Every call must go through createToolCaller in packages/core/src/runtime.ts.
+  patterns:
+  - pattern: $TOOL.provider.call(...)
+  - pattern-not-inside: async function callTool(...) { ... }
+- id: openshain-approval-decided-without-a-decider
+  languages:
+  - typescript
+  severity: ERROR
+  message: approval.decided is recorded without naming who decided; the record must say by whom.
+  patterns:
+  - pattern: '$H.append({ type: "approval.decided", payload: $P })'
+  - pattern-not: '$H.append({ type: "approval.decided", payload: { ..., by: $BY, ... } })'
+- id: openshain-secret-reaches-a-log-line
+  languages:
+  - typescript
+  severity: ERROR
+  message: An API key or a token must never reach a log line or the screen.
+  pattern-either:
+  - pattern: console.log(<... process.env[$K] ...>)
+  - pattern: console.error(<... process.env[$K] ...>)
+  - pattern: console.log(<... $M.apiKey ...>)
+- id: openshain-work-status-set-outside-the-state-machine
+  languages:
+  - typescript
+  severity: WARNING
+  message: A work's status is assigned outside move(), the reducer's own helper, which calls transition() first. Status changes come from events, never from an assignment.
+  patterns:
+  - pattern: $W.status = $S
+  - pattern-not-inside: 'function move(work: Work, to: WorkStatus, at: string) { ... }'

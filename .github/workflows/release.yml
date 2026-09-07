@@ -80,12 +80,13 @@ jobs:
 
       - name: Publish the GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           # A tag with a suffix (v0.2.0-rc.1, v0.2.0-beta.2) is a prerelease; only vX.Y.Z is stable.
           prerelease=""
-          case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" dist/openshain-* dist/SHA256SUMS --title "openshain ${GITHUB_REF_NAME#v}" --notes-file notes.md $prerelease
 
       - name: Tell the website about a stable release
@@ -158,9 +159,10 @@ jobs:
 
       - name: Publish in dependency order
         # A tag with a suffix goes to the next dist-tag and leaves latest alone.
+        shell: bash
         run: |
           tag=latest
-          case "$RELEASE_TAG" in *-*) tag=next ;; esac
+          if [[ "$RELEASE_TAG" == *-* ]]; then tag=next; fi
           for p in core tools agent mcp cli; do
             (cd "packages/$p" && npm publish --access public --provenance --tag "$tag" --loglevel verbose 2>&1 | grep -viE 'authorization|_authToken|bearer' )
             test "${PIPESTATUS[0]}" -eq 0

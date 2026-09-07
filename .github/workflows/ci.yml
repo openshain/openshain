@@ -45,6 +45,15 @@ jobs:
       - name: Build the packages for npm
         run: bun run build:packages
 
+      - name: Semgrep
+        # The public rulesets plus the rules for this codebase's own invariants (.semgrep/).
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src semgrep/semgrep:1.175.1 semgrep \
+            --config p/typescript --config p/security-audit --config p/owasp-top-ten \
+            --config p/github-actions --config .semgrep \
+            --metrics=off --error --quiet --exclude=node_modules --exclude=dist \
+            packages scripts test .github
+
       - name: Audit dependencies
         # The registry sometimes drops the audit connection from a hosted runner and
         # bun waits minutes before giving up; on other days it answers slowly. Give
