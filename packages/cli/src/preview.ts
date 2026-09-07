@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { resolveWorkspacePath } from "@openshain/core";
 
 /** How much of a change the screen shows before it says the rest is cut. */
 const MAX_LINES = 24;
 /** Above this many lines on either side, the diff is replaced by the line counts. */
 const MAX_DIFF_LINES = 400;
+/** A single line longer than this is cut: one line must not fill the screen. */
+const MAX_LINE_CHARS = 300;
 
 export interface PreviewLine {
   kind: "added" | "removed" | "context" | "note";
@@ -36,7 +38,21 @@ export async function previewCall(
   if (path === undefined || content === undefined) {
     return [{ kind: "note", text: JSON.stringify(call.input) }];
   }
-  const before = await readFile(join(workspaceRoot, path), "utf8").catch(() => undefined);
+  // The same guard the tools run under: a path outside the workspace, a reserved one or a
+  // symlink that leads out is refused here too, so the screen never shows what the call cannot
+  // touch. The model chooses this path; the person is about to read what it says.
+  let resolved: string;
+  try {
+    resolved = await resolveWorkspacePath(workspaceRoot, path);
+  } catch (err) {
+    return [
+      {
+        kind: "note",
+        text: `${path} は読めません(${err instanceof Error ? err.message : String(err)})。この呼び出しは実行しても拒否されます。`,
+      },
+    ];
+  }
+  const before = await readFile(resolved, "utf8").catch(() => undefined);
   if (before === undefined) {
     const lines = content.split("\n");
     return cap([
@@ -79,9 +95,14 @@ function csvText(rows: Record<string, unknown>[], columns: unknown): string {
 }
 
 function cap(lines: PreviewLine[]): PreviewLine[] {
-  if (lines.length <= MAX_LINES) return lines;
-  const rest = lines.length - MAX_LINES;
-  return [...lines.slice(0, MAX_LINES), { kind: "note", text: `ほか ${rest} 行` }];
+  const short = lines.map((line) =>
+    line.text.length > MAX_LINE_CHARS
+      ? { ...line, text: `${line.text.slice(0, MAX_LINE_CHARS)}…` }
+      : line,
+  );
+  if (short.length <= MAX_LINES) return short;
+  const rest = short.length - MAX_LINES;
+  return [...short.slice(0, MAX_LINES), { kind: "note", text: `ほか ${rest} 行` }];
 }
 
 /**

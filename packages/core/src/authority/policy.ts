@@ -210,7 +210,9 @@ function oneOf(expected: string | string[], actual: string): boolean {
  * ledger/, `*.csv` a CSV at the root, `**\/*.csv` a CSV anywhere.
  */
 export function matchGlob(pattern: string, path: string): boolean {
-  return matchSegments(pattern.split("/"), path.split("/"));
+  // Repeated `**` means the same as one, and collapsing them keeps the match linear.
+  const parts = pattern.split("/").filter((part, i, all) => part !== "**" || all[i - 1] !== "**");
+  return matchSegments(parts, path.split("/"));
 }
 
 function matchSegments(pattern: string[], path: string[]): boolean {

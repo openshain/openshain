@@ -86,6 +86,43 @@ describe("previewCall", () => {
     ]);
   });
 
+  test("a path outside the workspace or a reserved one is refused, not read", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-preview-"));
+    await writeFile(join(root, "..", "outside.txt"), "秘密\n").catch(() => {});
+
+    const outside = await previewCall(root, {
+      name: "fs_write",
+      input: { path: "../outside.txt", content: "x" },
+    });
+    const reserved = await previewCall(root, {
+      name: "fs_write",
+      input: { path: "authority/policy.yaml", content: "x" },
+    });
+    const hidden = await previewCall(root, {
+      name: "fs_write",
+      input: { path: ".env", content: "x" },
+    });
+
+    for (const lines of [outside, reserved, hidden]) {
+      expect(lines).toHaveLength(1);
+      expect(lines[0]?.kind).toBe("note");
+      expect(lines[0]?.text).toContain("読めません");
+      expect(lines[0]?.text).not.toContain("秘密");
+    }
+  });
+
+  test("a very long line is cut so that one line cannot fill the screen", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-preview-"));
+
+    const lines = await previewCall(root, {
+      name: "fs_write",
+      input: { path: "big.txt", content: "あ".repeat(5000) },
+    });
+
+    expect(lines[1]?.text.length).toBe(301);
+    expect(lines[1]?.text.endsWith("…")).toBe(true);
+  });
+
   test("a call without content is shown as its input", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-preview-"));
 

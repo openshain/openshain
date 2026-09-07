@@ -173,7 +173,8 @@ applies_to: { action: tax-treatment, path: "ledger/**" }
 
 ## 未確定
 
-- 承認する人の確認。この版は接続の principal で代えます。端末の認証(device authorization)は後の版
+- 承認する人の確認。この版は接続の principal で代えます。MCP で接続した外部のエージェントは、自分が止められた呼び出しを自分で承認できます(SECURITY.md に明記)。端末の認証(device authorization)は後の版
+- 規則の照合は、Tool に渡されたパスの文字列を正規化して行います。symlink と、大文字小文字を区別しないファイルシステムでは、照合と実際の書き込み先がずれます。実行時の path guard は別に働きます。解決済みのパスで照合するかは、ChangeSet の版で決めます
 - Delegation の形。この版は principal と profession と期間だけです。範囲(どの Resource か)を委任に持たせるかは、Policy との重複を確認してから決めます
 - `action` の名前の付け方。この版は Tool の名前と同じ扱いで、Pack が Action の名前を Tool 呼び出しに付ける形は Pack の版で決めます
 - Decision の有効期限と、法令の改正で古くなった Decision の扱い

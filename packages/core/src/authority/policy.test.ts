@@ -43,6 +43,9 @@ describe("matchGlob", () => {
     expect(matchGlob("ledger/2026-*.csv", "ledger/2025-07.csv")).toBe(false);
     expect(matchGlob("summary.md", "summary.md")).toBe(true);
     expect(matchGlob("summary.md", "summary.md.bak")).toBe(false);
+    // Repeated ** is the same as one, so a pathological pattern cannot blow up.
+    expect(matchGlob("**/**/**/**/**/*.csv", "a/b/c/d/e/f/g/h/i/j/k/l.csv")).toBe(true);
+    expect(matchGlob("**/**/x", "a/b/y")).toBe(false);
   });
 });
 
