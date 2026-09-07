@@ -46,6 +46,18 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 - streaming。Work の進捗は Tool の行で足ります。途中の文字列を見せる価値より、記録の単純さを取りました。
 - provider ごとに会話の形式を保存する案。model を替えたときに読めなくなります。
 
+## loop は Runtime の client(v0.2)
+
+決めたこと。対話型 CLI の loop(`createSession`)は Runtime を MCP の client として使います。`connectInMemory` が同じプロセスの MCP server に SDK の in-memory transport で接続し、Work の作成、Tool の呼び出し、質問、完了はすべて MCP の Tool(`work_create`、登録された Tool、`ask_user` と `work_answer`、`work_complete`)で行います。会話の記録と自分のモデルの呼び出しは `work_record` で書きます。agent は `WorkStore` と `ToolRegistry` を import しません。テストが見張ります。
+
+投影は client が組み立てます。session の中にイベントの配列を持ち、記録した順に並べて `buildProjection` に渡します。Runtime にある記録が原本で、メモリ上の配列はその写しです。作業の Work を閉じたら、その Work の中で得た Tool の結果は「省略」の 1 行に畳み、summary だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです。
+
+`work_create` の `parent` と `agent_name` は loop が必ず付けます。モデルに会話の id を覚えさせません。ターンが Work の中で止まったとき(中断、質問の取り下げ、上限)は、Work をそのままにして接続の現在の Work を会話に戻し、止まった Work の id を `TurnResult.work` で返します。次に続けるかは `/work resume` の候補として人とモデルが決めます。候補は `prompt.expanded` として記録し、投影では user message になります。`work_select` した Work が質問を待っていれば、loop が古い順に人に聞いて `work_answer` します。
+
+理由。Runtime の Tool の面を MCP の 1 つにすると、Authority と ChangeSet を置く場所が 1 か所になり、CLI だけが使う経路が構造上できません。Claude Code と対話型 CLI は同じ規則で同じ Tool を使います。
+
+捨てた案。CLI だけがプロセス内で `WorkStore` に書く案(面が 2 つになる)。子 Work を別の loop に回す `work_run`(Runtime にモデルが要る)。作業の隔離は client 側のサブエージェントに任せます。
+
 ## セッションは Work の上に載る
 
 決めたこと。`createSession` は `type: session` の Work を開き、`turn(text)` ごとに人の発言(`human.message`)を記録して社員エージェントの model を回します。社員エージェントの道具は `work_run`、`work_list`、`work_show` で、`work_run` は子 Work を作って `runWork` で進めます。1 ターンの上限は model 5 回、道具 10 回で、超えたらターンを打ち切って人に返します。Ctrl-C は子 Work を `in_progress` のまま止め、後で `resume` できます。`session` は予約した type で、`work_run`、MCP の `work_create`、`runWork` は受け付けません。投影は type で振る舞いを変える(objective を入れない)ので、model や外のエージェントが選べる値に置きません。

@@ -1,15 +1,17 @@
-import { createSession, type Session, type TurnResult } from "@openshain/agent";
+import { connectInMemory, createSession, type Session, type TurnResult } from "@openshain/agent";
 import {
   type AnyEvent,
-  createRuntime,
   type Event,
-  type Runtime,
+  loadConfig,
+  OpenshainError,
   type RuntimeProviders,
   type WorkId,
+  WorkStore,
 } from "@openshain/core";
+import { createMcpServer } from "@openshain/mcp";
 import { progressLine, report } from "../commands/run.ts";
 import { toolsList } from "../commands/tools.ts";
-import { workList, workResume, workShow } from "../commands/work.ts";
+import { workList, workShow } from "../commands/work.ts";
 import { plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
 import { LOGO_ROWS, VERSION } from "./banner.ts";
@@ -66,13 +68,12 @@ export interface Controller {
 export interface ControllerOptions {
   workspaceRoot: string;
   providers: RuntimeProviders;
-  runtime?: Runtime;
 }
 
 const HELP = [
   "/work list         Work の一覧",
   "/work show <id>    Work の詳細",
-  "/work resume <id>  止まった Work を続ける",
+  "/work resume <id>  止まった Work を候補にする。次の依頼がそれに沿えば続ける",
   "/tools             使える Tool",
   "/quit              終わる",
   "↑ ↓                前に送った行を入力欄に呼び戻す。いちばん下は新しい入力",
@@ -85,11 +86,30 @@ const HELP = [
 const QUESTION_WITHDRAWN =
   "the person stopped the work while it waited for their answer; the question is still pending and the work can be resumed";
 
-/** The state behind the screen: a session, the works it starts, and the lines to show. */
+/**
+ * The state behind the screen: a session, the works it starts, and the lines to show. The
+ * conversation reaches the runtime only as an MCP client of the workspace's own server, the way
+ * any other agent does; the records are read directly for the closing lines.
+ */
 export async function createController(options: ControllerOptions): Promise<Controller> {
-  const runtime =
-    options.runtime ??
-    (await createRuntime({ workspaceRoot: options.workspaceRoot, providers: options.providers }));
+  const { workspaceRoot, providers } = options;
+  const config = await loadConfig(workspaceRoot, { modelProviders: Object.keys(providers.models) });
+  const modelFactory = Object.hasOwn(providers.models, config.model.provider)
+    ? providers.models[config.model.provider]
+    : undefined;
+  if (!modelFactory) {
+    throw new OpenshainError("config", `unknown model provider "${config.model.provider}"`);
+  }
+  const model = modelFactory(config.model);
+  if (!model.describe().capabilities.tools) {
+    throw new OpenshainError(
+      "config",
+      `model ${config.model.provider}/${config.model.model} cannot call tools; openshain needs a model with tool support`,
+    );
+  }
+  const server = await createMcpServer({ workspaceRoot, tools: providers.tools });
+  const client = await connectInMemory(server);
+  const store = new WorkStore(workspaceRoot);
   const listeners = new Set<() => void>();
   let nextId = 1;
   const state: ControllerState = {
@@ -97,8 +117,8 @@ export async function createController(options: ControllerOptions): Promise<Cont
     busy: false,
     closed: false,
     status: {
-      company: runtime.config.company.name,
-      model: `${runtime.config.model.provider}/${runtime.config.model.model}`,
+      company: config.company.name,
+      model: `${config.model.provider}/${config.model.model}`,
       usage: { modelCalls: 0, inputTokens: 0, outputTokens: 0 },
     },
   };
@@ -129,8 +149,6 @@ export async function createController(options: ControllerOptions): Promise<Cont
   let aborter: AbortController | undefined;
   let running: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
-  /** The child work of the current turn while it is unfinished. */
-  let lastWorkId: WorkId | undefined;
   const names = new Map<string, string>();
 
   const ask = (workId: WorkId, question: string): Promise<string> => {
@@ -155,52 +173,56 @@ export async function createController(options: ControllerOptions): Promise<Cont
 
   /** The lines the CLI prints when a work ends, shown among the progress lines. */
   const closingLines = async (workId: WorkId) => {
-    for (const line of await workReport(runtime, workId)) push("progress", line.trimStart());
+    for (const line of await workReport(store, workId)) push("progress", line.trimStart());
   };
 
-  const onWorkEvent = (workId: WorkId, event: AnyEvent): void | Promise<void> => {
-    lastWorkId = workId;
-    if (event.type === "work.status_changed") {
-      state.status.work = {
-        id: workId,
-        status: (event as Event<"work.status_changed">).payload.to,
-      };
-    } else if (event.type === "work.completed" || event.type === "work.failed") {
-      lastWorkId = undefined;
-      state.status.work = {
-        id: workId,
-        status: event.type === "work.completed" ? "completed" : "failed",
-      };
-      return closingLines(workId);
-    }
-    const line = progressLine(event, names);
-    if (line) push("progress", line);
-    else notify();
-  };
-
-  const session: Session = await createSession(runtime, {
-    onEvent: (event) => {
-      if (event.type === "usage.recorded") {
-        const { payload } = event as Event<"usage.recorded">;
-        if (payload.kind === "model_inference") {
-          state.status.usage.modelCalls += 1;
-          state.status.usage.inputTokens += payload.usage.inputTokens;
-          state.status.usage.outputTokens += payload.usage.outputTokens;
-          notify();
+  let sessionId: WorkId | undefined;
+  const session: Session = await createSession(client, {
+    model,
+    config,
+    onEvent: (workId, event) => {
+      if (workId === sessionId) {
+        if (event.type === "usage.recorded") {
+          const { payload } = event as Event<"usage.recorded">;
+          if (payload.kind === "model_inference") {
+            state.status.usage.modelCalls += 1;
+            state.status.usage.inputTokens += payload.usage.inputTokens;
+            state.status.usage.outputTokens += payload.usage.outputTokens;
+            notify();
+          }
         }
+        return;
       }
+      if (event.type === "work.status_changed") {
+        state.status.work = {
+          id: workId,
+          status: (event as Event<"work.status_changed">).payload.to,
+        };
+        notify();
+        return;
+      }
+      if (event.type === "work.completed" || event.type === "work.failed") {
+        state.status.work = {
+          id: workId,
+          status: event.type === "work.completed" ? "completed" : "failed",
+        };
+        return closingLines(workId);
+      }
+      const line = progressLine(event, names);
+      if (line) push("progress", line);
+      else notify();
     },
-    onWorkEvent,
     onInput: ask,
   });
+  sessionId = session.id;
   state.status.agentName = session.agentName;
   for (const row of LOGO_ROWS) push("logo", row);
   push("banner", `openshain ${VERSION}`);
-  push("banner", runtime.workspaceRoot);
+  push("banner", workspaceRoot);
 
-  const stopped = (workId: string | undefined) =>
+  const stopped = (workId: WorkId | undefined) =>
     workId
-      ? `止めました。${workId} は途中のまま残っています。/work resume ${workId} で再開します。`
+      ? `止めました。${workId} は途中のまま残っています。/work resume ${workId} で続けられるようにします。`
       : "止めました。";
 
   const explain = (result: TurnResult) => {
@@ -208,7 +230,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       case "turn_limit":
         return "社員エージェントが 1 回の返答でできる回数を超えたので、ここで止めました。続きは改めて依頼してください。";
       case "aborted":
-        return stopped(lastWorkId);
+        return stopped(result.work);
       case "max_tokens":
         return "返答が長さの上限で切れました。";
       case "refusal":
@@ -261,21 +283,15 @@ export async function createController(options: ControllerOptions): Promise<Cont
     else if (name === "work" && sub === "show" && id)
       await capture((write) => workShow({ workspaceRoot: options.workspaceRoot, id, write }));
     else if (name === "work" && sub === "resume" && id) {
-      await stoppable(async (signal) => {
-        try {
-          await workResume({
-            workspaceRoot: options.workspaceRoot,
-            providers: options.providers,
-            id,
-            signal,
-            write: (text) => push("line", text),
-            ask: (q) => ask(id as WorkId, q),
-          });
-        } catch (err) {
-          if (!signal.aborted) push("notice", message(err));
-        }
-        if (signal.aborted) push("notice", stopped(id));
-      });
+      try {
+        const work = await session.select(id as WorkId);
+        push(
+          "notice",
+          `${work.id}(${statusLabel(work.status)}、${work.objective})を候補にしました。次の依頼がこの Work に沿えば続けます。`,
+        );
+      } catch (err) {
+        push("notice", message(err));
+      }
     } else if (name === "resume") {
       push(
         "notice",
@@ -292,6 +308,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       settleQuestion();
       await running;
       await session.close();
+      await client.close();
       state.closed = true;
       notify();
     })();
@@ -346,10 +363,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
   };
 }
 
-/** Lines that close a work in the screen: the CLI's closing lines without the summary, which the clerk relays. */
-export async function workReport(runtime: Runtime, workId: WorkId): Promise<string[]> {
-  const work = await runtime.works.get(workId);
-  const events = await runtime.works.events(workId);
+/** Lines that close a work in the screen: the CLI's closing lines without the summary, which the agent relays. */
+export async function workReport(store: WorkStore, workId: WorkId): Promise<string[]> {
+  const work = await store.get(workId);
+  const events = await store.events(workId);
   const lines = report(work, events);
   return work.status === "completed" ? ["完了。", ...lines.slice(1)] : lines;
 }

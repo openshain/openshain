@@ -1,11 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type AnyEvent, createRuntime, type WorkId } from "@openshain/core";
+import { fileURLToPath } from "node:url";
+import { type AnyEvent, type Event, loadConfig, type WorkId, WorkStore } from "@openshain/core";
+import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
+import { connectInMemory } from "./client.ts";
 import { AGENT_NAMES } from "./names.ts";
-import { createSession, SESSION_TOOLS, type SessionOptions } from "./session.ts";
+import { createSession, type SessionOptions } from "./session.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
 
 async function setup(steps: FakeStep[]) {
@@ -27,6 +30,8 @@ model:
   api_key_env: FAKE_API_KEY
 tools:
   - provider: standard
+limits:
+  max_model_calls: 3
 `,
   );
   await mkdir(join(root, "receipts"));
@@ -35,268 +40,269 @@ tools:
     "date,amount\n2026-07-01,100\n2026-07-02,250\n",
   );
   const model = new FakeModelProvider(steps);
-  const runtime = await createRuntime({
+  const server = await createMcpServer({
     workspaceRoot: root,
-    providers: { models: { fake: () => model }, tools: { standard: () => standardTools() } },
+    tools: { standard: () => standardTools() },
   });
-  return { root, model, runtime };
+  const client = await connectInMemory(server);
+  const config = await loadConfig(root, { modelProviders: ["fake"] });
+  const store = new WorkStore(root);
+  const open = (options: Partial<SessionOptions> = {}) =>
+    createSession(client, { model, config, ...options });
+  return { root, model, client, config, store, open };
 }
 
 const types = (events: AnyEvent[]) => events.map((e) => e.type);
+const workCreate = (id: string, objective: string) =>
+  callTools({ id, name: "work_create", input: { objective } });
+const workComplete = (id: string, summary: string) =>
+  callTools({ id, name: "work_complete", input: { summary } });
 
 describe("a session", () => {
-  test("replies to the person and offers the model only the session's tools", async () => {
-    const { model, runtime } = await setup([say("こんにちは。何をしましょう。")]);
-    const events: AnyEvent[] = [];
-    const session = await createSession(runtime, {
-      onEvent: (e) => {
-        events.push(e);
+  test("replies to the person, sees the runtime's tools, and is recorded as a session work", async () => {
+    const { model, store, open } = await setup([say("こんにちは。何をしましょう。")]);
+    const seen: [WorkId, AnyEvent][] = [];
+    const session = await open({
+      onEvent: (workId, e) => {
+        seen.push([workId, e]);
       },
     });
 
     const result = await session.turn("やあ");
 
     expect(result).toEqual({ reply: "こんにちは。何をしましょう。" });
-    expect(model.requests[0]?.tools?.map((t) => t.name)).toEqual(SESSION_TOOLS.map((t) => t.name));
-    expect(model.requests[0]?.tools?.some((t) => t.name.startsWith("fs_"))).toBe(false);
+    const names = model.requests[0]?.tools?.map((t) => t.name) ?? [];
+    expect(names).toEqual(expect.arrayContaining(["work_create", "work_complete", "fs_read"]));
+    expect(names).not.toContain("work_record");
+    expect(names).not.toContain("work_answer");
     expect(model.requests[0]?.system).toContain("受付");
     expect(model.requests[0]?.messages.at(-2)).toEqual({
       role: "user",
       content: [{ type: "text", text: "やあ" }],
     });
-    expect(types(events)).toEqual([
+    const recorded = await store.events(session.id);
+    expect(types(recorded)).toEqual([
+      "work.created",
       "work.status_changed",
       "human.message",
       "model.requested",
       "model.completed",
       "usage.recorded",
     ]);
-    const work = await runtime.works.get(session.id);
+    const work = await store.get(session.id);
     expect(work.type).toBe("session");
-    expect(work.status).toBe("in_progress");
+    expect(work.agentName).toBe(session.agentName);
+    expect(seen.map(([id, e]) => [id === session.id, e.type])).toEqual([
+      [true, "human.message"],
+      [true, "model.requested"],
+      [true, "model.completed"],
+      [true, "usage.recorded"],
+    ]);
   });
 
-  test("runs a work for the person through work_run and reports its outcome", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "receipts を集計して" } }),
-      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
-      say("合計は 350 です"),
-      say("集計しました。合計は 350 円です。"),
+  test("creates a work under the session, runs tools inside it, closes it, and keeps only the summary", async () => {
+    const { model, store, open } = await setup([
+      workCreate("c1", "7 月の合計"),
+      callTools({ id: "c2", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
+      workComplete("c3", "合計は 350 円です"),
+      say("7 月の合計は 350 円です。"),
     ]);
-    const childEvents: { workId: WorkId; type: string }[] = [];
-    const session = await createSession(runtime, {
-      onWorkEvent: (workId, e) => {
-        childEvents.push({ workId, type: e.type });
+    const session = await open();
+
+    const result = await session.turn("7 月の領収書の合計は？");
+
+    expect(result.reply).toBe("7 月の合計は 350 円です。");
+    const { works } = await store.list();
+    const task = works.find((w) => w.type !== "session");
+    expect(task?.parent).toBe(session.id);
+    expect(task?.agentName).toBe(session.agentName);
+    expect(task?.status).toBe("completed");
+    expect(task?.outcome?.summary).toBe("合計は 350 円です");
+    const taskTypes = types(await store.events(task?.id as WorkId));
+    expect(taskTypes.filter((t) => t === "tool.called")).toHaveLength(1);
+    expect(taskTypes.filter((t) => t === "model.requested")).toHaveLength(2);
+    expect(taskTypes.filter((t) => t === "usage.recorded")).toHaveLength(3);
+    expect(taskTypes.at(-1)).toBe("work.completed");
+    expect(session.currentWork()).toBeUndefined();
+    const sessionTypes = types(await store.events(session.id));
+    expect(sessionTypes.filter((t) => t === "model.requested")).toHaveLength(4);
+    expect(sessionTypes).not.toContain("tool.called");
+    // The csv_read result is folded away once the work is closed; the summary stays.
+    const lastRequest = model.requests.at(-1);
+    const text = JSON.stringify(lastRequest?.messages);
+    expect(text).toContain("省略");
+    expect(text).not.toContain("2026-07-02");
+    expect(text).toContain("合計は 350 円です");
+  });
+
+  test("asks the person when a work asks a question, records the answer, and hands it to the model", async () => {
+    const { model, store, open } = await setup([
+      workCreate("c1", "確認"),
+      callTools({ id: "c2", name: "ask_user", input: { question: "どの月ですか" } }),
+      (request) => {
+        const answer = JSON.stringify(request.messages.at(-2));
+        expect(answer).toContain("7 月");
+        return workComplete("c3", "7 月と確認");
       },
-    });
-
-    const result = await session.turn("領収書を集計して");
-
-    expect(result).toEqual({ reply: "集計しました。合計は 350 円です。" });
-    const { works } = await runtime.works.list();
-    const child = works.find((w) => w.type === "request");
-    expect(child?.parent).toBe(session.id);
-    expect(child?.status).toBe("completed");
-    expect(child?.outcome?.summary).toBe("合計は 350 です");
-    expect(childEvents.some((e) => e.workId === child?.id && e.type === "tool.called")).toBe(true);
-    const events = await runtime.works.events(session.id);
-    const called = events.find((e) => e.type === "tool.called");
-    expect(called?.payload).toMatchObject({ provider: "runtime", name: "work_run" });
-    const done = events.find((e) => e.type === "tool.completed")?.payload as
-      | { content: { value: { status: string; summary: string } }[] }
-      | undefined;
-    expect(done?.content[0]?.value).toMatchObject({
-      status: "completed",
-      summary: "合計は 350 です",
-    });
-  });
-
-  test("passes a work's question to the person and the answer to the work", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
-      callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
-      say("7月分を集計しました"),
-      say("7月分を集計しました。"),
+      say("7 月ですね。"),
     ]);
-    const asked: string[] = [];
-    const session = await createSession(runtime, {
-      onInput: async (_workId, question) => {
-        asked.push(question);
-        return "7月";
+    const asked: [WorkId, string][] = [];
+    const session = await open({
+      onInput: async (workId, question) => {
+        asked.push([workId, question]);
+        return "7 月";
       },
     });
 
     const result = await session.turn("集計して");
 
-    expect(asked).toEqual(["何月ですか"]);
-    expect(result.reply).toBe("7月分を集計しました。");
-    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
-    const events = await runtime.works.events(child?.id as WorkId);
-    expect(events.find((e) => e.type === "human.input_provided")?.payload).toMatchObject({
-      answer: "7月",
-    });
+    expect(result.reply).toBe("7 月ですね。");
+    expect(asked).toEqual([[expect.stringMatching(/^work_/), "どの月ですか"]]);
+    const { works } = await store.list();
+    const task = works.find((w) => w.type !== "session");
+    const taskTypes = types(await store.events(task?.id as WorkId));
+    expect(taskTypes).toEqual(
+      expect.arrayContaining(["human.input_requested", "human.input_provided", "work.completed"]),
+    );
+    expect(model.requests).toHaveLength(4);
   });
 
-  test("leaves a work the person asked to stop in progress, so it can be resumed", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
-      callTools({ id: "c1", name: "csv_read", input: { path: "receipts/2026-07.csv" } }),
-      say("never reached"),
+  test("a withdrawn question stops the turn and leaves the work waiting", async () => {
+    const { store, open } = await setup([
+      workCreate("c1", "確認"),
+      callTools({ id: "c2", name: "ask_user", input: { question: "どの月ですか" } }),
     ]);
-    const controller = new AbortController();
-    const session = await createSession(runtime, {
-      onWorkEvent: (_id, e) => {
-        if (e.type === "tool.completed") controller.abort();
-      },
+    const session = await open({
+      onInput: () => Promise.reject(new Error("withdrawn")),
     });
 
-    const result = await session.turn("集計して", { signal: controller.signal });
+    const result = await session.turn("集計して");
 
     expect(result.stopped).toBe("aborted");
-    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
-    expect(child?.status).toBe("in_progress");
-    const done = (await runtime.works.events(session.id)).find((e) => e.type === "tool.completed")
-      ?.payload as { content: { value: { interrupted?: string } }[] } | undefined;
-    expect(done?.content[0]?.value.interrupted).toBeDefined();
+    const { works } = await store.list();
+    const task = works.find((w) => w.type !== "session");
+    expect(task?.status).toBe("waiting_input");
+    expect(result.work).toBe(task?.id);
+    expect(session.currentWork()).toBeUndefined();
+  });
+
+  test("continues a selected work when the request fits it, and leaves it alone when it does not", async () => {
+    const { store, open, config } = await setup([
+      (request) => {
+        expect(JSON.stringify(request.messages.at(-2))).toContain("候補の Work");
+        return say("それは別件なので、その Work は続けません。");
+      },
+      (request) => {
+        expect(JSON.stringify(request.messages.at(-2))).toContain("候補の Work");
+        return callTools({
+          id: "c1",
+          name: "work_select",
+          input: { id: request.messages.length > 0 ? stopped : "" },
+        });
+      },
+      workComplete("c2", "続きを終えました"),
+      say("続きを終えました。"),
+    ]);
+    const created = await store.create({
+      objective: "8 月の集計",
+      principal: config.principal.id,
+      profession: config.profession.id,
+    });
+    await store.transition(created.id, "in_progress", "test");
+    const stopped = created.id;
+    const session = await open();
+
+    await session.select(stopped);
+    const unrelated = await session.turn("今日の天気は？");
+    expect(unrelated.reply).toContain("続けません");
+    expect((await store.get(stopped)).status).toBe("in_progress");
+    expect(session.currentWork()).toBeUndefined();
+
+    await session.select(stopped);
+    const related = await session.turn("8 月の集計の続きをお願い");
+    expect(related.reply).toBe("続きを終えました。");
+    expect((await store.get(stopped)).status).toBe("completed");
+    await expect(session.select(stopped)).rejects.toThrow(/completed/);
   });
 
   test("stops a turn that calls the model too often, and the session goes on", async () => {
-    const { runtime } = await setup([
-      ...Array.from({ length: 6 }, (_, i) =>
-        callTools({ id: `l${i}`, name: "work_list", input: {} }),
+    const { open } = await setup([
+      ...Array.from({ length: 5 }, (_, i) =>
+        callTools({ id: `c${i}`, name: "work_list", input: {} }),
       ),
-      say("やっと返事"),
+      say("やっと。"),
     ]);
-    const session = await createSession(runtime);
+    const session = await open();
 
-    const first = await session.turn("何度も確認して");
-    const second = await session.turn("それで?");
-
+    const first = await session.turn("何度も調べて");
     expect(first.stopped).toBe("turn_limit");
-    expect(second).toEqual({ reply: "やっと返事" });
+
+    const second = await session.turn("もう一度");
+    expect(second.reply).toBe("やっと。");
   });
 
-  test("rejects a tool the session does not offer, and input that does not fit", async () => {
-    const { runtime } = await setup([
-      callTools(
-        { id: "x1", name: "fs_read", input: { path: "receipts/2026-07.csv" } },
-        { id: "x2", name: "work_show", input: {} },
-      ),
-      say("できません"),
+  test("fails a work that used more model calls than the limit allows", async () => {
+    const { store, open } = await setup([
+      workCreate("c1", "長い作業"),
+      callTools({ id: "c2", name: "work_list", input: {} }),
+      callTools({ id: "c3", name: "work_list", input: {} }),
+      callTools({ id: "c4", name: "work_list", input: {} }),
+      callTools({ id: "c5", name: "work_list", input: {} }),
     ]);
-    const session = await createSession(runtime);
+    const session = await open();
 
-    await session.turn("ファイルを読んで");
+    const result = await session.turn("やって");
 
-    const rejected = (await runtime.works.events(session.id)).filter(
-      (e) => e.type === "tool.rejected",
-    );
-    expect(rejected.map((e) => (e.payload as { code: string }).code)).toEqual([
-      "unknown_tool",
-      "schema_mismatch",
-    ]);
+    expect(result.stopped).toBe("turn_limit");
+    const { works } = await store.list();
+    const task = works.find((w) => w.type !== "session");
+    expect(task?.status).toBe("failed");
+    expect(task?.failure?.reason).toBe("limit_reached");
   });
 
-  test("refuses to start a work of the type that records conversations", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して", type: "session" } }),
-      say("できません"),
-    ]);
-    const session = await createSession(runtime);
-
-    const result = await session.turn("集計して");
-
-    expect(result.reply).toBe("できません");
-    const done = (await runtime.works.events(session.id)).find((e) => e.type === "tool.completed");
-    expect((done?.payload as { isError?: boolean } | undefined)?.isError).toBe(true);
-    expect((await runtime.works.list()).works.map((w) => w.type)).toEqual(["session"]);
-  });
-
-  test("answers about earlier works from the records", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
-      say("done"),
-      say("終わりました"),
-      callTools({ id: "s2", name: "work_list", input: {} }),
-      say("1 件あります"),
-    ]);
-    const session = await createSession(runtime);
-    await session.turn("集計して");
-
-    const result = await session.turn("今までの作業は?");
-
-    expect(result.reply).toBe("1 件あります");
-    const listed = (await runtime.works.events(session.id))
-      .filter((e) => e.type === "tool.completed")
-      .at(-1);
-    const payload = listed?.payload as
-      | { content: { value: { works: { type: string }[] } }[] }
-      | undefined;
-    const value = payload?.content[0]?.value;
-    expect(value?.works).toHaveLength(1);
-    expect(value?.works[0]?.type).toBe("request");
-  });
-
-  test("goes by a name, tells the model, and hands the name to the works it starts", async () => {
-    const { runtime, model } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
-      say("済み"),
-      say("済みました"),
-    ]);
-    const session = await createSession(runtime, { agentName: "みなと" });
-
-    await session.turn("集計して");
-
-    expect(session.agentName).toBe("みなと");
-    expect((await runtime.works.get(session.id)).agentName).toBe("みなと");
-    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
-    expect(child?.agentName).toBe("みなと");
-    for (const request of model.requests)
-      expect(request.system).toContain("あなたの名前は みなと。");
-  });
-
-  test("picks a name from the list and avoids the ones open sessions use", async () => {
-    const { runtime } = await setup([]);
-
-    const first = await createSession(runtime);
-    const second = await createSession(runtime);
-    await first.close();
-    const third = await createSession(runtime, { agentName: first.agentName });
+  test("picks a name from the list, records it, and avoids the ones open sessions use", async () => {
+    const { store, open } = await setup([]);
+    const first = await open();
+    const second = await open();
 
     expect(AGENT_NAMES.ja).toContain(first.agentName);
     expect(second.agentName).not.toBe(first.agentName);
-    expect(third.agentName).toBe(first.agentName);
+    expect((await store.get(first.id)).agentName).toBe(first.agentName);
+    const named = await open({ agentName: "みなと" });
+    expect(named.agentName).toBe("みなと");
   });
 
-  test("close ends the conversation and keeps the record", async () => {
-    const { runtime } = await setup([say("では")]);
-    const session = await createSession(runtime);
-    await session.turn("おわり");
+  test("close ends the conversation and leaves an unfinished work in progress", async () => {
+    const { store, open } = await setup([workCreate("c1", "途中"), say("始めました。")]);
+    const session = await open();
+    const started = await session.turn("始めて");
+    const taskId = started.work as WorkId;
 
     const closed = await session.close();
 
     expect(closed.status).toBe("completed");
     expect(closed.outcome?.summary).toBe("会話を終了");
-    expect(types(await runtime.works.events(session.id)).at(-1)).toBe("work.completed");
+    expect((await store.get(taskId)).status).toBe("in_progress");
+    const events = await store.events(session.id);
+    expect((events.at(-1) as Event<"work.completed">).type).toBe("work.completed");
   });
 });
 
-describe("session options", () => {
-  test("a session without onInput leaves a questioning work waiting and tells the model", async () => {
-    const { runtime } = await setup([
-      callTools({ id: "s1", name: "work_run", input: { objective: "集計して" } }),
-      callTools({ id: "c1", name: "ask_user", input: { question: "何月ですか" } }),
-      say("聞いておきます"),
-    ]);
-    const options: SessionOptions = {};
-    const session = await createSession(runtime, options);
-
-    await session.turn("集計して");
-
-    const child = (await runtime.works.list()).works.find((w) => w.type === "request");
-    expect(child?.status).toBe("waiting_input");
-    const done = (await runtime.works.events(session.id)).find((e) => e.type === "tool.completed")
-      ?.payload as { content: { value: { waitingFor: string[] } }[] } | undefined;
-    expect(done?.content[0]?.value.waitingFor).toEqual(["何月ですか"]);
+describe("the agent package as a client", () => {
+  test("reaches the runtime only through the MCP client: no store or registry imports", async () => {
+    const dir = fileURLToPath(new URL(".", import.meta.url));
+    const offenders: string[] = [];
+    for (const name of await readdir(dir, { recursive: true })) {
+      if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) continue;
+      const text = await readFile(join(dir, name), "utf8");
+      if (
+        /\b(Runtime|WorkHandle|WorkStore|ToolRegistry|createRuntime|createToolCaller|createToolRegistry)\b/.test(
+          text,
+        )
+      ) {
+        offenders.push(name);
+      }
+    }
+    expect(offenders).toEqual(["loop.ts"]);
   });
 });

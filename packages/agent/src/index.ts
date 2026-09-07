@@ -1,5 +1,6 @@
 // @openshain/agent: Tool loop and model providers (bring your own key)
 
+export { type ClientResult, connectInMemory, jsonOf, type RuntimeClient, wrap } from "./client.ts";
 export {
   ASK_USER,
   countToolCalls,
@@ -25,7 +26,6 @@ export {
 } from "./providers/openai-compatible.ts";
 export {
   createSession,
-  SESSION_TOOLS,
   type Session,
   type SessionOptions,
   TURN_LIMITS,

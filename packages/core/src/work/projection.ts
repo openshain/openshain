@@ -61,6 +61,9 @@ export function buildProjection(input: ProjectionInput): Projection {
       case "human.message":
         pushUserPart({ type: "text", text: (event as Event<"human.message">).payload.text });
         break;
+      case "prompt.expanded":
+        pushUserPart({ type: "text", text: (event as Event<"prompt.expanded">).payload.text });
+        break;
       case "model.completed": {
         const content = (event as Event<"model.completed">).payload.content
           .filter((part) => part.type !== "opaque" || part.provider === input.providerId)

@@ -63,6 +63,11 @@ const WORK_TOOLS: Tool[] = [
           type: "string",
           description: "The id of the work this one was started from, such as the session.",
         },
+        agent_name: {
+          type: "string",
+          description:
+            "The name the agent goes by in this work. A session picks one; the works under it carry the same.",
+        },
       },
       required: ["objective"],
       additionalProperties: false,
@@ -230,16 +235,21 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
     switch (name) {
       case "work_create": {
         const current = session.current;
-        if (current && !isTerminal((await works.get(current)).status)) {
-          return failure(
-            `work ${current} is still in progress; finish it with work_complete or work_fail before starting another`,
-          );
+        if (current) {
+          const open = await works.get(current);
+          // A session is a conversation: starting a work under it is the normal thing to do.
+          if (!isTerminal(open.status) && open.type !== SESSION_WORK_TYPE) {
+            return failure(
+              `work ${current} is still in progress; finish it with work_complete or work_fail before starting another`,
+            );
+          }
         }
-        const { objective, type, parent } = input as {
-          objective: string;
-          type?: string;
-          parent?: string;
-        };
+        const {
+          objective,
+          type,
+          parent,
+          agent_name: agentName,
+        } = input as { objective: string; type?: string; parent?: string; agent_name?: string };
         if (parent !== undefined) await works.get(parseWorkId(parent));
         const work = await works.create({
           objective,
@@ -247,6 +257,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           profession: config.profession.id,
           ...(type && { type }),
           ...(parent !== undefined && { parent }),
+          ...(agentName !== undefined && { agentName }),
         });
         await works.transition(work.id, "in_progress", "an agent took the work over MCP");
         session.select(work.id);
@@ -344,8 +355,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           works: all.map((w) => ({
             id: w.id,
             status: w.status,
+            type: w.type,
             objective: w.objective,
             createdAt: w.createdAt,
+            ...(w.parent !== undefined && { parent: w.parent }),
+            ...(w.agentName !== undefined && { agentName: w.agentName }),
           })),
           problems: problems.map((p) => ({
             id: p.id,
@@ -480,6 +494,7 @@ function toMcpTool(definition: ToolDefinition): Tool {
     name: definition.name,
     description: definition.description,
     inputSchema: definition.inputSchema as Tool["inputSchema"],
+    annotations: { readOnlyHint: definition.effect === "observe" },
   };
 }
 

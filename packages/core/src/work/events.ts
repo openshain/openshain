@@ -74,6 +74,8 @@ export interface EventPayloads {
   "human.input_provided": { callId: string; answer: string };
   /** What the person said in a session. Becomes a user message in the projection. */
   "human.message": { text: string };
+  /** A prompt command expanded for the model: its name, where it came from, and the text handed over. */
+  "prompt.expanded": { name: string; source: string; text: string };
   "usage.recorded":
     | { kind: "model_inference"; provider: string; model: string; usage: ModelUsage }
     | { kind: "tool_execution"; provider: string; usage: { durationMs: number } };
@@ -180,6 +182,7 @@ export const payloadFileSchemas = {
   "human.input_requested": z.looseObject({ call_id: z.string(), question: z.string() }),
   "human.input_provided": z.looseObject({ call_id: z.string(), answer: z.string() }),
   "human.message": z.looseObject({ text: z.string() }),
+  "prompt.expanded": z.looseObject({ name: z.string(), source: z.string(), text: z.string() }),
   "usage.recorded": z.discriminatedUnion("kind", [
     z.looseObject({
       kind: z.literal("model_inference"),

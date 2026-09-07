@@ -50,10 +50,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.123.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@openshain/core": "workspace:*",
     "openai": "7.10.0"
   },
   "devDependencies": {
+    "@openshain/mcp": "workspace:*",
     "@openshain/tools": "workspace:*"
   },
   "publishConfig": {
