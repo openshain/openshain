@@ -173,8 +173,7 @@
     "version",
     "company",
     "principal",
-    "profession",
-    "model"
+    "profession"
   ],
   "additionalProperties": false
 }
