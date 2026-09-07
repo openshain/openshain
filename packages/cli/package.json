@@ -40,7 +40,7 @@
     }
   },
   "bin": {
-    "openshain": "./dist/bin.js"
+    "openshain": "dist/bin.js"
   },
   "scripts": {
     "build": "../../node_modules/.bin/tsc -p tsconfig.build.json",
