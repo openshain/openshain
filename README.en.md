@@ -246,6 +246,7 @@ The full text of the principles is in [docs/principles.md](docs/principles.md), 
 - It never leaves the company folder. It is not a replacement for SaaS or accounting software; it works on the files exported from them
 - It never leaves money arithmetic, authority checks, or state transitions to the model. Those are code
 - It never sends your data to the people who run openshain. The only network peer is the model API you configured
+- It never settles a judgment that takes a licensed professional (a tax accountant, a lawyer). It applies the company's rules and the approved decisions of the experts the company names. Permissions, approval and expert review are still to come; the design is in [spec/professional-boundary.md](spec/professional-boundary.md)
 
 ## Development
 

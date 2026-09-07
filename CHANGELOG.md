@@ -2,6 +2,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [Unreleased]
+
+### Added
+
+- 専門職の責務境界の spec(`spec/professional-boundary.md`)と設計原則の 1 行。処理の 5 区分、Authority の判定の種類、Expert Review の流れ、core と Profession Pack の境界を決めます。実装はまだです
+
 ## [0.3.0] - 2026-09-07
 
 ### Changed
@@ -63,6 +69,7 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/openshain/openshain/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/openshain/openshain/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/openshain/openshain/compare/v0.1.0...v0.1.1

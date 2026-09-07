@@ -13,6 +13,7 @@ openshain が判断に迷ったときに立ち返るものです。README には
 | Need-to-Know before retrieval | 知らなくてよい情報は LLM に渡しません |
 | Agent acts on behalf of a principal | エージェントは誰かの代理として、委任された権限の範囲で動きます |
 | Know when not to act | 止まれることは能力です |
+| Apply decisions, do not make them as a professional | 社員エージェントは会社の決まりと、資格ある専門家の承認済みの判断を業務に適用します。資格者としての判断を自分で確定しません。境界は免責表示ではなく、権限、Review、記録の設計で持ちます(spec/professional-boundary.md) |
 | Knowledge is authored, compiled, executed | Knowledge は人が書き、build し、Runtime が使います |
 | Open by default | Model、Knowledge、Expert、Profession、Tool は交換可能です |
 | Official has no hidden privilege | openshain 自身が作る Tool、model provider、入口も、第三者が作るものと同じインターフェースを通ります。core に公式実装だけが使う API を作りません |

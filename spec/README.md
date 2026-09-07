@@ -14,6 +14,7 @@
 | [open-runtime.plan.md](open-runtime.plan.md) | draft | 上の spec の実装計画です。19 タスク、5 checkpoint |
 | [interactive-cli.md](interactive-cli.md) | draft v0.1 | `openshain` の画面です。社員エージェントと話し、作業は Work として実行します。セッションの記録と社員エージェントの道具を決めます |
 | [interactive-cli.plan.md](interactive-cli.plan.md) | draft | 上の spec の実装計画です。5 タスク、1 checkpoint |
+| [professional-boundary.md](professional-boundary.md) | draft | 専門職の責務境界です。処理の 5 区分、Authority の判定の種類、Expert Review の流れ、core と Profession Pack の境界を決めます。実装は Authority と Expert Review の版で行います |
 
 ## JSON Schema(`schemas/`)
 

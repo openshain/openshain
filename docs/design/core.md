@@ -41,6 +41,22 @@ envelope(v、id、work_id、seq、type、occurred_at、recorded_at)は厳密に�
 
 Tool 定義の schema は登録時に検証します。`pattern` と `patternProperties` にバックトラックが爆発する正規表現(ReDoS)があれば登録を拒否します。入力の値を渡すのは model なので、検証自体を止められる schema を受け付けません。
 
+## 専門家の Review は Tool ではなく Authority の結果
+
+決めたこと。資格を要する判断が要る Action は、Authority が `review_required` と判定して Work を止め、Runtime が Review Package を作ります。会社が指名した専門家(Reviewer)が承認し、その Decision を参照して初めて Action が進みます。社員エージェントが専門家を Tool として呼ぶ形にはしません(spec/professional-boundary.md)。
+
+理由。Tool にすると、呼ぶかどうかを model が決めることになります。呼び忘れれば境界が消えます。Authority の判定にしておけば、呼ぶかどうかは Policy の表とコードが決め、model の出力に左右されません。Review の待ちが Work の状態(`waiting_approval`)になるので、止まったことと再開の条件が記録に残ります。
+
+捨てた案。`ask_expert` のような Tool。model の判断で越えられる線は、境界として機能しません。
+
+## 資格名と士業法は core に置かない
+
+決めたこと。core が持つのは判定の種類(allow、approval_required、review_required、deny、decision_backed)と、Review Package と Decision の記録の形だけです。どの業務がどの判定になるか、どの資格者が Reviewer になれるかは、Profession Pack と会社の Policy の表が持ちます。
+
+理由。法域と職種で分類が違い、法令の改正で変わります。core に埋めると、日本の経理のためだけの Runtime になり、変わるたびに core の版を上げることになります。表にしておけば、公式の Pack も第三者の Pack も会社自身の Policy も同じ形で読め、公式だけが使う経路ができません。
+
+変える条件。2 つ以上の法域の Pack を作ってなお表の形が足りないと分かったとき。
+
 ## 予約する名前とパス
 
 Tool の名前 `ask_user` と `work_*` は Runtime のもので、provider が同じ名前を登録すると起動時に止まります。パス `openshain.yaml` と `work/` と隠し項目には Tool からアクセスできません。第三者の Tool が Runtime の名前を装えないようにするためです。
