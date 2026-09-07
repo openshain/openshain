@@ -325,7 +325,7 @@ Runtime が持つ規則:
 - Tool の失敗は client に `isError` で返し、Work は続きます。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。
 - `ask_user` は Runtime の Tool です。質問を `human.input_requested` に記録して `waiting_input` にし、`pending: true` と call_id を返します。入力が schema に合わないときは `tool.rejected`(schema_mismatch)で、`waiting_input` にはなりません。`work_answer` が答えを `human.input_provided` と同じ call_id の `tool.completed` に記録し、`in_progress` に戻します。
-- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。書けるのはその接続で `work_create` か `work_select` した Work だけで、payload は schema で検証し、envelope は Runtime が付けます。終わった Work には書けません(判定は lock の中で行います)。
+- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。書けるのはその接続で `work_create` か `work_select` した Work だけで、payload は schema で検証し(262,144 文字まで)、envelope は Runtime が付けます。終わった Work には書けません(判定は lock の中で行います)。`work_*` と `ask_user` の文字列の入力には長さの上限があります(objective 10,000、summary と answer と detail 20,000、question 10,000、agent_name 100)。
 - 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
 - lock: `work/<id>/lock` に pid と開始時刻を書きます。すでにあり、その pid が生きていればエラーです。死んでいれば引き継ぎます。
 - 書き込みは `WorkStore.open(id)` が返す handle を通します。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まります。読み取りに lock は要りません。

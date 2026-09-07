@@ -228,6 +228,26 @@ describe("openshain over MCP", () => {
     ]);
   });
 
+  test("caps the size of what a client can record and the length of the names it can set", async () => {
+    const { call } = await connected();
+    const id = (await call("work_create", { objective: "会話", type: "session" })).json()
+      .id as string;
+
+    const huge = await call("work_record", {
+      work_id: id,
+      type: "human.message",
+      payload: { text: "あ".repeat(300_000) },
+    });
+    expect(huge.isError).toBe(true);
+    expect(huge.text).toContain("larger");
+
+    const longName = await call("work_create", { objective: "x", agent_name: "a".repeat(101) });
+    expect(longName.isError).toBe(true);
+    expect(longName.text).toContain("schema_mismatch");
+    const longQuestion = await call("ask_user", { question: "?".repeat(10_001) });
+    expect(longQuestion.isError).toBe(true);
+  });
+
   test("rejects tool calls past max_tool_calls with limit_reached and keeps the work open", async () => {
     const { call, store } = await connected("limits:\n  max_tool_calls: 1\n");
     const id = (await call("work_create", { objective: "x" })).json().id as string;

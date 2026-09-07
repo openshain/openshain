@@ -54,17 +54,25 @@ const WORK_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        objective: { type: "string", description: "The request, in the person's words." },
+        objective: {
+          type: "string",
+          minLength: 1,
+          maxLength: 10_000,
+          description: "The request, in the person's words.",
+        },
         type: {
           type: "string",
+          maxLength: 50,
           description: "A short label for the kind of work. Defaults to request.",
         },
         parent: {
           type: "string",
+          maxLength: 100,
           description: "The id of the work this one was started from, such as the session.",
         },
         agent_name: {
           type: "string",
+          maxLength: 100,
           description:
             "The name the agent goes by in this work. A session picks one; the works under it carry the same.",
         },
@@ -105,12 +113,15 @@ const WORK_TOOLS: Tool[] = [
     inputSchema: {
       type: "object",
       properties: {
-        summary: { type: "string" },
+        summary: { type: "string", maxLength: 20_000 },
         artifacts: {
           type: "array",
           items: {
             type: "object",
-            properties: { path: { type: "string" }, sha256: { type: "string" } },
+            properties: {
+              path: { type: "string", maxLength: 1000 },
+              sha256: { type: "string", maxLength: 64 },
+            },
             required: ["path"],
             additionalProperties: false,
           },
@@ -125,7 +136,10 @@ const WORK_TOOLS: Tool[] = [
     description: "Give up on the current work. Say why in a short reason and, if useful, a detail.",
     inputSchema: {
       type: "object",
-      properties: { reason: { type: "string" }, detail: { type: "string" } },
+      properties: {
+        reason: { type: "string", maxLength: 200 },
+        detail: { type: "string", maxLength: 20_000 },
+      },
       required: ["reason"],
       additionalProperties: false,
     },
@@ -141,7 +155,10 @@ const WORK_TOOLS: Tool[] = [
       "Record the person's answer to a question the current work is waiting on, and let the work continue.",
     inputSchema: {
       type: "object",
-      properties: { call_id: { type: "string" }, answer: { type: "string" } },
+      properties: {
+        call_id: { type: "string", maxLength: 100 },
+        answer: { type: "string", maxLength: 20_000 },
+      },
       required: ["call_id", "answer"],
       additionalProperties: false,
     },
@@ -172,6 +189,9 @@ const WORK_TOOLS: Tool[] = [
     },
   },
 ];
+
+/** A client event larger than this is refused: the log is for records, not for payloads. */
+const MAX_RECORD_CHARS = 262_144;
 
 /** The event types a client may record itself. Everything else is the runtime's to write. */
 const RECORDABLE_TYPES: ReadonlySet<string> = new Set([
@@ -342,6 +362,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const id = parseWorkId(work_id);
         if (!RECORDABLE_TYPES.has(type) || !isKnownEventType(type)) {
           return failure(`type ${type} cannot be recorded by a client`);
+        }
+        if (JSON.stringify(payload).length > MAX_RECORD_CHARS) {
+          return failure(`payload is larger than ${MAX_RECORD_CHARS} characters`);
         }
         if (!session.knows(id)) {
           return failure(

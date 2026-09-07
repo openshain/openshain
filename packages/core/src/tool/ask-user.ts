@@ -11,7 +11,12 @@ export const ASK_USER: Readonly<ToolDefinition> = Object.freeze({
   inputSchema: {
     type: "object",
     properties: {
-      question: { type: "string", description: "The question, in the person's language." },
+      question: {
+        type: "string",
+        minLength: 1,
+        maxLength: 10_000,
+        description: "The question, in the person's language.",
+      },
     },
     required: ["question"],
     additionalProperties: false,
