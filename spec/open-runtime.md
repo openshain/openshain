@@ -122,7 +122,9 @@ outcome:
 | `model.failed` | code、message |
 | `tool.called` | call_id、provider、name、input |
 | `tool.completed` | call_id、content、is_error、observation、after(mutate のとき、書き込み後の path と sha256) |
-| `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`、`limit_reached`、`denied`)、reason |
+| `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`、`limit_reached`、`denied`、`rejected_by_person`)、reason |
+| `approval.requested` | approval_id、call(call_id、name、input)、rule_id、kind(`approval` か `review`)、approvers、reviewer。規則が承認を求めた呼び出しです。Work は `waiting_approval` になります |
+| `approval.decided` | approval_id、decision(`approve`、`reject`、`modify`)、by、comment、modified_input |
 | `human.input_requested` | call_id(`ask_user` の呼び出し)、question |
 | `human.input_provided` | call_id、answer。答えは同じ call_id の `tool.completed` としても記録し、投影はそちらを使います |
 | `human.message` | text。セッションで人が言ったことです。投影では user message になります |
@@ -319,7 +321,7 @@ client                                  Runtime(MCP Tool)
 
 Runtime が持つ規則:
 
-- 現在の Work がない Tool 呼び出し、`type: session` の Work の中の Tool 呼び出し、`waiting_input` の Work での Tool 呼び出し(先に `work_answer`)は受け付けません。
+- 現在の Work がない Tool 呼び出し、`type: session` の Work の中の Tool 呼び出し、`waiting_input` の Work での Tool 呼び出し(先に `work_answer`)、`waiting_approval` の Work での Tool 呼び出し(先に `approval_decide`)は受け付けません。
 - 判定の差し込み口: Tool を実行する直前に `authorize(call)` を通します。許可リストの判定に続けて `authority/` の規則の表を評価します(authority.md)。`authority/` の無い workspace ではすべて許可です。
 - Tool 呼び出しの回数はイベントで数えます。`tool.called` の件数と、`tool.called` を伴わない `tool.rejected` の件数の和です。拒否された呼び出しも数えます。設定の `max_tool_calls` を超えた呼び出しは `tool.rejected`(limit_reached)で返し、Work は続きます。閉じるかどうかは client が決めます。
 - Tool の失敗は client に `isError` で返し、Work は続きます。
@@ -366,6 +368,8 @@ MCP tool:
 | `work_select` | 既存の Work を現在の Work にし、`history` 付きで返します。終わった Work は受け付けません |
 | `work_get`、`work_list` | 参照します。`work_get` は `history: true` で、これまでの Tool 呼び出し(name、path、isError)、結果のない呼び出し、未回答の質問を返します。client が中断した Work を続けるための情報です |
 | `ask_user` | 質問を記録して `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client です |
+| `approval_list` | 承認待ちの呼び出しの一覧です。approval_id、work_id、呼び出し、規則、承認できる人を返します |
+| `approval_decide` | 承認待ちの呼び出しを、その接続が代理する人として決めます。`approve` は Runtime がその場で Tool を実行して結果を返し、`reject` は `tool.rejected`(`rejected_by_person`)を残します。どちらも Work は `in_progress` に戻ります(authority.md) |
 | `context` | どこで、いつ働いているか。現在時刻(オフセット付き)、タイムゾーン、今日の業務日、会社フォルダ、会社、依頼する人、職種、現在の Work を返します。現在の Work があれば(session でも)`tool.called` と `tool.completed` として記録します。ファイルには触れないので、session の中でも呼べる唯一の Tool です |
 | `work_answer` | call_id と answer を受け、`human.input_provided` を記録して `in_progress` に戻します |
 | `work_record` | client のイベント(`human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`)を、その接続で作ったか選んだ Work に書きます。会話の記録と、client のモデルの使用量のためです |

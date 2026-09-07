@@ -45,11 +45,13 @@ export type {
   UserPart,
 } from "./model/types.ts";
 export {
+  type CallOptions,
   type CreateRuntimeOptions,
   createRuntime,
   createToolCaller,
   createToolRegistry,
   MAX_TOOL_TEXT_CHARS,
+  type PendingApprovalResult,
   type Runtime,
   type RuntimeProviders,
   type ToolSummary,
@@ -106,7 +108,9 @@ export {
   countToolCalls,
   type FailureReason,
   type HistoryCall,
+  type PendingApproval,
   type PendingQuestion,
+  pendingApprovals,
   pendingQuestions,
   type WorkHistory,
   workHistory,

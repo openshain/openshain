@@ -21,6 +21,12 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 捨てた案。CLI だけがプロセス内で `WorkStore` に直接書く案。Tool の面が 2 つになり、Authority を置く場所も 2 つになります。
 
+## 承認は Runtime が実行する
+
+決めたこと。規則が `approval_required` と判定した呼び出しは、Runtime が `approval.requested` を記録して Work を `waiting_approval` にし、呼び出し元には `pending: "approval"` を返します。`approval_decide` の `approve` で Runtime がその場で Tool を実行し、結果を返します。model にもう一度呼ばせません。`reject` は `tool.rejected`(`rejected_by_person`)です。承認する人は、この版では接続が代理する principal で、規則の `approvers` に居なければ決められません。
+
+理由。承認された呼び出しを model が呼び直す形にすると、承認したものと実行されたものが同じである保証がなくなります。Runtime が承認の記録にある入力をそのまま実行するので、承認と実行が 1 対 1 で記録に残ります。
+
 ## `context` は session でも呼べる
 
 決めたこと。`context` は現在時刻(オフセット付き)、タイムゾーン、今日の業務日、会社フォルダ、会社、依頼する人、職種、現在の Work を返す Runtime の Tool です。現在の Work があれば session でも記録します。client は会話を開くときに 1 回呼び、結果を `prompt.expanded` として記録します。

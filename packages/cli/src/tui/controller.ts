@@ -10,7 +10,7 @@ import {
 import { createMcpServer } from "@openshain/mcp";
 import { toolsList } from "../commands/tools.ts";
 import { workList, workShow } from "../commands/work.ts";
-import { plain } from "../format.ts";
+import { describeInput, plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
 import { progressLine, report } from "../report.ts";
 import { LOGO_ROWS, VERSION } from "./banner.ts";
@@ -73,6 +73,8 @@ const HELP = [
   "/work list         Work の一覧",
   "/work show <id>    Work の詳細",
   "/work resume <id>  止まった Work を候補にする。次の依頼がそれに沿えば続ける",
+  "/approvals         承認待ちの一覧",
+  "/approve <id>      承認して実行する。/reject <id> [理由] で拒否する",
   "/tools             使える Tool",
   "/quit              終わる",
   "↑ ↓                前に送った行を入力欄に呼び戻す。いちばん下は新しい入力",
@@ -253,6 +255,11 @@ export async function createController(options: ControllerOptions): Promise<Cont
         return "社員エージェントが続けられないと言っています。";
       case "model_error":
         return `model の呼び出しに失敗しました。${result.detail ?? ""}`.trim();
+      case "approval": {
+        const a = result.approval;
+        if (!a) return "承認が要ります。/approvals で確かめてください。";
+        return `承認が要ります: ${a.name} ${describeInput(a.input)}(${a.approvalId})。/approve ${a.approvalId} で実行、/reject ${a.approvalId} で拒否します。`;
+      }
       default:
         return undefined;
     }
@@ -308,6 +315,26 @@ export async function createController(options: ControllerOptions): Promise<Cont
       } catch (err) {
         push("notice", message(err));
       }
+    } else if (name === "approvals") {
+      try {
+        const held = await session.approvals();
+        if (held.length === 0) push("line", "承認待ちはありません。");
+        for (const a of held) {
+          push("line", `${a.approvalId}  ${a.name} ${describeInput(a.input)}  (${a.workId})`);
+        }
+      } catch (err) {
+        push("notice", message(err));
+      }
+    } else if ((name === "approve" || name === "reject") && sub) {
+      try {
+        const comment = args.slice(1).join(" ");
+        const { text } = await session.decide(sub, name, comment || undefined);
+        push("line", text);
+      } catch (err) {
+        push("notice", message(err));
+      }
+    } else if (name === "approve" || name === "reject") {
+      push("notice", `/${name} には承認の id が要ります。/approvals で確かめてください。`);
     } else if (name === "resume") {
       push(
         "notice",

@@ -28,7 +28,11 @@ class HangingModel implements ModelProvider {
   }
 }
 
-async function setup(steps: FakeStep[], given?: ModelProvider) {
+async function setup(
+  steps: FakeStep[],
+  given?: ModelProvider,
+  options: { authority?: boolean } = {},
+) {
   const root = await mkdtemp(join(tmpdir(), "openshain-tui-"));
   await writeFile(
     join(root, "openshain.yaml"),
@@ -51,6 +55,25 @@ tools:
   );
   await mkdir(join(root, "receipts"));
   await writeFile(join(root, "receipts", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
+  if (options.authority) {
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+  }
   const model = given ?? new FakeModelProvider(steps);
   const providers: RuntimeProviders = {
     models: { fake: () => model },
@@ -332,6 +355,45 @@ describe("the screen's controller", () => {
     expect(texts(controller, "notice").at(-1)).toContain("/help");
     expect(controller.state().closed).toBe(true);
     expect((await store.get(controller.sessionId)).status).toBe("completed");
+  });
+
+  test("a held call shows how to approve; /approvals lists it; /approve runs it and the next request continues the work", async () => {
+    const { controller, store } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+        }),
+        selectCandidate("c3"),
+        workComplete("c4", "更新しました"),
+        say("帳簿を更新しました。"),
+      ],
+      undefined,
+      { authority: true },
+    );
+
+    await controller.submit("7 月の帳簿を書いて");
+    const notice = texts(controller, "notice").at(-1) ?? "";
+    expect(notice).toContain("承認が要ります: fs_write ledger/2026-07.csv");
+    const approvalId = /apr_[0-9a-f-]+/.exec(notice)?.[0] as string;
+    expect(notice).toContain(`/approve ${approvalId}`);
+    expect(controller.state().busy).toBe(false);
+
+    await controller.submit("/approvals");
+    expect(texts(controller, "line").at(-1)).toContain(approvalId);
+    await controller.submit("/approve");
+    expect(texts(controller, "notice").at(-1)).toContain("id が要ります");
+    await controller.submit(`/approve ${approvalId}`);
+    expect(texts(controller, "line").at(-1)).toContain("承認");
+    await controller.submit("/approvals");
+    expect(texts(controller, "line").at(-1)).toBe("承認待ちはありません。");
+
+    await controller.submit("続けて");
+    expect(texts(controller, "assistant").at(-1)).toBe("帳簿を更新しました。");
+    const work = (await requestWork(store)) as { status: string };
+    expect(work.status).toBe("completed");
   });
 
   test("ignores empty lines and refuses a new message while busy", async () => {

@@ -68,6 +68,7 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 - 会話の投影は client(CLI の loop)が組み立てます。セッションの Work の記録から作り、作業の Work の中で得た Tool の結果は、その Work を閉じた後は要約(`work_complete` の summary)だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです
 - 1 ターン(人の発言から次の返答まで)の上限は model 呼び出し 25 回、Tool 呼び出し 40 回です。作業の Tool 呼び出しもこのターンの中で起きるので、v0.1 より大きい値です。投影の末尾の残り回数の行はこの値を表示します。超えたらそのターンを打ち切り、人に知らせ、セッションは続きます。作業の Work には `limits` の `max_tool_calls` を Runtime が数えます。`max_model_calls` は client が Work ごとに数え、超えたら `work_fail`(limit_reached)します
 - `ask_user` の結果が pending なら、client は人に質問を表示し、答えを `work_answer` で記録してから続けます。Ctrl-C で質問を取り下げると Work は `waiting_input` のまま残ります
+- Tool 呼び出しの結果が承認待ち(`pending: "approval"`)なら、そのターンは終わり、画面に「承認が要ります: fs_write ledger/…(apr_…)。/approve … で実行、/reject … で拒否します」と出ます。`/approve` は Runtime の `approval_decide` を呼び、Runtime がその場で Tool を実行します。結果は `prompt.expanded`(name `approval`、source `runtime`)として会話に記録され、その Work が次の依頼の候補になります
 - `/work resume <id>` で名指しされた Work は、人の次の依頼がその Work の objective に沿うときだけ `work_select` して続けます。沿わなければ、その旨を伝えたうえで新しい Work を作るか、`work_list` で探し直します。名指しは候補であって命令ではなく、次の 1 ターンだけ有効です
 - モデルが `work_record` と `work_answer` を呼ぶこと、作業の Work が無いのに `work_complete` や `work_fail` を呼ぶことは、loop が Runtime に渡さずに拒否します。会話の Work を閉じたり偽の記録を書いたりする経路をモデルに与えません
 - 社員エージェントの model は設定の `model` です。使用量はセッションと作業の Work に `work_record` で記録され、`work show` で合計が表示されます
@@ -90,7 +91,7 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 
 2 種類あります。
 
-- 組み込みコマンド。CLI が解釈し、model を通しません。記録の状態を変えるものは引数を正確に取ります。`/work list`、`/work show <id>`、`/work resume <id>`(止まった Work を候補として社員エージェントに渡します。次の依頼がその Work に沿えば `work_select` して続き、質問は画面で答えます)、`/tools`、`/help`、`/quit` です。`/resume <セッションの id>` はセッションの再開のために空けてあり、今はその旨を返します
+- 組み込みコマンド。CLI が解釈し、model を通しません。記録の状態を変えるものは引数を正確に取ります。`/work list`、`/work show <id>`、`/work resume <id>`(止まった Work を候補として社員エージェントに渡します。次の依頼がその Work に沿えば `work_select` して続き、質問は画面で答えます)、`/approvals`(承認待ちの一覧)、`/approve <id>` と `/reject <id> [理由]`(承認して実行する、拒否する。決めた Work は次の依頼の候補になります)、`/tools`、`/help`、`/quit` です。`/resume <セッションの id>` はセッションの再開のために空けてあり、今はその旨を返します
 - prompt コマンド(未実装)。`/{名前} {文}` の形で、`{文}` は自由な文です。CLI は `{名前}` に対応する prompt の本文と `{文}` を社員エージェントに渡し、何をするかは model が決めます。Claude Code の custom command や Agent Skills と同じ形です
 
 prompt コマンドの出どころは 3 つです。

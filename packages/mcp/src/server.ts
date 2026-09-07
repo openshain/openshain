@@ -21,8 +21,10 @@ import {
   isTerminal,
   loadAuthority,
   loadConfig,
+  type PendingApproval,
   parsePayloadFile,
   parseWorkId,
+  pendingApprovals,
   pendingQuestions,
   RUNTIME_PROVIDER_ID,
   type RuntimeProviders,
@@ -170,6 +172,28 @@ const WORK_TOOLS: Tool[] = [
       "Where and when you are working: the current time with its offset, the time zone, today's business date, the company folder, the company, the person you work for, and the current work. Call it when a date or a time matters; the answer is recorded.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { readOnlyHint: true },
+  },
+  {
+    name: "approval_list",
+    description:
+      "Every tool call held for a person's approval across the works of this workspace, oldest first: approval_id, work_id, the call, the rule, and who may approve.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: "approval_decide",
+    description:
+      "Decide a held tool call as the person this connection acts for. approve runs the call now and returns its result; reject refuses it. Either way the work continues.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        approval_id: { type: "string", maxLength: 100 },
+        decision: { type: "string", enum: ["approve", "reject"] },
+        comment: { type: "string", maxLength: 2000 },
+      },
+      required: ["approval_id", "decision"],
+      additionalProperties: false,
+    },
   },
   {
     name: "work_record",
@@ -428,6 +452,67 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         }
         return result;
       }
+      case "approval_list": {
+        const held: unknown[] = [];
+        const { works: all } = await works.list();
+        for (const w of all) {
+          if (w.status !== "waiting_approval") continue;
+          for (const a of pendingApprovals(await works.events(w.id))) {
+            held.push({ ...a, work_id: w.id, objective: w.objective });
+          }
+        }
+        return json({ approvals: held });
+      }
+      case "approval_decide": {
+        const {
+          approval_id: approvalId,
+          decision,
+          comment,
+        } = input as { approval_id: string; decision: "approve" | "reject"; comment?: string };
+        const found = await findApproval(works, approvalId);
+        if (!found) return failure(`no pending approval ${approvalId}`);
+        const { workId, approval } = found;
+        const by = config.principal.id;
+        if (approval.approvers && !approval.approvers.includes(by)) {
+          return failure(
+            `${by} may not decide ${approvalId}; approvers: ${approval.approvers.join(", ")}`,
+          );
+        }
+        const opened = await works.open(workId);
+        try {
+          await opened.append({
+            type: "approval.decided",
+            payload: { approvalId, decision, by, ...(comment !== undefined && { comment }) },
+          });
+          if (decision === "reject") {
+            await opened.append({
+              type: "tool.rejected",
+              payload: {
+                callId: approval.call.callId,
+                name: approval.call.name,
+                code: "rejected_by_person",
+                reason: comment ?? `${by} rejected ${approvalId}`,
+              },
+            });
+            await opened.transition("in_progress", `${by} rejected ${approvalId}`);
+            return json({ approval_id: approvalId, decision, work_id: workId });
+          }
+          await opened.transition("in_progress", `${by} approved ${approvalId}`);
+          const result = await callTool(
+            opened,
+            { id: approval.call.callId, name: approval.call.name, input: approval.call.input },
+            { approvedBy: approvalId },
+          );
+          return json({
+            approval_id: approvalId,
+            decision,
+            work_id: workId,
+            result: { content: result.content, isError: result.isError ?? false },
+          });
+        } finally {
+          await opened.close();
+        }
+      }
       case "work_list": {
         const { works: all, problems } = await works.list();
         return json({
@@ -479,6 +564,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (work.status === "waiting_input") {
           return failure(
             `work ${gate.id} is waiting for the person's answer; record it with work_answer before calling tools`,
+          );
+        }
+        if (work.status === "waiting_approval") {
+          return failure(
+            `work ${gate.id} is waiting for an approval; decide it with approval_decide (see approval_list) before calling tools`,
           );
         }
         const opened = await works.open(gate.id);
@@ -598,6 +688,22 @@ function failure(text: string): CallToolResult {
 
 function newCallId(): string {
   return `call_${uuidv7()}`;
+}
+
+/** The work holding a pending approval, found by scanning the works that wait for one. */
+async function findApproval(
+  works: WorkStore,
+  approvalId: string,
+): Promise<{ workId: WorkId; approval: PendingApproval } | undefined> {
+  const { works: all } = await works.list();
+  for (const w of all) {
+    if (w.status !== "waiting_approval") continue;
+    const approval = pendingApprovals(await works.events(w.id)).find(
+      (a) => a.approvalId === approvalId,
+    );
+    if (approval) return { workId: w.id, approval };
+  }
+  return undefined;
 }
 
 /** ISO 8601 with the local offset instead of Z, so the time reads as the person's clock. */

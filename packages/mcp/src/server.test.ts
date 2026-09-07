@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -308,17 +309,99 @@ rules:
     expect(denied.isError).toBe(true);
     expect(denied.text).toContain("領収書は変更しません");
     expect(await readFile(join(root, "receipts", "2026-07.csv"), "utf8")).toContain("2026-07-01");
-    const needsApproval = await judged("fs_write", { path: "ledger/2026-07.csv", content: "x" });
-    expect(needsApproval.isError).toBe(true);
-    expect(needsApproval.text).toContain("approval required");
     const reserved = await judged("fs_read", { path: "authority/policy.yaml" });
     expect(reserved.isError).toBe(true);
     const events = await store.events(id as never);
     const rejected = events.filter((e) => e.type === "tool.rejected");
     expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
       "denied",
-      "denied",
       "reserved_path",
+    ]);
+  });
+
+  test("a call the policy holds waits for approval; approve runs it, reject refuses it, and the work goes on", async () => {
+    const { root, call } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged, store } = await connected(undefined, root);
+    void call;
+    const id = (await judged("work_create", { objective: "帳簿" })).json().id as string;
+
+    const held = await judged("fs_write", { path: "ledger/2026-07.csv", content: "a,b\n" });
+    expect(held.isError).toBe(false);
+    expect(held.json()).toMatchObject({ pending: "approval", rule_id: "ledger-needs-approval" });
+    const approvalId = held.json().approval_id as string;
+    expect((await store.get(id as never)).status).toBe("waiting_approval");
+    expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
+
+    const blocked = await judged("fs_list", { path: "." });
+    expect(blocked.isError).toBe(true);
+    expect(blocked.text).toContain("approval_decide");
+
+    const listed = await judged("approval_list", {});
+    expect(listed.json().approvals).toHaveLength(1);
+    expect(listed.json().approvals[0]).toMatchObject({ approvalId, work_id: id, kind: "approval" });
+    const history = (await judged("work_get", { id, history: true })).json().history;
+    expect(history.approvals).toHaveLength(1);
+
+    const unknown = await judged("approval_decide", {
+      approval_id: "apr_nope",
+      decision: "approve",
+    });
+    expect(unknown.isError).toBe(true);
+
+    const approved = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+    expect(approved.isError).toBe(false);
+    expect(approved.json().result.isError).toBe(false);
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("a,b\n");
+    expect((await store.get(id as never)).status).toBe("in_progress");
+    const types = (await store.events(id as never)).map((e) => e.type);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "approval.requested",
+        "approval.decided",
+        "tool.called",
+        "tool.completed",
+      ]),
+    );
+    expect((await judged("approval_list", {})).json().approvals).toHaveLength(0);
+
+    const heldAgain = await judged("fs_write", { path: "ledger/2026-08.csv", content: "x" });
+    const secondId = heldAgain.json().approval_id as string;
+    const rejected = await judged("approval_decide", {
+      approval_id: secondId,
+      decision: "reject",
+      comment: "まだ早い",
+    });
+    expect(rejected.isError).toBe(false);
+    expect(existsSync(join(root, "ledger", "2026-08.csv"))).toBe(false);
+    expect((await store.get(id as never)).status).toBe("in_progress");
+    const last = (await store.events(id as never)).filter((e) => e.type === "tool.rejected").at(-1);
+    expect((last as { payload: { code: string; reason: string } }).payload).toMatchObject({
+      code: "rejected_by_person",
+      reason: "まだ早い",
+    });
+    const done = await judged("work_complete", { summary: "帳簿を更新" });
+    expect(done.json().outcome.artifacts.map((a: { path: string }) => a.path)).toEqual([
+      "ledger/2026-07.csv",
     ]);
   });
 

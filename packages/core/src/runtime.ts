@@ -7,6 +7,7 @@ import { loadToolModule } from "./tool/load-module.ts";
 import type { HiddenTool } from "./tool/registry.ts";
 import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
 import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
+import { uuidv7 } from "./uuid.ts";
 import type { ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
 import { type WorkHandle, WorkStore } from "./work/store.ts";
@@ -95,9 +96,22 @@ export function createToolCaller(input: {
   workspaceRoot: string;
   /** Who may do what. Omitted: the workspace is open, as one without authority/ is. */
   authority?: Authority;
-}): (work: WorkHandle, call: ToolCall) => Promise<ToolResult> {
+}): (work: WorkHandle, call: ToolCall, options?: CallOptions) => Promise<ToolResult> {
   const authority = input.authority ?? OPEN_AUTHORITY;
-  return (work, call) => callTool({ ...input, authority, work, call });
+  return (work, call, options) => callTool({ ...input, authority, work, call, ...options });
+}
+
+export interface CallOptions {
+  /** The approval that lets this call run: the policy is not consulted again. */
+  approvedBy?: string;
+}
+
+/** What a held call answers with: the client shows it to the person and the turn ends. */
+export interface PendingApprovalResult {
+  pending: "approval";
+  approval_id: string;
+  rule_id: string;
+  approvers?: string[];
 }
 
 /** Registers the tool providers the config names: the caller's factories by id, and modules from the workspace. Needs no model. */
@@ -151,6 +165,7 @@ async function callTool(input: {
   authority: Authority;
   work: WorkHandle;
   call: ToolCall;
+  approvedBy?: string;
 }): Promise<ToolResult> {
   const { registry, config, workspaceRoot, authority, work, call } = input;
   const reject = async (code: ToolRejectionCode, reason: string): Promise<ToolResult> => {
@@ -171,24 +186,47 @@ async function callTool(input: {
       `input does not match the schema of ${call.name}: ${validation.reason}`,
     );
   }
-  // The policy judges after the allow list. Approval and review are not available in this
-  // version, so a call that would need them is refused rather than run.
-  const path = pathOf(call.input);
-  const judged = evaluate(authority, {
-    tool: call.name,
-    effect: tool.definition.effect,
-    ...(path !== undefined && { path }),
-    principal: config.principal.id,
-    profession: config.profession.id,
-    workType: (await work.current()).type,
-    businessDate: businessDate(),
-  });
-  if (judged.kind === "deny") return reject("denied", judged.reason);
-  if (judged.kind !== "allow") {
-    return reject(
-      "denied",
-      `rule ${judged.rule.id} needs ${judged.kind.replace("_", " ")}, which this version cannot record yet; the call was not run`,
-    );
+  // The policy judges after the allow list, unless a person already approved this very call.
+  if (input.approvedBy === undefined) {
+    const path = pathOf(call.input);
+    const judged = evaluate(authority, {
+      tool: call.name,
+      effect: tool.definition.effect,
+      ...(path !== undefined && { path }),
+      principal: config.principal.id,
+      profession: config.profession.id,
+      workType: (await work.current()).type,
+      businessDate: businessDate(),
+    });
+    if (judged.kind === "deny") return reject("denied", judged.reason);
+    if (judged.kind === "approval_required") {
+      const approvalId = `apr_${uuidv7()}`;
+      const approvers = judged.rule.approvers ?? [config.principal.id];
+      await work.append({
+        type: "approval.requested",
+        payload: {
+          approvalId,
+          call: { callId: call.id, name: call.name, input: call.input },
+          ruleId: judged.rule.id,
+          kind: "approval",
+          approvers,
+        },
+      });
+      await work.transition("waiting_approval", `rule ${judged.rule.id} needs approval`);
+      const held: PendingApprovalResult = {
+        pending: "approval",
+        approval_id: approvalId,
+        rule_id: judged.rule.id,
+        approvers,
+      };
+      return { content: [{ type: "json", value: held }] };
+    }
+    if (judged.kind !== "allow") {
+      return reject(
+        "denied",
+        `rule ${judged.rule.id} needs ${judged.kind.replace("_", " ")}, which this version cannot record yet; the call was not run`,
+      );
+    }
   }
 
   await work.append({

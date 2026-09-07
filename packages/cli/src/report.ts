@@ -75,7 +75,7 @@ export function nextActor(work: Work): string {
     case "waiting_input":
       return `次は利用者の番です。openshain の会話で /work resume ${work.id} を実行し、続きを依頼すると質問に答えられます。`;
     case "waiting_approval":
-      return "次は利用者の番です。承認が要ります。";
+      return "次は利用者の番です。承認が要ります。openshain の会話で /approvals を確かめ、/approve <id> か /reject <id> で決めます。";
     case "failed":
       return "次は利用者の番です。原因を修正して、もう一度依頼してください。";
     default:

@@ -18,7 +18,7 @@ spec は [authority.md](authority.md) です。小さい縦の切れ目で進め
 - 検証: `bun test packages/core`、`bun run schemas`
 - サイズ: M
 
-#### Task 2: 承認の流れ
+#### Task 2: 承認の流れ(2026-09-08 完了)
 
 `approval.requested` と `approval.decided`、`waiting_approval`、MCP の `approval_list` と `approval_decide`、承認後の実行。client の loop が `pending: "approval"` を受けたときの扱い(人に知らせて turn を終える)。対話型 CLI の表示と `/approve`、`/reject`、`/approvals`。`work show` の表示。
 

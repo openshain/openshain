@@ -42,7 +42,21 @@ export interface SessionOptions {
   onInput?: (workId: WorkId, question: string) => Promise<string>;
 }
 
-export type TurnStop = "turn_limit" | "aborted" | "max_tokens" | "refusal" | "model_error";
+export type TurnStop =
+  | "turn_limit"
+  | "aborted"
+  | "max_tokens"
+  | "refusal"
+  | "model_error"
+  | "approval";
+
+/** A tool call the policy holds until a person decides on it. */
+export interface HeldApproval {
+  approvalId: string;
+  workId: WorkId;
+  name: string;
+  input: unknown;
+}
 
 export interface TurnResult {
   /** What the model said to the person, possibly empty when the turn stopped early. */
@@ -52,6 +66,8 @@ export interface TurnResult {
   detail?: string;
   /** The work the turn left open, when it stopped inside one. It can be continued with select. */
   work?: WorkId;
+  /** The call held for approval, when the turn stopped for one. */
+  approval?: HeldApproval;
 }
 
 export interface Session {
@@ -62,6 +78,14 @@ export interface Session {
   turn(text: string, options?: { signal?: AbortSignal }): Promise<TurnResult>;
   /** Names a stopped work as the candidate for the next request. The model decides whether to continue it. */
   select(workId: WorkId): Promise<Work>;
+  /** Decides a held call as the person. approve runs it; either way the work becomes the candidate. */
+  decide(
+    approvalId: string,
+    decision: "approve" | "reject",
+    comment?: string,
+  ): Promise<{ workId: WorkId; text: string }>;
+  /** The calls held for approval across the workspace. */
+  approvals(): Promise<HeldApproval[]>;
   /** The work the model is on right now, if any. */
   currentWork(): WorkId | undefined;
   /** Ends the conversation. The record stays; a work left in progress stays in progress. */
@@ -124,6 +148,7 @@ export async function createSession(
   );
   let task: TaskState | undefined;
   let candidate: { id: WorkId; objective: string; status: string } | undefined;
+  let held: HeldApproval | undefined;
 
   // The basics (time, business date, folder) enter the conversation as a recorded prompt, so the
   // projection stays a function of the record. The model can refresh them with the context tool.
@@ -271,6 +296,9 @@ export async function createSession(
             toolCalls += 1;
             const outcome = await callTool(call, signal);
             if (outcome === "withdrawn") return { reply: text, stopped: "aborted" };
+            if (outcome === "held" && held) {
+              return { reply: text, stopped: "approval", approval: held };
+            }
           }
           break;
         }
@@ -296,7 +324,7 @@ export async function createSession(
   async function callTool(
     call: { id: string; name: string; input: unknown },
     signal: AbortSignal | undefined,
-  ): Promise<"done" | "withdrawn"> {
+  ): Promise<"done" | "withdrawn" | "held"> {
     const workId = task?.id ?? id;
     // The loop drives these itself; a model that calls them is refused before the runtime sees it.
     const refusal = LOOP_ONLY_TOOLS.has(call.name)
@@ -413,6 +441,26 @@ export async function createSession(
           : { content: [{ type: "text", text: answer }], isError: false, text: answer };
       }
     }
+    if (!result.isError && data?.pending === "approval" && task) {
+      // The policy holds the call for a person. The turn ends; the person decides on the screen.
+      held = {
+        approvalId: String(data.approval_id),
+        workId: task.id,
+        name: call.name,
+        input: call.input,
+      };
+      finish(call.id, {
+        content: [
+          {
+            type: "text",
+            text: `held for approval ${held.approvalId}; the person decides before the work goes on`,
+          },
+        ],
+        isError: false,
+        text: "",
+      });
+      return "held";
+    }
     finish(call.id, result);
     if (!result.isError && (call.name === "work_complete" || call.name === "work_fail") && task) {
       const closed = task;
@@ -485,6 +533,7 @@ export async function createSession(
     id,
     agentName,
     async turn(text, turnOptions = {}) {
+      held = undefined;
       events.push(local("human.message", { text }));
       await record(id, "human.message", { text });
       if (candidate) {
@@ -517,6 +566,51 @@ export async function createSession(
       return work;
     },
     currentWork: () => task?.id,
+    async decide(approvalId, decision, comment) {
+      const decided = await client.call("approval_decide", {
+        approval_id: approvalId,
+        decision,
+        ...(comment !== undefined && { comment }),
+      });
+      if (decided.isError) throw new Error(decided.text);
+      const data = jsonOf(decided) as {
+        work_id: string;
+        result?: { content: { type: string; text?: string }[]; isError: boolean };
+      };
+      const workId = data.work_id as WorkId;
+      const outcome =
+        decision === "reject"
+          ? "拒否"
+          : data.result?.isError
+            ? `実行して失敗: ${data.result.content.map((c) => c.text ?? "").join("")}`
+            : "実行して成功";
+      const note = `承認 ${approvalId} を ${decision === "approve" ? "承認" : "拒否"}した(${outcome})。Work ${workId} は続けられる。`;
+      events.push(local("prompt.expanded", { name: "approval", source: "runtime", text: note }));
+      await record(id, "prompt.expanded", { name: "approval", source: "runtime", text: note });
+      const got = await client.call("work_get", { id: workId });
+      const work = jsonOf(got) as Work | undefined;
+      if (work && !isTerminal(work.status)) {
+        candidate = { id: work.id, objective: work.objective, status: work.status };
+      }
+      return { workId, text: note };
+    },
+    async approvals() {
+      const listed = await client.call("approval_list", {});
+      if (listed.isError) throw new Error(listed.text);
+      const { approvals } = jsonOf(listed) as {
+        approvals: {
+          approvalId: string;
+          work_id: string;
+          call: { name: string; input: unknown };
+        }[];
+      };
+      return approvals.map((a) => ({
+        approvalId: a.approvalId,
+        workId: a.work_id as WorkId,
+        name: a.call.name,
+        input: a.call.input,
+      }));
+    },
     async close() {
       const selected = await client.call("work_select", { id });
       if (selected.isError) {

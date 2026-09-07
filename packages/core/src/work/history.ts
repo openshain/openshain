@@ -44,6 +44,28 @@ export function pendingQuestions(events: readonly AnyEvent[]): PendingQuestion[]
     .map((e) => ({ callId: e.payload.callId, question: e.payload.question }));
 }
 
+export interface PendingApproval {
+  approvalId: string;
+  call: { callId: string; name: string; input: unknown };
+  ruleId: string;
+  kind: "approval" | "review";
+  approvers?: string[];
+  reviewer?: { role: string; name?: string };
+}
+
+/** The approvals of the work that have no decision yet, oldest first. */
+export function pendingApprovals(events: readonly AnyEvent[]): PendingApproval[] {
+  const decided = new Set(
+    events
+      .filter((e): e is Event<"approval.decided"> => e.type === "approval.decided")
+      .map((e) => e.payload.approvalId),
+  );
+  return events
+    .filter((e): e is Event<"approval.requested"> => e.type === "approval.requested")
+    .filter((e) => !decided.has(e.payload.approvalId))
+    .map((e) => ({ ...e.payload }));
+}
+
 export interface HistoryCall {
   callId: string;
   name: string;
@@ -59,6 +81,8 @@ export interface WorkHistory {
   /** Calls that were started but have no result: the work stopped while they ran. */
   unfinished: HistoryCall[];
   pending: PendingQuestion[];
+  /** Calls held for approval that nobody has decided on yet. */
+  approvals: PendingApproval[];
   toolCalls: number;
   /** Model calls recorded on the work, for a client that counts them against a limit. */
   modelCalls: number;
@@ -90,6 +114,7 @@ export function workHistory(events: readonly AnyEvent[]): WorkHistory {
     calls,
     unfinished: calls.filter((c) => c.isError === undefined && c.rejected === undefined),
     pending: pendingQuestions(events),
+    approvals: pendingApprovals(events),
     toolCalls: countToolCalls(events),
     modelCalls: events.filter((e) => e.type === "model.requested").length,
   };

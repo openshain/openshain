@@ -111,6 +111,20 @@ async function logWithEveryType() {
       type: "prompt.expanded",
       payload: { name: "work resume", source: "builtin", text: "候補の Work" },
     });
+    await handle.append({
+      type: "approval.requested",
+      payload: {
+        approvalId: "apr_1",
+        call: { callId: "c9", name: "fs_write", input: { path: "ledger/x.csv" } },
+        ruleId: "ledger",
+        kind: "approval",
+        approvers: ["alice"],
+      },
+    });
+    await handle.append({
+      type: "approval.decided",
+      payload: { approvalId: "apr_1", decision: "approve", by: "alice" },
+    });
     await handle.append({ type: "model.failed", payload: { code: "network", message: "down" } });
     await handle.append({
       type: "evidence.recorded",

@@ -43,6 +43,7 @@ export const TOOL_REJECTION_CODES = [
   "invalid_path",
   "limit_reached",
   "denied",
+  "rejected_by_person",
 ] as const;
 
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];
@@ -73,6 +74,23 @@ export interface EventPayloads {
   "tool.rejected": { callId: string; name: string; code: ToolRejectionCode; reason: string };
   "human.input_requested": { callId: string; question: string };
   "human.input_provided": { callId: string; answer: string };
+  /** A tool call the policy holds for a person's or a reviewer's approval. The work waits. */
+  "approval.requested": {
+    approvalId: string;
+    call: { callId: string; name: string; input: unknown };
+    ruleId: string;
+    kind: "approval" | "review";
+    approvers?: string[];
+    reviewer?: { role: string; name?: string };
+  };
+  /** The answer to an approval: approve runs the call, reject refuses it, modify runs it with the reviewer's input. */
+  "approval.decided": {
+    approvalId: string;
+    decision: "approve" | "reject" | "modify";
+    by: string;
+    comment?: string;
+    modifiedInput?: unknown;
+  };
   /** What the person said in a session. Becomes a user message in the projection. */
   "human.message": { text: string };
   /** A prompt command expanded for the model: its name, where it came from, and the text handed over. */
@@ -182,6 +200,21 @@ export const payloadFileSchemas = {
   }),
   "human.input_requested": z.looseObject({ call_id: z.string(), question: z.string() }),
   "human.input_provided": z.looseObject({ call_id: z.string(), answer: z.string() }),
+  "approval.requested": z.looseObject({
+    approval_id: z.string(),
+    call: z.looseObject({ call_id: z.string(), name: z.string(), input: z.unknown() }),
+    rule_id: z.string(),
+    kind: z.enum(["approval", "review"]),
+    approvers: z.array(z.string()).optional(),
+    reviewer: z.looseObject({ role: z.string(), name: z.string().optional() }).optional(),
+  }),
+  "approval.decided": z.looseObject({
+    approval_id: z.string(),
+    decision: z.enum(["approve", "reject", "modify"]),
+    by: z.string(),
+    comment: z.string().optional(),
+    modified_input: z.unknown().optional(),
+  }),
   "human.message": z.looseObject({ text: z.string() }),
   "prompt.expanded": z.looseObject({ name: z.string(), source: z.string(), text: z.string() }),
   "usage.recorded": z.discriminatedUnion("kind", [
@@ -455,6 +488,45 @@ const codecs: { [T in EventType]?: Codec<T> } = {
   "human.input_provided": {
     toFile: (p) => ({ call_id: p.callId, answer: p.answer }),
     fromFile: (p) => ({ callId: p.call_id, answer: p.answer }),
+  },
+  "approval.requested": {
+    toFile: (p) => ({
+      approval_id: p.approvalId,
+      call: { call_id: p.call.callId, name: p.call.name, input: p.call.input },
+      rule_id: p.ruleId,
+      kind: p.kind,
+      ...(p.approvers && { approvers: p.approvers }),
+      ...(p.reviewer && { reviewer: p.reviewer }),
+    }),
+    fromFile: (p) => ({
+      approvalId: p.approval_id,
+      call: { callId: p.call.call_id, name: p.call.name, input: p.call.input },
+      ruleId: p.rule_id,
+      kind: p.kind,
+      ...(p.approvers && { approvers: p.approvers }),
+      ...(p.reviewer && {
+        reviewer: {
+          role: p.reviewer.role,
+          ...(p.reviewer.name !== undefined && { name: p.reviewer.name }),
+        },
+      }),
+    }),
+  },
+  "approval.decided": {
+    toFile: (p) => ({
+      approval_id: p.approvalId,
+      decision: p.decision,
+      by: p.by,
+      ...(p.comment !== undefined && { comment: p.comment }),
+      ...(p.modifiedInput !== undefined && { modified_input: p.modifiedInput }),
+    }),
+    fromFile: (p) => ({
+      approvalId: p.approval_id,
+      decision: p.decision,
+      by: p.by,
+      ...(p.comment !== undefined && { comment: p.comment }),
+      ...(p.modified_input !== undefined && { modifiedInput: p.modified_input }),
+    }),
   },
   "usage.recorded": {
     toFile: (p) =>

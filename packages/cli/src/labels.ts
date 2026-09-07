@@ -29,6 +29,7 @@ export const REJECTION_LABELS: Record<ToolRejectionCode, string> = {
   invalid_path: "不正なパス",
   limit_reached: "Tool 呼び出しの上限",
   denied: "権限の表で不許可",
+  rejected_by_person: "承認されなかった",
 };
 
 /** A heading for a runtime error, before the original message. */

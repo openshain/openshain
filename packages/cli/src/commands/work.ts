@@ -2,6 +2,7 @@ import {
   type AnyEvent,
   type Event,
   parseWorkId,
+  pendingApprovals,
   pendingQuestions,
   type Work,
   WorkStore,
@@ -70,6 +71,11 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   }
   if (work.status === "waiting_input") {
     for (const { question } of pendingQuestions(events)) lines.push(`質問      ${question}`);
+  }
+  if (work.status === "waiting_approval") {
+    for (const a of pendingApprovals(events)) {
+      lines.push(`承認待ち  ${a.call.name} ${describeInput(a.call.input)}  (${a.approvalId})`);
+    }
   }
 
   const calls = toolLines(events);

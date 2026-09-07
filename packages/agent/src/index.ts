@@ -16,6 +16,7 @@ export {
 } from "./providers/openai-compatible.ts";
 export {
   createSession,
+  type HeldApproval,
   type Session,
   type SessionOptions,
   TURN_LIMITS,

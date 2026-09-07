@@ -11,7 +11,7 @@ import { AGENT_NAMES } from "./names.ts";
 import { createSession, type SessionOptions } from "./session.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
 
-async function setup(steps: FakeStep[]) {
+async function setup(steps: FakeStep[], options: { authority?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), "openshain-session-"));
   await writeFile(
     join(root, "openshain.yaml"),
@@ -39,6 +39,15 @@ limits:
     join(root, "receipts", "2026-07.csv"),
     "date,amount\n2026-07-01,100\n2026-07-02,250\n",
   );
+  if (options.authority) {
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(join(root, "authority", "policy.yaml"), POLICY);
+  }
   const model = new FakeModelProvider(steps);
   const server = await createMcpServer({
     workspaceRoot: root,
@@ -53,6 +62,14 @@ limits:
 }
 
 const types = (events: AnyEvent[]) => events.map((e) => e.type);
+const POLICY = `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`;
 const workCreate = (id: string, objective: string) =>
   callTools({ id, name: "work_create", input: { objective } });
 const workComplete = (id: string, summary: string) =>
@@ -299,6 +316,80 @@ describe("a session", () => {
     expect((await store.get(taskId)).status).toBe("in_progress");
     const events = await store.events(session.id);
     expect((events.at(-1) as Event<"work.completed">).type).toBe("work.completed");
+  });
+});
+
+describe("a session and approvals", () => {
+  test("a held call ends the turn; approve runs it and the work comes back as the candidate", async () => {
+    const { store, open } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+        }),
+        (request) => {
+          const note = JSON.stringify(request.messages.at(-2));
+          expect(note).toContain("承認");
+          expect(note).toContain("候補の Work");
+          const id = /work_[0-9a-f-]+/.exec(note)?.[0] ?? "";
+          return callTools({ id: "c3", name: "work_select", input: { id } });
+        },
+        workComplete("c4", "帳簿を更新しました"),
+        say("更新しました。"),
+      ],
+      { authority: true },
+    );
+    const session = await open();
+
+    const stopped = await session.turn("7 月の帳簿を書いて");
+    expect(stopped.stopped).toBe("approval");
+    expect(stopped.approval).toMatchObject({
+      name: "fs_write",
+      input: { path: "ledger/2026-07.csv" },
+    });
+    const workId = stopped.approval?.workId as WorkId;
+    expect((await store.get(workId)).status).toBe("waiting_approval");
+    expect(session.currentWork()).toBeUndefined();
+
+    const listed = await session.approvals();
+    expect(listed.map((a) => a.approvalId)).toEqual([stopped.approval?.approvalId as string]);
+
+    const decided = await session.decide(stopped.approval?.approvalId as string, "approve");
+    expect(decided.workId).toBe(workId);
+    expect(decided.text).toContain("承認");
+    expect((await store.get(workId)).status).toBe("in_progress");
+    expect(await session.approvals()).toEqual([]);
+
+    const continued = await session.turn("続けて");
+    expect(continued.reply).toBe("更新しました。");
+    expect((await store.get(workId)).status).toBe("completed");
+    const sessionTypes = types(await store.events(session.id));
+    expect(sessionTypes.filter((t) => t === "prompt.expanded")).toHaveLength(3);
+  });
+
+  test("reject refuses the call and the work stays open for the next request", async () => {
+    const { store, open } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+        }),
+      ],
+      { authority: true },
+    );
+    const session = await open();
+    const stopped = await session.turn("7 月の帳簿を書いて");
+    const approvalId = stopped.approval?.approvalId as string;
+
+    const decided = await session.decide(approvalId, "reject", "まだ早い");
+
+    expect(decided.text).toContain("拒否");
+    expect((await store.get(decided.workId)).status).toBe("in_progress");
+    await expect(session.decide(approvalId, "approve")).rejects.toThrow(/no pending approval/);
   });
 });
 
