@@ -5,6 +5,8 @@
   </picture>
 </p>
 
+<p align="center"><strong>Small team. Professional operations.</strong></p>
+
 <p align="center">汎用のエージェントを、あなたの会社で働く専門社員にする対話型のエージェントハーネスです。</p>
 
 <p align="center">

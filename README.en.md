@@ -5,6 +5,8 @@
   </picture>
 </p>
 
+<p align="center"><strong>Small team. Professional operations.</strong></p>
+
 <p align="center">An interactive agent harness that turns a general agent into a professional employee of your company.</p>
 
 <p align="center">
