@@ -584,7 +584,7 @@ export async function createSession(
           : data.result?.isError
             ? `実行して失敗: ${data.result.content.map((c) => c.text ?? "").join("")}`
             : "実行して成功";
-      const note = `承認 ${approvalId} を ${decision === "approve" ? "承認" : "拒否"}した(${outcome})。Work ${workId} は続けられる。`;
+      const note = `承認 ${approvalId} を${decision === "approve" ? "承認" : "拒否"}した(${outcome})。Work ${workId} は続けられる。`;
       events.push(local("prompt.expanded", { name: "approval", source: "runtime", text: note }));
       await record(id, "prompt.expanded", { name: "approval", source: "runtime", text: note });
       const got = await client.call("work_get", { id: workId });
