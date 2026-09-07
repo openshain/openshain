@@ -18,7 +18,10 @@ const COLORS: Record<ScreenLine["kind"], string | undefined> = {
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 /** Rows that are not history: the header, the input box (three rows) and the status line. */
+/** The rows around the conversation: the header, the input box (3) and the status line. */
 const CHROME_ROWS = 5;
+/** The approval palette is taller: its two lines of heading plus one row per choice. */
+const APPROVAL_EXTRA_ROWS = 2;
 
 function statusText(state: ControllerState, scrolled: number): string {
   if (scrolled > 0)
@@ -70,9 +73,12 @@ export function App({ controller }: { controller: Controller }) {
   }, [state.busy]);
 
   // One row is left to the terminal: drawing exactly its height makes it scroll on every redraw.
-  const height = Math.max(CHROME_ROWS + 1, size.rows - 1);
+  const chromeRows = state.approval
+    ? CHROME_ROWS + APPROVAL_EXTRA_ROWS + state.approval.choices.length
+    : CHROME_ROWS;
+  const height = Math.max(chromeRows + 1, size.rows - 1);
   const width = Math.max(20, size.columns);
-  const paneRows = height - CHROME_ROWS;
+  const paneRows = height - chromeRows;
   const lines = useMemo(
     () => screenLines(state.entries, width).map((line, row) => ({ ...line, row })),
     [state.entries, width],
@@ -99,6 +105,17 @@ export function App({ controller }: { controller: Controller }) {
     }
     if (key.ctrl && ch === "c") {
       if (!controller.interrupt()) void controller.close();
+      return;
+    }
+    // While a call waits for approval, the keys pick a choice instead of typing.
+    if (state.approval) {
+      if (key.upArrow) return controller.moveApproval(-1);
+      if (key.downArrow) return controller.moveApproval(1);
+      if (key.return) return controller.decideApproval();
+      if (key.escape) return controller.decideApproval("reject");
+      const index = Number.parseInt(ch, 10) - 1;
+      const chosen = state.approval.choices[index];
+      if (chosen) return controller.decideApproval(chosen.key);
       return;
     }
     if (key.pageUp) return setScroll((s) => Math.min(maxScroll, s + page));
@@ -164,6 +181,7 @@ export function App({ controller }: { controller: Controller }) {
     setCursor(at + [...ch].length);
   });
 
+  const approval = state.approval;
   const asking = state.question !== undefined;
   const chars = [...input];
   const at = Math.min(cursor, chars.length);
@@ -209,14 +227,37 @@ export function App({ controller }: { controller: Controller }) {
           );
         })}
       </Box>
-      <Box borderStyle="round" borderColor={asking ? "magenta" : "gray"} paddingX={1}>
-        <Text color={asking ? "magenta" : "cyan"}>{asking ? "答え> " : "> "}</Text>
-        <Text>{before}</Text>
-        {under === "" ? <Text dimColor>▌</Text> : <Text inverse>{under}</Text>}
-        <Text>{after}</Text>
-      </Box>
+      {approval ? (
+        <Box borderStyle="round" borderColor="yellow" paddingX={1} flexDirection="column">
+          <Text color="yellow" wrap="truncate">
+            承認が要ります: {approval.title}
+          </Text>
+          <Text dimColor wrap="truncate">
+            規則 {approval.ruleId}
+          </Text>
+          {approval.choices.map((choice, index) => (
+            <Text
+              key={choice.key}
+              {...(index === approval.at && { color: "yellow" })}
+              wrap="truncate"
+            >
+              {index === approval.at ? "❯ " : "  "}
+              {index + 1}. {choice.label}
+            </Text>
+          ))}
+        </Box>
+      ) : (
+        <Box borderStyle="round" borderColor={asking ? "magenta" : "gray"} paddingX={1}>
+          <Text color={asking ? "magenta" : "cyan"}>{asking ? "答え> " : "> "}</Text>
+          <Text>{before}</Text>
+          {under === "" ? <Text dimColor>▌</Text> : <Text inverse>{under}</Text>}
+          <Text>{after}</Text>
+        </Box>
+      )}
       <Text dimColor wrap="truncate">
-        {bottom}
+        {approval
+          ? "↑ ↓ と Enter、または数字で選ぶ。Esc は実行しない。Ctrl-C で保留のまま止める"
+          : bottom}
       </Text>
     </Box>
   );

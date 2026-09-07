@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AGENT_NAMES } from "@openshain/agent";
@@ -13,7 +14,7 @@ import {
 } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { LOGO_ROWS, VERSION } from "./banner.ts";
-import { type Controller, createController } from "./controller.ts";
+import { type Controller, type ControllerState, createController } from "./controller.ts";
 
 /** A model that never answers, until the call is stopped. */
 class HangingModel implements ModelProvider {
@@ -357,43 +358,103 @@ describe("the screen's controller", () => {
     expect((await store.get(controller.sessionId)).status).toBe("completed");
   });
 
-  test("a held call shows how to approve; /approvals lists it; /approve runs it and the next request continues the work", async () => {
-    const { controller, store } = await setup(
+  test("a held call opens the palette with the diff; approving runs it and the turn goes on", async () => {
+    const { controller, store, root } = await setup(
       [
         workCreate("c1", "帳簿を更新"),
         callTools({
           id: "c2",
           name: "fs_write",
-          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+          input: { path: "ledger/2026-07.csv", content: "a,b\n1,2\n" },
         }),
-        selectCandidate("c3"),
-        workComplete("c4", "更新しました"),
+        workComplete("c3", "更新しました"),
         say("帳簿を更新しました。"),
       ],
       undefined,
       { authority: true },
     );
 
-    await controller.submit("7 月の帳簿を書いて");
-    const notice = texts(controller, "notice").at(-1) ?? "";
-    expect(notice).toContain("承認が要ります: fs_write ledger/2026-07.csv");
-    const approvalId = /apr_[0-9a-f-]+/.exec(notice)?.[0] as string;
-    expect(notice).toContain(`/approve ${approvalId}`);
-    expect(controller.state().busy).toBe(false);
+    const turn = controller.submit("7 月の帳簿を書いて");
+    await waitFor(() => controller.state().approval !== undefined);
+    const approval = controller.state().approval as NonNullable<ControllerState["approval"]>;
+    expect(approval.title).toBe("fs_write ledger/2026-07.csv");
+    expect(approval.ruleId).toBe("ledger-needs-approval");
+    expect(approval.choices.map((c) => c.key)).toEqual(["approve", "always", "reject"]);
+    expect(approval.preview.map((l) => `${l.kind}:${l.text}`)).toEqual([
+      "note:ledger/2026-07.csv を新しく作ります(3 行)",
+      "added:a,b",
+      "added:1,2",
+      "added:",
+    ]);
+    expect(texts(controller, "progress")).toContain("+ a,b");
+    // While the palette is up, typing says to decide first.
+    await controller.submit("なにか");
+    expect(texts(controller, "notice").at(-1)).toContain("承認を先に決めてください");
 
-    await controller.submit("/approvals");
-    expect(texts(controller, "line").at(-1)).toContain(approvalId);
-    await controller.submit("/approve");
-    expect(texts(controller, "notice").at(-1)).toContain("id が要ります");
-    await controller.submit(`/approve ${approvalId}`);
-    expect(texts(controller, "line").at(-1)).toContain("承認");
-    await controller.submit("/approvals");
-    expect(texts(controller, "line").at(-1)).toBe("承認待ちはありません。");
+    controller.moveApproval(1);
+    expect(controller.state().approval?.at).toBe(1);
+    controller.moveApproval(-1);
+    controller.decideApproval();
+    await turn;
 
-    await controller.submit("続けて");
+    expect(controller.state().approval).toBeUndefined();
+    expect(texts(controller, "line")).toContain("> はい。実行する");
     expect(texts(controller, "assistant").at(-1)).toBe("帳簿を更新しました。");
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("a,b\n1,2\n");
     const work = (await requestWork(store)) as { status: string };
     expect(work.status).toBe("completed");
+  });
+
+  test("always approves the rest of the conversation for that rule, and reject stops the call", async () => {
+    const write = (id: string, month: string) =>
+      callTools({
+        id,
+        name: "fs_write",
+        input: { path: `ledger/2026-${month}.csv`, content: "a\n" },
+      });
+    const { controller, store, root } = await setup(
+      [
+        workCreate("c1", "帳簿"),
+        write("c2", "07"),
+        write("c3", "08"),
+        workComplete("c4", "2 か月分"),
+        say("2 か月分を書きました。"),
+        workCreate("d1", "拒否される帳簿"),
+        write("d2", "09"),
+        say("書きませんでした。"),
+      ],
+      undefined,
+      { authority: true },
+    );
+
+    const first = controller.submit("7 月と 8 月を書いて");
+    await waitFor(() => controller.state().approval !== undefined);
+    controller.decideApproval("always");
+    await first;
+
+    // The second write of the same rule never asked again.
+    expect(await readFile(join(root, "ledger", "2026-08.csv"), "utf8")).toBe("a\n");
+    expect(texts(controller, "assistant").at(-1)).toBe("2 か月分を書きました。");
+    const decided = (await store.events((await requestWork(store))?.id as never)).filter(
+      (e) => e.type === "approval.decided",
+    );
+    expect(decided).toHaveLength(2);
+    expect((decided[0] as { payload: { comment?: string } }).payload.comment).toContain("常に承認");
+
+    // A new work is a new rule match, but the standing yes covers it too: reject needs a new rule.
+    const { controller: second, root: secondRoot } = await setup(
+      [workCreate("e1", "帳簿"), write("e2", "09"), say("書きませんでした。")],
+      undefined,
+      { authority: true },
+    );
+    const turn = second.submit("9 月を書いて");
+    await waitFor(() => second.state().approval !== undefined);
+    second.decideApproval("reject");
+    await turn;
+
+    expect(existsSync(join(secondRoot, "ledger", "2026-09.csv"))).toBe(false);
+    expect(texts(second, "line")).toContain("> いいえ。実行しない");
+    expect(second.state().approval).toBeUndefined();
   });
 
   test("ignores empty lines and refuses a new message while busy", async () => {

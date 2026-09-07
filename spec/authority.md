@@ -103,6 +103,7 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 - Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、decision の本文)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Action を実行します。`modify` は Reviewer が書き換えた入力で実行します
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
 - 承認する人の確認は、この版では接続を通して行います。対話型 CLI と MCP の接続は `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます。端末の認証と複数人は後の版です
+- 「この会話では常に承認する」は client の中だけの決定です。`authority/` には書かず、会話を閉じれば消えます。承認の記録は毎回残ります。`review_required` にはこの選択肢を出しません。資格者の承認を人が肩代わりできないためです
 
 ### Review Package
 
@@ -152,7 +153,7 @@ applies_to: { action: tax-treatment, path: "ledger/**" }
 ## 入口
 
 - MCP: `approval_list`(承認待ちの一覧。approval_id、work_id、kind、action、要求した時刻)、`approval_decide`、`review_decide`。名前は予約です
-- 対話型 CLI: 承認が要る呼び出しが起きると、画面に「承認が要ります: fs_write ledger/2026-07.csv(apr_…)。/approve apr_… か /reject apr_…」と出ます。`/approve <id>` と `/reject <id>` は組み込みコマンドで、model を通しません。`/approvals` で承認待ちの一覧を出します。Review の結果は、Email で受け取った内容を `/review <id> approve` の形で人が記録します(この版は人手)
+- 対話型 CLI: 承認が要る呼び出しが起きると、入力欄が選択の画面に変わり、呼び出し、規則、変わる中身の差分と 3 つの選択肢(実行する、この会話では常に承認する、実行しない)が出ます。選ぶとターンはそのまま続きます。会話をまたぐ承認や、外のエージェントが残した承認待ちには `/approvals`、`/approve <id>`、`/reject <id>` を使います。Review の結果は、Email で受け取った内容を `/review <id> approve` の形で人が記録します(この版は人手)
 - `openshain work show <id>` は承認待ちの呼び出しと、Review Package の置き場を表示します
 - Claude Code から使うときは、承認が要る呼び出しの結果に `pending` が返ります。承認は会社の人が `openshain` の画面か `approval_decide` で行います
 

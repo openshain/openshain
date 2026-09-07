@@ -6,7 +6,7 @@
 
 ### Added
 
-- 承認の流れ。規則が `approval_required` と判定した Tool 呼び出しは `waiting_approval` で止まり、対話の `/approvals`、`/approve <id>`、`/reject <id>`(MCP では `approval_list` と `approval_decide`)で決めます。承認すると Runtime がその場で実行します。イベントは `approval.requested` と `approval.decided`、拒否の code は `rejected_by_person` です
+- 承認の流れ。規則が `approval_required` と判定した Tool 呼び出しは `waiting_approval` で止まります。対話型 CLI では入力欄が承認の選択画面に変わり、何が変わるか(書き込みなら差分)を見て、実行する、この会話では常に承認する、実行しない、から選びます。選ぶとターンはそのまま続きます。MCP では `approval_list` と `approval_decide`、画面では `/approvals` と `/approve <id>` と `/reject <id>` も使えます。承認すると Runtime がその場で実行します。イベントは `approval.requested` と `approval.decided`、拒否の code は `rejected_by_person` です
 - `authority/policy.yaml` と `authority/delegations.yaml`。Tool 呼び出しを規則の表で判定し(最初の一致、`*` と `**` の glob)、委任の無い代理と規則で拒否した呼び出しを `tool.rejected`(`denied`)として記録します。Review が要る規則は、その仕組みが入るまで拒否として動きます。`principals/` と `authority/` は予約パスです。JSON Schema は `spec/schemas/authority-*.v1.json` にあります
 - Runtime の Tool `context`。現在時刻、タイムゾーン、今日の業務日、会社フォルダ、依頼する人、現在の Work を返します。対話型 CLI は会話の開始時に 1 回呼んで記録し、社員エージェントは日付が要るときに呼び直します
 

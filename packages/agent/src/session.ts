@@ -13,6 +13,7 @@ import {
   type ModelResponse,
   newEventId,
   SESSION_WORK_TYPE,
+  type ToolContent,
   type ToolDefinition,
   type Work,
   type WorkId,
@@ -40,6 +41,11 @@ export interface SessionOptions {
   onEvent?: (workId: WorkId, event: AnyEvent) => void | Promise<void>;
   /** Answers a question a work asks the person. Without it, the work waits for input. */
   onInput?: (workId: WorkId, question: string) => Promise<string>;
+  /**
+   * Asks the person about a call the policy held, while the turn waits. Without it, the turn
+   * ends and the call stays held for `/approve` or for another client.
+   */
+  onApproval?: (held: HeldApproval) => Promise<ApprovalChoice>;
 }
 
 export type TurnStop =
@@ -56,7 +62,16 @@ export interface HeldApproval {
   workId: WorkId;
   name: string;
   input: unknown;
+  /** The rule that held it: the unit a person can say yes to for the rest of the conversation. */
+  ruleId: string;
 }
+
+/**
+ * What the person answered about a held call. `always` approves this one and every later call
+ * the same rule holds, for this conversation only: nothing is written to authority/, and every
+ * call is still recorded as requested and decided.
+ */
+export type ApprovalChoice = "approve" | "always" | "reject";
 
 export interface TurnResult {
   /** What the model said to the person, possibly empty when the turn stopped early. */
@@ -149,6 +164,8 @@ export async function createSession(
   let task: TaskState | undefined;
   let candidate: { id: WorkId; objective: string; status: string } | undefined;
   let held: HeldApproval | undefined;
+  /** Rules the person said yes to for the rest of this conversation. */
+  const standing = new Set<string>();
 
   // The basics (time, business date, folder) enter the conversation as a recorded prompt, so the
   // projection stays a function of the record. The model can refresh them with the context tool.
@@ -442,24 +459,77 @@ export async function createSession(
       }
     }
     if (!result.isError && data?.pending === "approval" && task) {
-      // The policy holds the call for a person. The turn ends; the person decides on the screen.
-      held = {
+      const pending: HeldApproval = {
         approvalId: String(data.approval_id),
         workId: task.id,
         name: call.name,
         input: call.input,
+        ruleId: String(data.rule_id ?? ""),
       };
-      finish(call.id, {
-        content: [
-          {
-            type: "text",
-            text: `held for approval ${held.approvalId}; the person decides before the work goes on`,
-          },
-        ],
-        isError: false,
-        text: "",
-      });
-      return "held";
+      // With a way to ask, the person decides here and the turn goes on. Without one, the turn
+      // ends and the call stays held for /approve or for another client.
+      if (!options.onApproval) {
+        held = pending;
+        finish(call.id, {
+          content: [
+            {
+              type: "text",
+              text: `held for approval ${pending.approvalId}; the person decides before the work goes on`,
+            },
+          ],
+          isError: false,
+          text: "",
+        });
+        return "held";
+      }
+      let choice: ApprovalChoice;
+      if (standing.has(pending.ruleId)) {
+        choice = "approve";
+      } else {
+        try {
+          choice = await options.onApproval(pending);
+        } catch {
+          // The person left it undecided: the work stays waiting_approval and the turn ends.
+          held = pending;
+          finish(call.id, {
+            content: [{ type: "text", text: "the person left the approval undecided" }],
+            isError: true,
+            text: "",
+          });
+          return "held";
+        }
+        if (choice === "always") standing.add(pending.ruleId);
+      }
+      const decided = await client.call(
+        "approval_decide",
+        {
+          approval_id: pending.approvalId,
+          decision: choice === "reject" ? "reject" : "approve",
+          ...(choice === "always" && {
+            comment: `この会話では規則 ${pending.ruleId} を常に承認する、と決めた`,
+          }),
+        },
+        signal,
+      );
+      const outcome = jsonOf(decided) as
+        | { result?: { content: ToolContent[]; isError: boolean } }
+        | undefined;
+      if (decided.isError) {
+        finish(call.id, decided);
+      } else if (choice === "reject") {
+        finish(call.id, {
+          content: [{ type: "text", text: "the person did not approve this call" }],
+          isError: true,
+          text: "",
+        });
+      } else {
+        finish(call.id, {
+          content: outcome?.result?.content ?? [{ type: "text", text: "approved" }],
+          isError: outcome?.result?.isError ?? false,
+          text: "",
+        });
+      }
+      return "done";
     }
     finish(call.id, result);
     if (!result.isError && (call.name === "work_complete" || call.name === "work_fail") && task) {
@@ -601,6 +671,7 @@ export async function createSession(
         approvals: {
           approvalId: string;
           work_id: string;
+          ruleId: string;
           call: { name: string; input: unknown };
         }[];
       };
@@ -609,6 +680,7 @@ export async function createSession(
         workId: a.work_id as WorkId,
         name: a.call.name,
         input: a.call.input,
+        ruleId: a.ruleId,
       }));
     },
     async close() {

@@ -5,6 +5,7 @@ import type { Controller, ControllerState, Entry } from "./controller.ts";
 
 function fakeController(entries?: Entry[]) {
   const submitted: string[] = [];
+  const decided: string[] = [];
   const listeners = new Set<() => void>();
   const state: ControllerState = {
     entries: entries ?? [
@@ -32,6 +33,18 @@ function fakeController(entries?: Entry[]) {
       submitted.push(line);
     },
     interrupt: () => false,
+    moveApproval(delta) {
+      const approval = state.approval;
+      if (!approval) return;
+      const count = approval.choices.length;
+      state.approval = { ...approval, at: (approval.at + delta + count) % count };
+      for (const l of listeners) l();
+    },
+    decideApproval(choice) {
+      decided.push(choice ?? state.approval?.choices[state.approval.at]?.key ?? "reject");
+      delete state.approval;
+      for (const l of listeners) l();
+    },
     async close() {
       state.closed = true;
       for (const l of listeners) l();
@@ -41,7 +54,7 @@ function fakeController(entries?: Entry[]) {
     state.entries = [...state.entries, entry];
     for (const l of listeners) l();
   };
-  return { controller, submitted, state, add };
+  return { controller, submitted, decided, state, add };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 30));
@@ -237,5 +250,75 @@ describe("the screen", () => {
     await tick();
 
     expect(state.closed).toBe(true);
+  });
+});
+
+describe("the approval palette", () => {
+  test("shows the choices, moves with the arrows, picks with a number, and rejects with Esc", async () => {
+    const { controller, decided, state, add: push } = fakeController();
+    state.approval = {
+      approvalId: "apr_1",
+      title: "fs_write ledger/2026-07.csv",
+      ruleId: "ledger-needs-approval",
+      preview: [{ kind: "added", text: "a,b" }],
+      choices: [
+        { key: "approve", label: "はい。実行する" },
+        { key: "always", label: "はい。この会話では同じ規則の呼び出しを常に承認する" },
+        { key: "reject", label: "いいえ。実行しない" },
+      ],
+      at: 0,
+    };
+    const { lastFrame, stdin } = render(<App controller={controller} />);
+    await tick();
+
+    expect(lastFrame()).toContain("承認が要ります: fs_write ledger/2026-07.csv");
+    expect(lastFrame()).toContain("規則 ledger-needs-approval");
+    expect(lastFrame()).toContain("❯ 1. はい。実行する");
+    expect(lastFrame()).toContain("↑ ↓ と Enter、または数字で選ぶ");
+
+    stdin.write("\u001B[B");
+    await tick();
+    expect(lastFrame()).toContain("❯ 2.");
+
+    stdin.write("\r");
+    await tick();
+    expect(decided).toEqual(["always"]);
+
+    state.approval = {
+      approvalId: "apr_2",
+      title: "fs_write x",
+      ruleId: "r",
+      preview: [],
+      choices: [
+        { key: "approve", label: "はい" },
+        { key: "always", label: "常に" },
+        { key: "reject", label: "いいえ" },
+      ],
+      at: 0,
+    };
+    push({ id: 9, kind: "notice", text: "another" });
+    await tick();
+    stdin.write("\u001B");
+    await tick();
+    expect(decided).toEqual(["always", "reject"]);
+  });
+
+  test("typing does not reach the input while the palette is up", async () => {
+    const { controller, submitted, state } = fakeController();
+    state.approval = {
+      approvalId: "apr_1",
+      title: "t",
+      ruleId: "r",
+      preview: [],
+      choices: [{ key: "approve", label: "はい" }],
+      at: 0,
+    };
+    const { stdin } = render(<App controller={controller} />);
+    await tick();
+
+    stdin.write("abc\r");
+    await tick();
+
+    expect(submitted).toEqual([]);
   });
 });

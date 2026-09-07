@@ -1,4 +1,11 @@
-import { connectInMemory, createSession, type Session, type TurnResult } from "@openshain/agent";
+import {
+  type ApprovalChoice,
+  connectInMemory,
+  createSession,
+  type HeldApproval,
+  type Session,
+  type TurnResult,
+} from "@openshain/agent";
 import {
   type Event,
   loadConfig,
@@ -12,6 +19,7 @@ import { toolsList } from "../commands/tools.ts";
 import { workList, workShow } from "../commands/work.ts";
 import { describeInput, plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
+import { type PreviewLine, previewCall } from "../preview.ts";
 import { progressLine, report } from "../report.ts";
 import { LOGO_ROWS, VERSION } from "./banner.ts";
 
@@ -41,6 +49,15 @@ export interface ControllerState {
   busy: boolean;
   /** A question a work is asking; the next line the person types answers it. */
   question?: string;
+  /** A call held for approval; the person picks one of its choices before the work goes on. */
+  approval?: {
+    approvalId: string;
+    title: string;
+    ruleId: string;
+    preview: PreviewLine[];
+    choices: { key: ApprovalChoice; label: string }[];
+    at: number;
+  };
   closed: boolean;
   status: {
     company: string;
@@ -60,6 +77,10 @@ export interface Controller {
   submit(line: string): Promise<void>;
   /** Ctrl-C: stops the running work, taking back a question it waits on; false when nothing was running. */
   interrupt(): boolean;
+  /** Moves the highlight in the approval choices. */
+  moveApproval(delta: number): void;
+  /** Answers the approval being shown: the highlighted choice, or the one given. */
+  decideApproval(choice?: ApprovalChoice): void;
   /** Stops whatever is running, then ends the session. A second call waits for the same close. */
   close(): Promise<void>;
 }
@@ -83,9 +104,19 @@ const HELP = [
   "Ctrl-C             動いている Work を止める。質問待ちなら質問を取り下げる。何も動いていなければ終わる",
 ];
 
+/** The choices the screen offers for a held call, in the order they are shown. */
+const APPROVAL_CHOICES: { key: ApprovalChoice; label: string }[] = [
+  { key: "approve", label: "はい。実行する" },
+  { key: "always", label: "はい。この会話では同じ規則の呼び出しを常に承認する" },
+  { key: "reject", label: "いいえ。実行しない" },
+];
+
 /** What the session's model hears when the person stops a work that waits for their answer. */
 const QUESTION_WITHDRAWN =
   "the person stopped the work while it waited for their answer; the question is still pending and the work can be resumed";
+
+/** What the loop hears when the person leaves a held call undecided. */
+const APPROVAL_WITHDRAWN = "the person left the approval undecided";
 
 /**
  * The state behind the screen: a session, the works it starts, and the lines to show. The
@@ -153,6 +184,9 @@ export async function createController(options: ControllerOptions): Promise<Cont
   };
 
   let pending: { resolve: (text: string) => void; reject: (reason: Error) => void } | undefined;
+  let deciding:
+    | { resolve: (choice: ApprovalChoice) => void; reject: (reason: Error) => void }
+    | undefined;
   let aborter: AbortController | undefined;
   let running: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
@@ -165,6 +199,47 @@ export async function createController(options: ControllerOptions): Promise<Cont
       pending = { resolve, reject };
     });
   };
+  /** Shows a held call and waits for the person to pick one of the choices. */
+  const askApproval = async (approval: HeldApproval): Promise<ApprovalChoice> => {
+    const preview = await previewCall(workspaceRoot, {
+      name: approval.name,
+      input: approval.input,
+    }).catch((err) => [{ kind: "note", text: message(err) } as PreviewLine]);
+    const title = `${approval.name} ${describeInput(approval.input)}`.trimEnd();
+    state.approval = {
+      approvalId: approval.approvalId,
+      title,
+      ruleId: approval.ruleId,
+      preview,
+      choices: APPROVAL_CHOICES,
+      at: 0,
+    };
+    push("question", `承認が要ります: ${title}`);
+    for (const line of preview) {
+      push(
+        "progress",
+        `${line.kind === "added" ? "+ " : line.kind === "removed" ? "- " : "  "}${line.text}`,
+      );
+    }
+    return new Promise<ApprovalChoice>((resolve, reject) => {
+      deciding = { resolve, reject };
+    });
+  };
+  /** Settles the approval being shown, or takes it back when there is no choice. */
+  const settleApproval = (choice?: ApprovalChoice) => {
+    const waiting = deciding;
+    deciding = undefined;
+    if (state.approval !== undefined) {
+      const decided = choice ? APPROVAL_CHOICES.find((c) => c.key === choice)?.label : undefined;
+      delete state.approval;
+      if (decided) push("line", `> ${decided}`);
+      notify();
+    }
+    if (!waiting) return;
+    if (choice === undefined) waiting.reject(new Error(APPROVAL_WITHDRAWN));
+    else waiting.resolve(choice);
+  };
+
   /** Answers the pending question, or takes it back when there is no answer. */
   const settleQuestion = (answer?: string) => {
     const waiting = pending;
@@ -231,6 +306,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
       else notify();
     },
     onInput: ask,
+    onApproval: askApproval,
   });
   sessionId = session.id;
   state.status.agentName = session.agentName;
@@ -349,6 +425,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
     closing ??= (async () => {
       aborter?.abort();
       settleQuestion();
+      settleApproval();
       await running;
       try {
         await session.close();
@@ -373,6 +450,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
     async submit(line) {
       const text = line.trim();
       if (text === "" || closing) return;
+      if (state.approval) {
+        push("notice", "承認を先に決めてください。数字か ↑↓ と Enter で選びます。");
+        return;
+      }
       if (pending) {
         push("user", text);
         // Everything typed answers the question, except leaving: that takes the question back.
@@ -405,7 +486,20 @@ export async function createController(options: ControllerOptions): Promise<Cont
       if (!aborter) return false;
       aborter.abort();
       settleQuestion();
+      settleApproval();
       return true;
+    },
+    moveApproval(delta) {
+      const approval = state.approval;
+      if (!approval) return;
+      const count = approval.choices.length;
+      state.approval = { ...approval, at: (approval.at + delta + count) % count };
+      notify();
+    },
+    decideApproval(choice) {
+      const approval = state.approval;
+      if (!approval) return;
+      settleApproval(choice ?? approval.choices[approval.at]?.key ?? "reject");
     },
     close,
   };

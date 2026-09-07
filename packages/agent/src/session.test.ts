@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -320,7 +321,75 @@ describe("a session", () => {
 });
 
 describe("a session and approvals", () => {
-  test("a held call ends the turn; approve runs it and the work comes back as the candidate", async () => {
+  test("with a way to ask, the person decides in the turn and the work goes on", async () => {
+    const { store, open, root } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+        }),
+        callTools({
+          id: "c3",
+          name: "fs_write",
+          input: { path: "ledger/2026-08.csv", content: "c,d\n" },
+        }),
+        workComplete("c4", "2 か月分を書きました"),
+        say("書きました。"),
+      ],
+      { authority: true },
+    );
+    const asked: string[] = [];
+    const session = await open({
+      onApproval: async (held) => {
+        asked.push(`${held.name} ${(held.input as { path: string }).path} ${held.ruleId}`);
+        // The first answer stands for the rest of the conversation, so the second call is silent.
+        return "always";
+      },
+    });
+
+    const result = await session.turn("7 月と 8 月の帳簿を書いて");
+
+    expect(result.reply).toBe("書きました。");
+    expect(result.stopped).toBeUndefined();
+    expect(asked).toEqual(["fs_write ledger/2026-07.csv ledger-needs-approval"]);
+    expect(await readFile(join(root, "ledger", "2026-08.csv"), "utf8")).toBe("c,d\n");
+    const work = (await store.list()).works.find((w) => w.type !== "session");
+    expect(work?.status).toBe("completed");
+    const decided = (await store.events(work?.id as WorkId)).filter(
+      (e) => e.type === "approval.decided",
+    );
+    expect(decided).toHaveLength(2);
+  });
+
+  test("a rejected call comes back to the model as an error, and the work stays open", async () => {
+    const { store, open, root } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a,b\n" },
+        }),
+        (request) => {
+          expect(JSON.stringify(request.messages.at(-2))).toContain("did not approve");
+          return say("承認されなかったので書きませんでした。");
+        },
+      ],
+      { authority: true },
+    );
+    const session = await open({ onApproval: async () => "reject" });
+
+    const result = await session.turn("7 月の帳簿を書いて");
+
+    expect(result.reply).toBe("承認されなかったので書きませんでした。");
+    expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
+    const work = (await store.list()).works.find((w) => w.type !== "session");
+    expect(work?.status).toBe("in_progress");
+  });
+
+  test("without a way to ask, the held call ends the turn; approve runs it and the work comes back as the candidate", async () => {
     const { store, open } = await setup(
       [
         workCreate("c1", "帳簿を更新"),
