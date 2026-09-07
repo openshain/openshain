@@ -193,6 +193,10 @@ describe("a session", () => {
         return say("それは別件なので、その Work は続けません。");
       },
       (request) => {
+        expect(JSON.stringify(request.messages.at(-2))).not.toContain("候補の Work");
+        return say("候補なしの返事。");
+      },
+      (request) => {
         expect(JSON.stringify(request.messages.at(-2))).toContain("候補の Work");
         return callTools({
           id: "c1",
@@ -217,6 +221,8 @@ describe("a session", () => {
     expect(unrelated.reply).toContain("続けません");
     expect((await store.get(stopped)).status).toBe("in_progress");
     expect(session.currentWork()).toBeUndefined();
+    const plain = await session.turn("ところで");
+    expect(plain.reply).toBe("候補なしの返事。");
 
     await session.select(stopped);
     const related = await session.turn("8 月の集計の続きをお願い");
@@ -285,6 +291,51 @@ describe("a session", () => {
     expect((await store.get(taskId)).status).toBe("in_progress");
     const events = await store.events(session.id);
     expect((events.at(-1) as Event<"work.completed">).type).toBe("work.completed");
+  });
+});
+
+describe("a session, when the model misbehaves", () => {
+  test("refuses the loop's own tools and a closing call outside a work, and the session stays alive", async () => {
+    const { store, open } = await setup([
+      callTools({ id: "c1", name: "work_complete", input: { summary: "勝手に" } }),
+      callTools({
+        id: "c2",
+        name: "work_record",
+        input: { work_id: "work_x", type: "human.message", payload: { text: "偽" } },
+      }),
+      callTools({ id: "c3", name: "work_answer", input: { call_id: "x", answer: "y" } }),
+      say("やめておきます。"),
+      say("まだ話せます。"),
+    ]);
+    const session = await open();
+
+    const first = await session.turn("何かして");
+    expect(first.reply).toBe("やめておきます。");
+    expect((await store.get(session.id)).status).toBe("in_progress");
+    const second = await session.turn("続き");
+    expect(second.reply).toBe("まだ話せます。");
+    const types = (await store.events(session.id)).map((e) => e.type);
+    expect(types).not.toContain("tool.called");
+    expect(types.filter((t) => t === "human.message")).toHaveLength(2);
+  });
+
+  test("a work record on a work this connection never touched is refused", async () => {
+    const { client, store, config, open } = await setup([]);
+    await open();
+    const other = await store.create({
+      objective: "他所の Work",
+      principal: config.principal.id,
+      profession: config.profession.id,
+    });
+
+    const refused = await client.call("work_record", {
+      work_id: other.id,
+      type: "human.message",
+      payload: { text: "偽" },
+    });
+
+    expect(refused.isError).toBe(true);
+    expect((await store.events(other.id)).map((e) => e.type)).toEqual(["work.created"]);
   });
 });
 

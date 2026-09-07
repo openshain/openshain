@@ -52,7 +52,7 @@ export const MCP_TEMPLATE = `${JSON.stringify(
 /** What an outside agent reads before working in the folder. Codex reads AGENTS.md; Claude Code reads it through CLAUDE.md. */
 export const AGENTS_TEMPLATE = `# この会社フォルダで働くエージェントへ
 
-このフォルダは openshain の Company Workspace です。この指示は、Claude Code や Codex のような外部のエージェントが MCP 経由でこのフォルダを扱うときのものです。\`openshain run\` で Runtime 自身が動くときは、Work の作成と完了を Runtime が行うので、下の work_* の手順は当てはまりません。
+このフォルダは openshain の Company Workspace です。この指示は、Claude Code や Codex のような外部のエージェントが MCP 経由でこのフォルダを扱うときのものです。openshain の対話型 CLI も同じ手順で Runtime を使います。
 
 会社のファイルの読み書きと集計は openshain の MCP tool で行います。Claude Code や Codex 自身の Read、Write、Bash は会社のファイルには使いません。Runtime を通らなかった操作は記録に残らないためです。
 
@@ -110,7 +110,7 @@ export async function init({ workspaceRoot, write }: InitOptions): Promise<void>
     }
   }
   write(
-    "company と principal を自分の会社に合わせ、api_key_env に書いた環境変数を設定してから openshain run を実行してください。",
+    "company と principal を自分の会社に合わせ、api_key_env に書いた環境変数を設定してから openshain を実行してください。",
   );
 }
 

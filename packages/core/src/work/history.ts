@@ -22,28 +22,23 @@ export function countToolCalls(events: readonly AnyEvent[]): number {
   return count;
 }
 
-/** The events since the model's most recent answer. Call ids are only trusted within a turn. */
-function currentTurn(events: readonly AnyEvent[]): readonly AnyEvent[] {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i]?.type === "model.completed") return events.slice(i + 1);
-  }
-  return events;
-}
-
 export interface PendingQuestion {
   callId: string;
   question: string;
 }
 
-/** The questions of the model's most recent turn that have no answer yet, oldest first. */
+/**
+ * The questions of the work that have no answer yet, oldest first. Call ids of questions are
+ * minted by the runtime, so the whole log is searched: a client recording its own model turns
+ * must not hide a question.
+ */
 export function pendingQuestions(events: readonly AnyEvent[]): PendingQuestion[] {
-  const turn = currentTurn(events);
   const answered = new Set(
-    turn
+    events
       .filter((e): e is Event<"human.input_provided"> => e.type === "human.input_provided")
       .map((e) => e.payload.callId),
   );
-  return turn
+  return events
     .filter((e): e is Event<"human.input_requested"> => e.type === "human.input_requested")
     .filter((e) => !answered.has(e.payload.callId))
     .map((e) => ({ callId: e.payload.callId, question: e.payload.question }));
@@ -65,6 +60,8 @@ export interface WorkHistory {
   unfinished: HistoryCall[];
   pending: PendingQuestion[];
   toolCalls: number;
+  /** Model calls recorded on the work, for a client that counts them against a limit. */
+  modelCalls: number;
 }
 
 /** What a client needs to pick a work up where it stopped. Built from the log alone. */
@@ -94,5 +91,6 @@ export function workHistory(events: readonly AnyEvent[]): WorkHistory {
     unfinished: calls.filter((c) => c.isError === undefined && c.rejected === undefined),
     pending: pendingQuestions(events),
     toolCalls: countToolCalls(events),
+    modelCalls: events.filter((e) => e.type === "model.requested").length,
   };
 }

@@ -5,9 +5,9 @@ spec は何を作るかを決め、このディレクトリはなぜその形に
 | package | ノート | 一言で |
 |---|---|---|
 | `@openshain/core` | [core.md](core.md) | インターフェースとイベントログです。判断はコードが持ちます |
-| `@openshain/agent` | [agent.md](agent.md) | イベントログの上で回る tool loop と、インターフェースに揃える provider です |
+| `@openshain/agent` | [agent.md](agent.md) | Runtime を MCP の client として使う対話の loop と、インターフェースに揃える provider です |
 | `@openshain/tools` | [tools.md](tools.md) | 標準 Tool です。結果は観測であって転送ではありません |
-| `@openshain/mcp` | [mcp.md](mcp.md) | 外部エージェントが考え、Runtime が状態と記録を持ちます |
+| `@openshain/mcp` | [mcp.md](mcp.md) | Runtime の唯一の面です。client が考え、Runtime が状態と Tool と記録を持ちます |
 | `openshain` CLI | [cli.md](cli.md) | 参照実装のクライアントです。見せるのは進捗と結果だけです |
 
 ## package をまたいで守ること

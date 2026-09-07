@@ -302,7 +302,7 @@ Tool の結果は観測であって転送ではありません。ファイルを
 - すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても行き先で判定します。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
 - Runtime 自身が Tool を追加します。`ask_user`(effect: observe)と、MCP Server の `work_*` と `work_record` です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます。`ask_user` の振る舞いは次の節にあります。
 
-## Runtime と client の分担(v0.2 draft)
+## Runtime と client の分担
 
 Runtime(`packages/core`、`packages/tools`、`packages/mcp`)はモデルを呼びません。Work の状態、Tool、記録を持ち、MCP の Tool として公開します。モデルを持ち、Work を作り、Tool を呼び、Work を閉じるのは client(Claude Code、Codex、対話型 CLI)です。対話型 CLI のモデルの loop は `packages/agent` にあり、MCP の in-memory transport で自分の MCP server に接続します。Runtime の Tool の面は MCP の 1 つだけです。
 
@@ -325,7 +325,7 @@ Runtime が持つ規則:
 - Tool の失敗は client に `isError` で返し、Work は続きます。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。
 - `ask_user` は Runtime の Tool です。質問を `human.input_requested` に記録して `waiting_input` にし、`pending: true` と call_id を返します。入力が schema に合わないときは `tool.rejected`(schema_mismatch)で、`waiting_input` にはなりません。`work_answer` が答えを `human.input_provided` と同じ call_id の `tool.completed` に記録し、`in_progress` に戻します。
-- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。payload は schema で検証し、envelope は Runtime が付けます。
+- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。書けるのはその接続で `work_create` か `work_select` した Work だけで、payload は schema で検証し、envelope は Runtime が付けます。終わった Work には書けません(判定は lock の中で行います)。
 - 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
 - lock: `work/<id>/lock` に pid と開始時刻を書きます。すでにあり、その pid が生きていればエラーです。死んでいれば引き継ぎます。
 - 書き込みは `WorkStore.open(id)` が返す handle を通します。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まります。読み取りに lock は要りません。
@@ -362,12 +362,12 @@ MCP tool:
 
 | name | 内容 |
 |---|---|
-| `work_create` | objective、type、任意の `parent` を受けて Work を作り、その接続の現在の Work にします。`type: session` は会話の記録で、その Work の中では Tool を呼べません |
-| `work_select` | 既存の Work を現在の Work にします。終わった Work は受け付けません |
+| `work_create` | objective、type、任意の `parent` と `agent_name` を受けて Work を作り、その接続の現在の Work にします。`type: session` は会話の記録で、その Work の中では Tool を呼べず、`parent` も持てません。現在の Work が session なら、閉じずに次の Work を作れます |
+| `work_select` | 既存の Work を現在の Work にし、`history` 付きで返します。終わった Work は受け付けません |
 | `work_get`、`work_list` | 参照します。`work_get` は `history: true` で、これまでの Tool 呼び出し(name、path、isError)、結果のない呼び出し、未回答の質問を返します。client が中断した Work を続けるための情報です |
 | `ask_user` | 質問を記録して `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client です |
 | `work_answer` | call_id と answer を受け、`human.input_provided` を記録して `in_progress` に戻します |
-| `work_record` | client のイベント(`human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`)を、指定した Work に書きます。会話の記録と、client のモデルの使用量のためです |
+| `work_record` | client のイベント(`human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`)を、その接続で作ったか選んだ Work に書きます。会話の記録と、client のモデルの使用量のためです |
 | `work_complete` | summary と artifacts を受けます。artifacts は Runtime がファイルの存在と sha256 を検証し、Runtime の Tool で書いたファイルと合わせて `evidence.recorded` と `work.completed` を残します |
 | `work_fail` | reason を受けて `work.failed` を残します |
 | 登録された全 Tool | CLI と同じ名前、同じ schema です。呼び出しは現在の Work に記録されます |

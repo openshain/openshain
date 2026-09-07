@@ -183,6 +183,24 @@ export async function createSession(
           toolCallsLeft: TURN_LIMITS.toolCalls - toolCalls,
         },
       });
+      if (task && task.modelCalls >= config.limits.maxModelCalls) {
+        await callTool(
+          {
+            id: `call_limit_${task.id}`,
+            name: "work_fail",
+            input: {
+              reason: "limit_reached",
+              detail: `${config.limits.maxModelCalls} model calls`,
+            },
+          },
+          signal,
+        );
+        return {
+          reply: "",
+          stopped: "turn_limit",
+          detail: `model calls in one work (${config.limits.maxModelCalls})`,
+        };
+      }
       await recordModelEvent("model.requested", {
         provider: model.id,
         model: description.model,
@@ -222,25 +240,6 @@ export async function createSession(
         model: description.model,
         usage: response.usage,
       });
-      if (task && task.modelCalls > config.limits.maxModelCalls) {
-        await callTool(
-          {
-            id: `call_limit_${task.id}`,
-            name: "work_fail",
-            input: {
-              reason: "limit_reached",
-              detail: `${config.limits.maxModelCalls} model calls`,
-            },
-          },
-          signal,
-        );
-        return {
-          reply: textOf(response.message.content),
-          stopped: "turn_limit",
-          detail: `model calls in one work (${config.limits.maxModelCalls})`,
-        };
-      }
-
       const text = textOf(response.message.content);
       switch (response.stopReason) {
         case "end_turn":
@@ -286,6 +285,16 @@ export async function createSession(
     signal: AbortSignal | undefined,
   ): Promise<"done" | "withdrawn"> {
     const workId = task?.id ?? id;
+    // The loop drives these itself; a model that calls them is refused before the runtime sees it.
+    const refusal = LOOP_ONLY_TOOLS.has(call.name)
+      ? `${call.name} is the loop's own; it is not a tool for the model`
+      : !task && (call.name === "work_complete" || call.name === "work_fail")
+        ? `${call.name} needs a work of its own: no work is open; start one with work_create`
+        : undefined;
+    if (refusal) {
+      finish(call.id, { content: [{ type: "text", text: refusal }], isError: true, text: "" });
+      return "done";
+    }
     events.push(
       local("tool.called", {
         callId: call.id,
@@ -320,7 +329,12 @@ export async function createSession(
       data?.id
     ) {
       const workId = data.id as WorkId;
-      task = { id: workId, modelCalls: 0, callIds: new Set([call.id]) };
+      const history = (data as { history?: { modelCalls?: number } }).history;
+      task = {
+        id: workId,
+        modelCalls: typeof history?.modelCalls === "number" ? history.modelCalls : 0,
+        callIds: new Set([call.id]),
+      };
       candidate = undefined;
       await options.onEvent?.(
         workId,
@@ -467,14 +481,18 @@ export async function createSession(
         );
         await record(id, "prompt.expanded", { name: "work resume", source: "builtin", text: note });
       }
-      const result = await runTurn(turnOptions.signal);
-      if (!task) return result;
-      // The turn stopped inside a work. The next turn starts from the conversation again; the
-      // work stays as it is and comes back as a candidate through select.
-      const left = task.id;
-      task = undefined;
-      await client.call("work_select", { id });
-      return { ...result, work: left };
+      try {
+        const result = await runTurn(turnOptions.signal);
+        return task ? { ...result, work: task.id } : result;
+      } finally {
+        // Whatever the turn did, the next one starts from the conversation: a work it left open
+        // stays as it is and comes back as a candidate through select; a declined candidate is dropped.
+        candidate = undefined;
+        if (task) {
+          task = undefined;
+          await client.call("work_select", { id }).catch(() => undefined);
+        }
+      }
     },
     async select(workId) {
       const got = await client.call("work_get", { id: workId });

@@ -147,6 +147,34 @@ describe("openshain over MCP", () => {
     expect(after.json().history.unfinished).toEqual([]);
   });
 
+  test("a pending question survives a model turn the client recorded, and a nested session is refused", async () => {
+    const { call, store } = await connected();
+    const sessionId = (await call("work_create", { objective: "会話", type: "session" })).json()
+      .id as string;
+    const nested = await call("work_create", {
+      objective: "x",
+      type: "session",
+      parent: sessionId,
+    });
+    expect(nested.isError).toBe(true);
+    const id = (await call("work_create", { objective: "x", parent: sessionId })).json()
+      .id as string;
+    const asked = await call("ask_user", { question: "どれ？" });
+    const callId = asked.json().call_id as string;
+    await call("work_record", {
+      work_id: id,
+      type: "model.completed",
+      payload: { stop_reason: "end_turn", content: [{ type: "text", text: "..." }] },
+    });
+
+    const history = (await call("work_get", { id, history: true })).json().history;
+    expect(history.pending).toEqual([{ callId, question: "どれ？" }]);
+    expect(history.modelCalls).toBe(0);
+    const answered = await call("work_answer", { call_id: callId, answer: "これ" });
+    expect(answered.isError).toBe(false);
+    expect((await store.get(id as never)).status).toBe("in_progress");
+  });
+
   test("work_record accepts the client's own events, checks their payload, and refuses the rest", async () => {
     const { call, store } = await connected();
     const id = (await call("work_create", { objective: "会話", type: "session" })).json()

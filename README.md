@@ -89,8 +89,8 @@ openshain はエージェントハーネスとして、会社の社員として�
 ## できること
 
 - **対話型 CLI**: `openshain` で社員エージェントとの会話セッションを開始します。依頼を投げると、社員エージェントが Work にして進め、結果を返します
-- **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めた Work は `openshain work resume` で再開します
-- **モデル**: `openshain init` が作る設定ファイルでモデルを指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています
+- **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めた Work は会話の `/work resume <id>` で続けます
+- **モデル**: 対話型 CLI が使うモデルは `openshain init` が作る設定ファイルで指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています。Claude Code や Codex から使うときは、モデルの設定も API キーも要りません
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
 - **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
 - **Claude Code などの汎用エージェントから使う**: `openshain mcp` が MCP サーバーです。Claude Code や Codex に登録すると、同じハーネスがそれらのエージェントの上で動きます
@@ -109,16 +109,15 @@ openshain はエージェントハーネスとして、会社の社員として�
 
 ```mermaid
 flowchart LR
-  P([人]) --> CLI[対話型 CLI]
-  P --> CC[Claude Code / Codex]
-  CLI --> R[ランタイム<br>Work の記録と再開]
+  P([人]) --> CLI[対話型 CLI<br>自分のモデルを持つ]
+  P --> CC[Claude Code / Codex<br>自分のモデルを持つ]
+  CLI -- MCP --> R[ランタイム<br>Work の状態と記録]
   CC -- MCP --> R
-  R --> M[モデル<br>Anthropic / OpenAI 互換]
   R --> T[Tool<br>ファイル、CSV、Markdown]
   T --> F[(会社フォルダ)]
 ```
 
-考えるのはモデル、記録と再開はランタイム、ファイルを変更するのは Tool です。どの入口から入っても同じランタイムを通り、同じ `work/` に残ります。
+考えるのは client(対話型 CLI、Claude Code、Codex)で、それぞれが自分のモデルを持ちます。ランタイムはモデルを呼ばず、Work の状態、Tool、記録を MCP の Tool として提供します。対話型 CLI も Claude Code も同じ Tool を同じ規則で使い、同じ `work/` に残ります。
 
 ## インストール
 
@@ -180,7 +179,7 @@ bun run build                    # dist/openshain に単体バイナリを生成
 ```
 mkdir my-company && cd my-company   # 会社フォルダを作ります
 openshain init                      # 設定ファイルと MCP の登録、AGENTS.md を書きます
-export ANTHROPIC_API_KEY=...        # 使うモデルの API キーです
+export ANTHROPIC_API_KEY=...        # 対話型 CLI が使うモデルの API キーです
 openshain                           # 社員エージェントとの会話を始めます
 ```
 
@@ -189,10 +188,8 @@ openshain                           # 社員エージェントとの会話を始
 ```
 openshain                       # 対話型 CLI を起動します
 openshain init                  # 会社フォルダを初期化します
-openshain run "<依頼>"          # 会話を挟まずに Work を 1 つ実行します
 openshain work list             # Work の一覧を表示します
 openshain work show <id>        # Work の記録を読みます
-openshain work resume <id>      # 止まった Work を続けます
 openshain tools list            # 使える Tool を表示します
 openshain mcp                   # MCP サーバーとして起動します(通常はエージェントが起動します)
 ```
@@ -201,7 +198,7 @@ Tool を追加する例は [examples/](examples/README.md) にあります。
 
 ### Claude Code から
 
-1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを追加します
+1. `openshain init` が会社フォルダに `.mcp.json` を書きます。既にあれば、他のサーバーを残して openshain の項目だけを追加します。モデルの設定と API キーは要りません。`openshain.yaml` の `model` は消して構いません
 2. 会社フォルダで `claude` を起動し、フォルダを信頼します。Claude Code が `.mcp.json` を読んで `openshain mcp` を自分で起動し、接続します。`/mcp` に openshain が表示されます
 3. 依頼を書きます。考えるのは Claude Code で、会社のファイルの読み書きと記録は openshain の Tool が行います。その使い分けは `AGENTS.md` に書いてあります
 4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で参照します
@@ -264,7 +261,7 @@ bun run schemas                        # spec/schemas/ を zod の定義から�
 bun run build:packages                 # npm に公開する JavaScript を各 package の dist/ に作ります
 ```
 
-- 構成は `packages/` の 5 つです。core(インターフェース、Work の記録、投影)、agent(ツールループ、モデルプロバイダー、セッション)、tools(標準 Tool)、mcp(MCP サーバー)、cli(`openshain` コマンドと画面)
+- 構成は `packages/` の 5 つです。core(インターフェース、Work の記録、投影)、agent(対話の loop とモデルプロバイダー。ランタイムを MCP の client として使います)、tools(標準 Tool)、mcp(MCP サーバー)、cli(`openshain` コマンドと画面)
 - 本物の API を呼ぶテストは `OPENSHAIN_LIVE_TESTS=1` と API キーの環境変数があるときだけ実行されます
 - リポジトリの中では package は TypeScript のソースのまま動きます(`exports` の `bun` 条件)。npm に公開するときは `dist/` の JavaScript を Node.js が読みます。publish の前に自動で build されます
 - 第三者の Tool の例は [examples/tools/echo](examples/tools/echo) にあります。設定に 1 行追加するだけで CLI と MCP の両方で有効になります

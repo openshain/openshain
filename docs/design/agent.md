@@ -52,7 +52,7 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 
 投影は client が組み立てます。session の中にイベントの配列を持ち、記録した順に並べて `buildProjection` に渡します。Runtime にある記録が原本で、メモリ上の配列はその写しです。作業の Work を閉じたら、その Work の中で得た Tool の結果は「省略」の 1 行に畳み、summary だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです。
 
-`work_create` の `parent` と `agent_name` は loop が必ず付けます。モデルに会話の id を覚えさせません。ターンが Work の中で止まったとき(中断、質問の取り下げ、上限)は、Work をそのままにして接続の現在の Work を会話に戻し、止まった Work の id を `TurnResult.work` で返します。次に続けるかは `/work resume` の候補として人とモデルが決めます。候補は `prompt.expanded` として記録し、投影では user message になります。`work_select` した Work が質問を待っていれば、loop が古い順に人に聞いて `work_answer` します。
+`work_create` の `parent` と `agent_name` は loop が必ず付けます。モデルに会話の id を覚えさせません。ターンが Work の中で止まったとき(中断、質問の取り下げ、上限)は、Work をそのままにして接続の現在の Work を会話に戻し、止まった Work の id を `TurnResult.work` で返します。次に続けるかは `/work resume` の候補として人とモデルが決めます。候補は `prompt.expanded` として記録し、投影では user message になります。`work_select` した Work が質問を待っていれば、loop が古い順に人に聞いて `work_answer` します。候補は次の 1 ターンだけ有効で、ターンが終われば(続けても続けなくても)消えます。モデルが loop の道具(`work_record`、`work_answer`)や、作業の Work が無いのに `work_complete` を呼んだときは、Runtime に渡さず拒否の結果を返します。会話の Work を閉じる経路をモデルに与えないためです。Work ごとのモデル呼び出しの上限は呼ぶ前に確かめ、`work_select` のときは `history` の件数から数え直します。
 
 理由。Runtime の Tool の面を MCP の 1 つにすると、Authority と ChangeSet を置く場所が 1 か所になり、CLI だけが使う経路が構造上できません。Claude Code と対話型 CLI は同じ規則で同じ Tool を使います。
 
@@ -60,16 +60,16 @@ usage の `inputTokens` は入力の全部で、prompt cache から読んだ分�
 
 ## セッションは Work の上に載る
 
-決めたこと。`createSession` は `type: session` の Work を開き、`turn(text)` ごとに人の発言(`human.message`)を記録して社員エージェントの model を回します。社員エージェントの道具は `work_run`、`work_list`、`work_show` で、`work_run` は子 Work を作って `runWork` で進めます。1 ターンの上限は model 5 回、道具 10 回で、超えたらターンを打ち切って人に返します。Ctrl-C は子 Work を `in_progress` のまま止め、後で `resume` できます。`session` は予約した type で、`work_run`、MCP の `work_create`、`runWork` は受け付けません。投影は type で振る舞いを変える(objective を入れない)ので、model や外のエージェントが選べる値に置きません。
+決めたこと。`createSession` は `work_create` で `type: session` の Work を開き、`turn(text)` ごとに人の発言(`human.message`)を `work_record` で記録して社員エージェントの model を回します。社員エージェントの道具は Runtime の MCP Tool そのものです。1 ターンの上限は model 25 回、Tool 40 回で、超えたらターンを打ち切って人に返します。作業の Tool 呼び出しもターンの中で起きるので、v0.1 の 5 回と 10 回より大きい値です。Ctrl-C は作業の Work を `in_progress` のまま止め、後で `/work resume` の候補にできます。`session` の Work の中では Tool を呼べません。投影は type で振る舞いを変える(objective を入れない)ので、model や外のエージェントが選べる値に置きません。
 
-理由。社員エージェントの loop と Work の loop を分けると、作業の記録は Work に閉じ、社員エージェントは会話だけを持ちます。上限をターン単位にしたのは、会話全体に上限を置くと長い会話が途中で死ぬからです。人が居るので止められます。
+理由。会話の記録と作業の記録を分けたまま、1 つの loop で回します。上限をターン単位にしたのは、会話全体に上限を置くと長い会話が途中で死ぬからです。人が居るので止められます。
 
 名前。セッションを開くたびに、設定の `company.language` に合わせた一覧(日本語はかなの名、英語は英語の名、30 ずつ。どちらも自然の語からきた名で、特定の人を指しません)から 1 つ選び、`work.created` の `agent_name` に残します。言語を OS ではなく設定から取るのは、会社の記録が機械をまたいで同じであるためで、`openshain init` が OS の locale を初期値の参考にするだけです。子 Work にも同じ名前を渡すので、質問のときも同じ名で話します。開いているセッションが使っている名前は避けます。設定や職種に名前を置かないのは、同じ職種のセッションを並行して開けるからで、model に選ばせないのは、呼び出しが 1 回増えるうえ、投影は記録から組み立てるので結局記録に残す必要があり、実在の人名を選ぶ危険も避けにくいからです。記録にあるので、セッションの再開(未実装)でも同じ名前で続けられます。
 
 ## `ask_user` は Runtime の Tool
 
-質問は Work の状態(`waiting_input`)に直結するので、Tool provider に任せず Runtime が持ちます。provider は `runtime`、名前は予約です。入力は他の Tool と同じく schema で検証し、外れたら同じターンで拒否を返し、待ちません。MCP では登録しません。外部エージェントが利用者に聞くからです。
+質問は Work の状態(`waiting_input`)に直結するので、Tool provider に任せず Runtime が持ちます(mcp のノート)。loop は `pending` の結果を受け取ると人に聞き、答えを `work_answer` で記録してから model に渡します。Claude Code のように自分で人に聞く client は `ask_user` を呼ばなくてよく、どちらでも Runtime の記録の形は同じです。
 
 ## 公開 API
 
-`runWork`、`ASK_USER`、`pendingQuestions`、`countToolCalls`、`FailureReason`、provider の factory と class です。loop の内部の関数は公開しません。
+`connectInMemory`、`wrap`、`createSession`、`TURN_LIMITS`、`AGENT_NAMES`、`pickAgentName`、provider の factory と class です。loop の内部の関数は公開しません。Runtime の側の助け(`ASK_USER`、`pendingQuestions`、`countToolCalls`、`workHistory`)は core にあります。

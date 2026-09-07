@@ -46,7 +46,7 @@ Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)�
 | ファイル | 内容 |
 |---|---|
 | `.mcp.json` | Claude Code のプロジェクト設定です。`openshain mcp` を stdio の MCP server として登録します。`openshain` が PATH にあることが前提です。Claude Code をアプリから起動して PATH が通らないときは、command に絶対パスを書いてください |
-| `AGENTS.md` | MCP 経由で入る外部エージェントへの指示です。会社のファイルは openshain の Tool で扱い、`work_create` から始めて `work_complete` で終えます。`openshain run` の Runtime には当てはまらないと冒頭に書いてあります |
+| `AGENTS.md` | MCP 経由で入る外部エージェントへの指示です。会社のファイルは openshain の Tool で扱い、`work_create` から始めて `work_complete` で終えます。|
 | `CLAUDE.md` | `@AGENTS.md` の 1 行です。Claude Code に同じ指示を読ませます |
 
 Claude Code はフォルダを信頼するまで `.mcp.json` を読みません。起動時の確認で信頼を選んでから `/mcp` を見てください。

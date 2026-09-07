@@ -89,8 +89,8 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 ## What it does
 
 - **Interactive CLI**: `openshain` starts a conversation with an employee agent. Give it a request and the agent turns it into a Work, carries it out, and reports back
-- **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stops can be resumed
-- **Models**: the configuration file written by `openshain init` names the model. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported
+- **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stopped is continued from the conversation with `/work resume <id>`
+- **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
 - **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
 - **From Claude Code and other agents**: `openshain mcp` is the MCP server. Register it in Claude Code or Codex and the same harness works on top of those agents
@@ -109,16 +109,15 @@ The profession is chosen with `profession` in `openshain.yaml`. Write instructio
 
 ```mermaid
 flowchart LR
-  P([Person]) --> CLI[Interactive CLI]
-  P --> CC[Claude Code / Codex]
-  CLI --> R[Runtime<br>records and resumes Work]
+  P([Person]) --> CLI[Interactive CLI<br>brings its own model]
+  P --> CC[Claude Code / Codex<br>bring their own model]
+  CLI -- MCP --> R[Runtime<br>Work state and records]
   CC -- MCP --> R
-  R --> M[model<br>Anthropic / OpenAI-compatible]
   R --> T[Tools<br>files, CSV, Markdown]
   T --> F[(company folder)]
 ```
 
-The model thinks, the Runtime records and resumes, and the tools touch the files. Every entrance goes through the same Runtime and leaves the same record under `work/`.
+The clients think: the interactive CLI, Claude Code and Codex each bring their own model. The Runtime calls no model; it offers Work state, tools and records as MCP tools. The interactive CLI and Claude Code use the same tools under the same rules and leave the same record under `work/`.
 
 ## Install
 
@@ -180,7 +179,7 @@ bun run build                    # writes the single-file binary to dist/opensha
 ```
 mkdir my-company && cd my-company   # creates the company folder
 openshain init                      # writes the configuration, the MCP registration, and AGENTS.md
-export ANTHROPIC_API_KEY=...        # the API key of the model you use
+export ANTHROPIC_API_KEY=...        # the API key of the model the interactive CLI uses
 openshain                           # starts the conversation with the employee agent
 ```
 
@@ -189,10 +188,8 @@ openshain                           # starts the conversation with the employee 
 ```
 openshain                       # starts the interactive CLI
 openshain init                  # initializes the company folder
-openshain run "<request>"       # runs a single Work without a conversation
 openshain work list             # lists Works
 openshain work show <id>        # reads the record of a Work
-openshain work resume <id>      # continues a Work that stopped
 openshain tools list            # lists the tools available
 openshain mcp                   # runs as an MCP server (normally the agent starts it)
 ```
@@ -201,7 +198,7 @@ An example of adding a tool is in [examples/](examples/README.md).
 
 ### From Claude Code
 
-1. `openshain init` writes `.mcp.json` into the company folder. If one is already there, it keeps the other servers and adds only the openshain entry
+1. `openshain init` writes `.mcp.json` into the company folder. If one is already there, it keeps the other servers and adds only the openshain entry. No model configuration and no API key are needed; the `model` section of `openshain.yaml` can be deleted
 2. Start `claude` in the company folder and trust the folder. Claude Code reads `.mcp.json`, starts `openshain mcp` itself, and connects. openshain appears under `/mcp`
 3. Write a request. Claude Code does the thinking, and openshain's tools do the reading, writing, and recording in the company folder. `AGENTS.md` tells it which is which
 4. The record and the output of the request stay in `work/` in the company folder, readable with `openshain work list` and `openshain work show <id>`
@@ -264,7 +261,7 @@ bun run schemas                        # regenerates spec/schemas/ from the zod 
 bun run build:packages                 # emits the JavaScript published to npm into each package's dist/
 ```
 
-- The code is five packages under `packages/`: core (interfaces, the Work record, projection), agent (the tool loop, model providers, sessions), tools (standard tools), mcp (the MCP server), and cli (the `openshain` command and the screen)
+- The code is five packages under `packages/`: core (interfaces, the Work record, projection), agent (the conversation loop and the model providers; it uses the runtime as an MCP client), tools (standard tools), mcp (the MCP server), and cli (the `openshain` command and the screen)
 - Tests that call a real API run only with `OPENSHAIN_LIVE_TESTS=1` and the API key in the environment
 - Inside the repository the packages run as TypeScript source (the `bun` export condition). On npm, Node.js reads the JavaScript in `dist/`, built automatically before publishing
 - A third-party tool example is in [examples/tools/echo](examples/tools/echo). One line in the configuration makes it callable from both the CLI and MCP

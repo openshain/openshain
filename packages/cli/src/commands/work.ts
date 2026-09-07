@@ -20,7 +20,7 @@ export interface WorkListOptions {
 export async function workList({ workspaceRoot, write }: WorkListOptions): Promise<void> {
   const { works, problems } = await new WorkStore(workspaceRoot).list();
   if (works.length === 0 && problems.length === 0) {
-    write('Work はまだありません。openshain run "<依頼>" で開始します。');
+    write("Work はまだありません。openshain で社員エージェントに依頼すると始まります。");
     return;
   }
   for (const work of works) {

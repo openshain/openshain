@@ -21,9 +21,9 @@ An agent harness that turns a general agent into a professional employee of a co
 ## Layout
 
 - `packages/core` contracts (provider interfaces), fundamental objects, work runtime
-- `packages/agent` tool loop and model providers (bring your own key)
+- `packages/agent` the conversation loop of the interactive CLI, an MCP client of the runtime, and the model providers (bring your own key)
 - `packages/tools` standard tool provider (filesystem, CSV, Markdown, documents, email)
-- `packages/mcp` MCP server exposing the runtime
+- `packages/mcp` MCP server exposing the runtime: its only surface, used by the interactive CLI and by outside agents alike
 - `packages/cli` the `openshain` reference CLI
 - `spec/` human-readable specs and JSON Schemas generated from `packages/core`
 - `docs/` user-facing documentation in Japanese; `docs/design/` says why each package is shaped as it is
@@ -34,6 +34,7 @@ An agent harness that turns a general agent into a professional employee of a co
 
 - Contracts live in `packages/core`. Every implementation, official or third-party, uses the same contracts. Nothing under `packages/` imports from `packs/` or `examples/`.
 - Money, authority checks, state transitions and safety conditions are ordinary code, never model output.
+- The runtime (core, tools, mcp) never calls a model. Clients do: the interactive CLI brings its own model and reaches the runtime only through the MCP tools, exactly like Claude Code. `@openshain/agent` does not import `WorkStore` or `ToolRegistry`; a test enforces it.
 - Named exports only. Tests sit next to the source: `work.ts` has `work.test.ts`.
 - Runtime code uses no Bun-only API (`Bun.*`); it runs on Node and Bun alike through `node:` modules and web standards. Tests may use `bun:test`. A test enforces this.
 - Code, comments and commit messages are in English. User-facing docs are written in Japanese first, in the polite です・ます style: README, docs, specs, plans, CHANGELOG, CONTRIBUTING and SECURITY alike. Headings, table headers and bullet fragments stay as noun phrases; a bullet that is a sentence ends in です・ます.

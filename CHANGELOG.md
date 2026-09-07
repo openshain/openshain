@@ -2,6 +2,27 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、版は [Semantic Versioning](https://semver.org/lang/ja/) に従います。
 
+## [0.3.0] - 2026-09-07
+
+### Changed
+
+- ランタイム(core、tools、mcp)はモデルを呼びません。対話型 CLI は自分のモデルを持ち、Claude Code と同じ MCP の Tool でランタイムを使います。`@openshain/agent` はランタイムの内部を import しません
+- `openshain.yaml` の `model` は任意です。Claude Code や Codex から使うだけなら、モデルの設定も API キーも要りません
+- 社員エージェントは `work_create` で Work を作り、その中で Tool を呼び、`work_complete` で閉じます。作業の Work を閉じたら、会話には summary だけが残ります
+- `/work resume <id>` は止まった Work を候補にします。次の依頼がその Work に沿えば社員エージェントが続け、沿わなければ続けません
+- 1 ターンの上限はモデル呼び出し 25 回、Tool 呼び出し 40 回です
+
+### Added
+
+- MCP の Tool: `work_create` の `type: session`、`parent`、`agent_name`。`work_get` の `history`。`ask_user`(質問を記録して `waiting_input` にし、`pending` を返します)と `work_answer`。`work_record`(client の発言、モデルの呼び出し、使用量を記録します)
+- イベント `prompt.expanded`。`tool.rejected` の code `limit_reached`(`max_tool_calls` をランタイムが数えます)
+- MCP の Tool に read-only の annotation
+
+### Removed
+
+- `openshain run` と `openshain work resume`。端末なしで Work を進める手段は後の版で client の 1 つとして戻します
+- 社員エージェントの `work_run`、`@openshain/agent` の `runWork`
+
 ## [0.2.0] - 2026-09-07
 
 ### Added
@@ -42,6 +63,7 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
+[0.3.0]: https://github.com/openshain/openshain/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/openshain/openshain/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/openshain/openshain/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/openshain/openshain/releases/tag/v0.1.0

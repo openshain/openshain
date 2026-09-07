@@ -323,10 +323,15 @@ export async function createController(options: ControllerOptions): Promise<Cont
       aborter?.abort();
       settleQuestion();
       await running;
-      await session.close();
-      await client.close();
-      state.closed = true;
-      notify();
+      try {
+        await session.close();
+      } catch (err) {
+        push("notice", `会話の記録を閉じられませんでした。${message(err)}`);
+      } finally {
+        await client.close().catch(() => undefined);
+        state.closed = true;
+        notify();
+      }
     })();
     return closing;
   }

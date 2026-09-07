@@ -1,6 +1,6 @@
 # Spec: 対話型 CLI(セッション)
 
-Status: draft v0.2(v0.1 は実装済み。v0.2 は Runtime からモデルを外し、対話型 CLI を Runtime の client の 1 つにする改訂です。差分は「v0.2 で変わること」の節にまとめています)
+Status: v0.2(実装済み。v0.2 は Runtime からモデルを外し、対話型 CLI を Runtime の client の 1 つにする改訂です。差分は「v0.2 で変わること」の節にまとめています)
 
 ## 目的
 
@@ -66,7 +66,8 @@ Runtime の MCP Tool そのものです(open-runtime.md の MCP Server の節)�
 - 会話の投影は client(CLI の loop)が組み立てます。セッションの Work の記録から作り、作業の Work の中で得た Tool の結果は、その Work を閉じた後は要約(`work_complete` の summary)だけを会話に残します。長い会話でファイルの中身が context に溜まらないためです
 - 1 ターン(人の発言から次の返答まで)の上限は model 呼び出し 25 回、Tool 呼び出し 40 回です。作業の Tool 呼び出しもこのターンの中で起きるので、v0.1 より大きい値です。投影の末尾の残り回数の行はこの値を表示します。超えたらそのターンを打ち切り、人に知らせ、セッションは続きます。作業の Work には `limits` の `max_tool_calls` を Runtime が数えます。`max_model_calls` は client が Work ごとに数え、超えたら `work_fail`(limit_reached)します
 - `ask_user` の結果が pending なら、client は人に質問を表示し、答えを `work_answer` で記録してから続けます。Ctrl-C で質問を取り下げると Work は `waiting_input` のまま残ります
-- `/work resume <id>` で名指しされた Work は、人の次の依頼がその Work の objective に沿うときだけ `work_select` して続けます。沿わなければ、その旨を伝えたうえで新しい Work を作るか、`work_list` で探し直します。名指しは候補であって命令ではありません
+- `/work resume <id>` で名指しされた Work は、人の次の依頼がその Work の objective に沿うときだけ `work_select` して続けます。沿わなければ、その旨を伝えたうえで新しい Work を作るか、`work_list` で探し直します。名指しは候補であって命令ではなく、次の 1 ターンだけ有効です
+- モデルが `work_record` と `work_answer` を呼ぶこと、作業の Work が無いのに `work_complete` や `work_fail` を呼ぶことは、loop が Runtime に渡さずに拒否します。会話の Work を閉じたり偽の記録を書いたりする経路をモデルに与えません
 - 社員エージェントの model は設定の `model` です。使用量はセッションと作業の Work に `work_record` で記録され、`work show` で合計が表示されます
 
 ## 画面

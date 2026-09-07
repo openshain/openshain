@@ -15,7 +15,7 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 ## client のための Tool(`ask_user`、`work_answer`、`work_record`、`history`)
 
-決めたこと。Runtime はモデルを呼ばないので、質問と記録の片側を client に開きます。`ask_user` は質問を記録して Work を `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client で、答えは `work_answer` が `human.input_provided` と同じ call_id の `tool.completed` に記録して `in_progress` に戻します。`work_record` は client 自身のイベント(人の発言、prompt の展開、モデルの呼び出しと使用量)を指定した Work に書きます。受け付ける type を 6 つに限り、payload は spec/schemas/events.v1.json の形で検証します。Tool の呼び出しは Runtime だけが記録します。`work_get` の `history` は、これまでの Tool 呼び出し、結果のない呼び出し、未回答の質問を返し、client が止まった Work を続けるための材料です。
+決めたこと。Runtime はモデルを呼ばないので、質問と記録の片側を client に開きます。`ask_user` は質問を記録して Work を `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client で、答えは `work_answer` が `human.input_provided` と同じ call_id の `tool.completed` に記録して `in_progress` に戻します。`work_record` は client 自身のイベント(人の発言、prompt の展開、モデルの呼び出しと使用量)を指定した Work に書きます。受け付ける type を 6 つに限り、書ける Work をその接続で作ったか選んだものに限り、payload は spec/schemas/events.v1.json の形で検証します。Tool の呼び出しは Runtime だけが記録します。未回答の質問は記録全体から探します。client が `model.completed` を書いても、質問は隠れません。`work_get` の `history` は、これまでの Tool 呼び出し、結果のない呼び出し、未回答の質問を返し、client が止まった Work を続けるための材料です。
 
 理由。対話型 CLI を MCP client にすると、会話の記録と自分のモデルの使用量を `work/` に残す経路が要ります。Runtime に「client のための書き込み」を 1 つだけ開き、type を限ることで、client が Tool の記録を偽る経路は作りません。Claude Code のように `work_record` を呼ばない client も成り立ちます。
 

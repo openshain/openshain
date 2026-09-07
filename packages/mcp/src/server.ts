@@ -251,6 +251,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           agent_name: agentName,
         } = input as { objective: string; type?: string; parent?: string; agent_name?: string };
         if (parent !== undefined) await works.get(parseWorkId(parent));
+        if (type === SESSION_WORK_TYPE && parent !== undefined) {
+          return failure("a session is a conversation of its own and cannot have a parent");
+        }
         const work = await works.create({
           objective,
           principal: config.principal.id,
@@ -268,7 +271,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const work = await works.get(id);
         if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
         session.select(id);
-        return json(work);
+        return json({ ...work, history: workHistory(await works.events(id)) });
       }
       case "work_get": {
         const { id: given, history } = input as { id?: string; history?: boolean };
@@ -340,14 +343,24 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (!RECORDABLE_TYPES.has(type) || !isKnownEventType(type)) {
           return failure(`type ${type} cannot be recorded by a client`);
         }
-        const work = await works.get(id);
-        if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
+        if (!session.knows(id)) {
+          return failure(
+            `work ${id} was not created or selected on this connection; a client records only on its own works`,
+          );
+        }
         const parsed = parsePayloadFile(type as EventType, payload);
         if (type === "usage.recorded" && (parsed as { kind: string }).kind !== "model_inference") {
           return failure("usage.recorded from a client must have kind model_inference");
         }
-        const event = await works.append(id, { type, payload: parsed } as never);
-        return json({ id: event.id, seq: event.seq });
+        const opened = await works.open(id);
+        try {
+          const status = (await opened.current()).status;
+          if (isTerminal(status)) return failure(`work ${id} is already ${status}`);
+          const event = await opened.append({ type, payload: parsed } as never);
+          return json({ id: event.id, seq: event.seq });
+        } finally {
+          await opened.close();
+        }
       }
       case "work_list": {
         const { works: all, problems } = await works.list();

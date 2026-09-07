@@ -50,6 +50,8 @@ Checkpoint(2026-09-05 実走完了。レビューはこれから)。Task 1 か�
 
 ## v0.2: Runtime からモデルを外す
 
+Checkpoint(2026-09-07 完了)。Task 1 から 4 は main に入りました。擬似端末と本物のモデルで、Work の作成、集計、summary.md の書き込み、`/work list`、`/quit` を確かめました。model の無い workspace で `openshain mcp` が initialize から work_complete まで通り、`openshain` はモデルが要る旨で止まります。
+
 spec は interactive-cli.md の v0.2 と open-runtime.md の「Runtime と client の分担」です。decisions は非公開側にあります。順に 1 commit ずつ積み、各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通します。
 
 #### Task 1: MCP の Tool を広げる(`packages/mcp`、`packages/core`)
