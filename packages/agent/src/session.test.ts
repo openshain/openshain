@@ -363,6 +363,63 @@ describe("a session and approvals", () => {
     expect(decided).toHaveLength(2);
   });
 
+  test("a call held beside others leaves every call with a result, so the next turn still builds", async () => {
+    const { store, open } = await setup(
+      [
+        workCreate("c1", "帳簿"),
+        callTools(
+          { id: "c2", name: "fs_write", input: { path: "ledger/2026-07.csv", content: "a\n" } },
+          { id: "c3", name: "fs_list", input: { path: "." } },
+        ),
+        say("承認が済んだので続けます。"),
+      ],
+      { authority: true },
+    );
+    const session = await open();
+
+    const stopped = await session.turn("7 月の帳簿を書いて");
+    expect(stopped.stopped).toBe("approval");
+
+    // The sibling call got a result, so the conversation can go on.
+    const next = await session.turn("ではあとで");
+    expect(next.reply).toBe("承認が済んだので続けます。");
+    expect((await store.get(stopped.approval?.workId as WorkId)).status).toBe("waiting_approval");
+  });
+
+  test("a decision that lands elsewhere first leaves the call held and the turn stopped", async () => {
+    const { client, store, open } = await setup(
+      [
+        workCreate("c1", "帳簿"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a\n" },
+        }),
+        say("書きました。"),
+      ],
+      { authority: true },
+    );
+    const session = await open({
+      onApproval: async (held) => {
+        // Someone approved it on another screen while this one was asking.
+        await client.call("approval_decide", {
+          approval_id: held.approvalId,
+          decision: "approve",
+        });
+        return { choice: "approve" };
+      },
+    });
+
+    const result = await session.turn("7 月の帳簿を書いて");
+
+    expect(result.stopped).toBe("approval");
+    expect(result.approval?.name).toBe("fs_write");
+    const work = (await store.list()).works.find((w) => w.type !== "session");
+    expect(
+      (await store.events(work?.id as WorkId)).filter((e) => e.type === "approval.decided"),
+    ).toHaveLength(1);
+  });
+
   test("a rejected call comes back to the model as an error, and the work stays open", async () => {
     const { store, open, root } = await setup(
       [
@@ -490,10 +547,19 @@ describe("a session, when the model misbehaves", () => {
       say("やめておきます。"),
       say("まだ話せます。"),
     ]);
-    const session = await open();
+    const seen: AnyEvent[] = [];
+    const session = await open({ onEvent: async (_id, event) => void seen.push(event) });
 
     const first = await session.turn("何かして");
     expect(first.reply).toBe("やめておきます。");
+    // The screen is told about a refused call before its result, so no result stands on its own.
+    const refused = seen.filter((e) => e.type === "tool.called" || e.type === "tool.completed");
+    expect(
+      refused.map(
+        (e) =>
+          `${(e.payload as { callId: string }).callId} ${e.type === "tool.called" ? "→" : "←"}`,
+      ),
+    ).toEqual(["c1 →", "c1 ←", "c2 →", "c2 ←", "c3 →", "c3 ←", "c4 →", "c4 ←"]);
     expect((await store.get(session.id)).status).toBe("in_progress");
     const second = await session.turn("続き");
     expect(second.reply).toBe("まだ話せます。");

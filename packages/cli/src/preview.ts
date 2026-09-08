@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolveWorkspacePath } from "@openshain/core";
+import { csvText } from "@openshain/tools";
 
 /** How much of a change the screen shows before it says the rest is cut. */
 const MAX_LINES = 24;
@@ -13,15 +14,19 @@ export interface PreviewLine {
   text: string;
 }
 
+/** The tools whose input the screen can render as the file it would leave behind. */
+const DIFFABLE: ReadonlySet<string> = new Set(["fs_write", "csv_write"]);
+
 /**
- * What a held call would change, for the person about to approve it. A call that writes content
- * to a file is shown as a line diff against the file as it is now; anything else is shown as its
- * input. Reads the file directly: this is the person's own workspace, on their own screen.
+ * What a held call would change, for the person about to approve it. A call of a tool that writes
+ * a whole file is shown as a line diff against the file as it is now; anything else is shown as
+ * its input. Reads the file directly: this is the person's own workspace, on their own screen.
  */
 export async function previewCall(
   workspaceRoot: string,
   call: { name: string; input: unknown },
 ): Promise<PreviewLine[]> {
+  if (!DIFFABLE.has(call.name)) return [{ kind: "note", text: JSON.stringify(call.input) }];
   const input = (call.input ?? {}) as {
     path?: unknown;
     content?: unknown;
@@ -33,7 +38,10 @@ export async function previewCall(
     typeof input.content === "string"
       ? input.content
       : Array.isArray(input.rows)
-        ? csvText(input.rows as Record<string, unknown>[], input.columns)
+        ? csvText(
+            input.rows as Record<string, unknown>[],
+            Array.isArray(input.columns) ? (input.columns as string[]) : undefined,
+          )
         : undefined;
   if (path === undefined || content === undefined) {
     return [{ kind: "note", text: JSON.stringify(call.input) }];
@@ -72,26 +80,6 @@ export async function previewCall(
   }
   const body = diff(oldLines, newLines);
   return cap([{ kind: "note", text: `${path} を書き換えます` }, ...body]);
-}
-
-/**
- * The rows of a csv_write as the file will read: the header, then one line per row, quoted the
- * way a CSV writer does. Close enough for a person to check what the columns and the numbers are.
- */
-function csvText(rows: Record<string, unknown>[], columns: unknown): string {
-  const header = Array.isArray(columns)
-    ? (columns as unknown[]).map(String)
-    : Object.keys(rows[0] ?? {});
-  const cell = (value: unknown) => {
-    const text = value === undefined || value === null ? "" : String(value);
-    return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  };
-  return [
-    header.map(cell).join(","),
-    ...rows.map((row) => header.map((c) => cell(row[c])).join(",")),
-  ]
-    .join("\n")
-    .concat("\n");
 }
 
 function cap(lines: PreviewLine[]): PreviewLine[] {

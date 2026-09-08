@@ -72,6 +72,7 @@ rules:
 - `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`work_type`、`action`
 - `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。判定は path guard を通した後の正規化したパスに対して行います
 - `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあり、`applies_to`(action と path)がその呼び出しを覆うときだけ `allow` と同じに動き、`decision.applied` を記録します。どれかを満たさなければ `review_required` として扱い、理由を呼び出し元に返します。無ければ `review_required` として扱います
+- Decision が書かれても Policy は変わりません。その Decision を根拠に同じ Action を通すには、人が `decision_backed` の規則を書き、`decision_id` に書かれた Decision の id を入れます
 - 資格名や法域の規則は core に置きません。`action` の名前と `reviewer.role` は Pack や会社の Policy が決める文字列で、core はそれを比べるだけです
 
 ### `authority/delegations.yaml`

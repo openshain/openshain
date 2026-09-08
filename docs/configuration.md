@@ -116,6 +116,8 @@ rules:
 
 Runtime が書きます。手で消さないでください。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
 
+同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が書き足します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
+
 ## 記録
 
 Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから依頼した Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で参照します。

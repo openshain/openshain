@@ -15,6 +15,7 @@ import {
   createToolCaller,
   createToolRegistry,
   DecisionFileSchema,
+  type DecisionRecord,
   type Event,
   type EventType,
   type InputValidation,
@@ -530,6 +531,10 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         }
         const opened = await works.open(workId);
         try {
+          // Under the lock: another connection may have decided this approval in between.
+          if (!pendingApprovals(await opened.events()).some((a) => a.approvalId === approvalId)) {
+            return failure(`approval ${approvalId} was already decided`);
+          }
           await opened.append({
             type: "approval.decided",
             payload: { approvalId, decision, by, ...(comment !== undefined && { comment }) },
@@ -609,11 +614,43 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             );
           }
         }
+        // Built and checked before anything is recorded: an input the decision refuses must not
+        // consume the approval and leave the work waiting with nobody able to move it.
+        const today = new Date();
+        let record: DecisionRecord | undefined;
+        if (decision !== "reject") {
+          const parsed = DecisionFileSchema.safeParse({
+            id: `dec_${uuidv7()}`,
+            reviewer,
+            approval_id: approvalId,
+            decided_at: today.toISOString(),
+            effective_from: effectiveFrom ?? today.toISOString().slice(0, 10),
+            effective_until: effectiveUntil ?? null,
+            interpretation,
+            applies_to: appliesTo ?? {},
+          });
+          if (!parsed.success) {
+            return failure(
+              `the decision is not well formed: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+            );
+          }
+          record = parsed.data;
+        }
         const opened = await works.open(workId);
         try {
+          // Under the lock: another connection may have decided this approval in between.
+          if (!pendingApprovals(await opened.events()).some((a) => a.approvalId === approvalId)) {
+            return failure(`approval ${approvalId} was already decided`);
+          }
           await opened.append({
             type: "approval.decided",
-            payload: { approvalId, decision, by: reviewer.name },
+            payload: {
+              approvalId,
+              decision,
+              by: reviewer.name,
+              ...(interpretation !== undefined && { comment: interpretation }),
+              ...(decision === "modify" && modifiedInput && { modifiedInput }),
+            },
           });
           if (decision === "reject") {
             await opened.append({ type: "review.decided", payload: { approvalId } });
@@ -629,39 +666,28 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             await opened.transition("in_progress", `${reviewer.name} rejected ${approvalId}`);
             return json({ approval_id: approvalId, decision, work_id: workId });
           }
-          const today = new Date();
-          const record = DecisionFileSchema.parse({
-            id: `dec_${uuidv7()}`,
-            reviewer,
-            approval_id: approvalId,
-            decided_at: today.toISOString(),
-            effective_from: effectiveFrom ?? today.toISOString().slice(0, 10),
-            effective_until: effectiveUntil ?? null,
-            interpretation,
-            applies_to: appliesTo ?? {},
-          });
-          const file = await writeDecision(workspaceRoot, record);
+          const written = record as DecisionRecord;
+          const file = await writeDecision(workspaceRoot, written);
           await opened.append({
             type: "review.decided",
-            payload: { approvalId, decisionId: record.id },
+            payload: { approvalId, decisionId: written.id },
           });
           await opened.transition("in_progress", `${reviewer.name} decided ${approvalId}`);
+          const ranWith =
+            decision === "modify" && modifiedInput ? modifiedInput : approval.call.input;
           const ran = await callTool(
             opened,
-            {
-              id: approval.call.callId,
-              name: approval.call.name,
-              input: decision === "modify" && modifiedInput ? modifiedInput : approval.call.input,
-            },
+            { id: approval.call.callId, name: approval.call.name, input: ranWith },
             { approvedBy: approvalId },
           );
-          // The decision the reviewer just wrote is now part of the policy.
+          // The decision is on disk; a rule that cites its id can use it from here on. Reloaded
+          // so that a rule already written for it takes effect without a restart.
           authority = await loadAuthority(workspaceRoot);
           return json({
             approval_id: approvalId,
             decision,
             work_id: workId,
-            decision_id: record.id,
+            decision_id: written.id,
             decision_file: relative(workspaceRoot, file),
             result: { content: ran.content, isError: ran.isError ?? false },
           });

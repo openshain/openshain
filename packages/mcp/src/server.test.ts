@@ -383,6 +383,56 @@ rules:
     expect((applied as { payload: { decisionId: string } }).payload.decisionId).toBe(decisionId);
   });
 
+  test("an ill-formed decision changes nothing, and a decided approval cannot be decided twice", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      "version: 1\ndefault: allow\nrules:\n  - id: needs-review\n    match: { tool: fs_write }\n    decision: review_required\n    reviewer: { role: tax-accountant }\n",
+    );
+    const { call, store } = await connected(undefined, root);
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
+    const held = await call("fs_write", { path: "ledger/x.csv", content: "a\n" });
+    const approvalId = held.json().approval_id as string;
+    const reviewer = { name: "田中", role: "tax-accountant" };
+
+    // A date the decision refuses: the approval must stay pending and decidable.
+    const malformed = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer,
+      interpretation: "よい",
+      effective_from: "2026/09/08",
+    });
+    expect(malformed.isError).toBe(true);
+    expect(malformed.text).toContain("not well formed");
+    expect((await store.get(id as never)).status).toBe("waiting_approval");
+    expect((await call("approval_list", {})).json().approvals).toHaveLength(1);
+
+    const decided = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer,
+      interpretation: "よい",
+    });
+    expect(decided.isError).toBe(false);
+
+    const again = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer,
+      interpretation: "もう一度",
+    });
+    expect(again.isError).toBe(true);
+    const decisions = (await store.events(id as never)).filter((e) => e.type === "review.decided");
+    expect(decisions).toHaveLength(1);
+  });
+
   test("a modified call must touch the path that was held", async () => {
     const { root } = await connected();
     await mkdir(join(root, "authority"));
@@ -395,8 +445,8 @@ rules:
       join(root, "authority", "policy.yaml"),
       "version: 1\ndefault: allow\nrules:\n  - id: needs-review\n    match: { tool: fs_write }\n    decision: review_required\n    reviewer: { role: tax-accountant }\n",
     );
-    const { call } = await connected(undefined, root);
-    await call("work_create", { objective: "x" });
+    const { call, store } = await connected(undefined, root);
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
     const held = await call("fs_write", { path: "ledger/x.csv", content: "a\n" });
     const reviewer = { name: "田中", role: "tax-accountant" };
 
@@ -423,6 +473,11 @@ rules:
     expect(corrected.text).not.toContain("same path");
     expect(corrected.isError).toBe(false);
     expect(await readFile(join(root, "ledger", "x.csv"), "utf8")).toBe("直した\n");
+    // What the reviewer changed is in the record, not only in the file.
+    const decided = (await store.events(id as never)).find((e) => e.type === "approval.decided");
+    expect(
+      (decided as { payload: { modifiedInput?: { content?: string } } }).payload.modifiedInput,
+    ).toMatchObject({ content: "直した\n" });
   });
 
   test("a rejected review refuses the call and the work goes on", async () => {

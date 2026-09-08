@@ -497,13 +497,10 @@ async function csvWrite(
   columns: unknown,
 ): Promise<ToolResult> {
   if (!Array.isArray(rows)) throw new Error("rows must be an array of objects");
-  const safeRows = (rows as Record<string, unknown>[]).map((row) =>
-    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, neutralizeFormula(value)])),
+  const content = csvText(
+    rows as Record<string, unknown>[],
+    Array.isArray(columns) ? (columns as string[]) : undefined,
   );
-  const content = stringify(safeRows, {
-    header: true,
-    ...(Array.isArray(columns) && { columns: columns as string[] }),
-  });
   const after = await writeText(ctx, path, content);
   return {
     content: [{ type: "text", text: `wrote ${rows.length} rows to ${after.path}` }],
@@ -790,6 +787,17 @@ function failure(message: string): ToolResult {
  * Spreadsheets run a cell that starts with =, +, @ or - as a formula. A leading apostrophe keeps
  * it text. Negative numbers are left alone.
  */
+/**
+ * The rows of a csv_write as the file will read them, with the header and the formula guard.
+ * The screen shows this before a person approves a write, so both go through one function.
+ */
+export function csvText(rows: Record<string, unknown>[], columns?: string[]): string {
+  const safeRows = rows.map((row) =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, neutralizeFormula(value)])),
+  );
+  return stringify(safeRows, { header: true, ...(columns && { columns }) });
+}
+
 function neutralizeFormula(value: unknown): unknown {
   if (typeof value !== "string") return value;
   return /^[=+@\t\r]/.test(value) || /^-(?![0-9.])/.test(value) ? `'${value}` : value;

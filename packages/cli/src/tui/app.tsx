@@ -263,7 +263,7 @@ export function App({ controller }: { controller: Controller }) {
       ) : null}
       <Text dimColor wrap="truncate">
         {approval
-          ? "↑ ↓ と Enter、または数字で選ぶ。Esc は実行しない。Ctrl-C で保留のまま止める"
+          ? "↑ ↓ と Enter、または数字で選ぶ。Esc は拒否します。Ctrl-C は保留のまま止めます"
           : bottom}
       </Text>
     </Box>

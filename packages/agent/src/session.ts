@@ -326,9 +326,13 @@ export async function createSession(
           return { reply: text };
         case "tool_call": {
           const calls = response.message.content.filter((p) => p.type === "tool_call");
-          for (const call of calls) {
-            if (signal?.aborted) return { reply: text, stopped: "aborted" };
+          for (const [index, call] of calls.entries()) {
+            if (signal?.aborted) {
+              await closeRest(calls, index, "the turn stopped before this call ran");
+              return { reply: text, stopped: "aborted" };
+            }
             if (toolCalls >= TURN_LIMITS.toolCalls) {
+              await closeRest(calls, index, "the turn reached its limit before this call ran");
               return {
                 reply: text,
                 stopped: "turn_limit",
@@ -337,8 +341,16 @@ export async function createSession(
             }
             toolCalls += 1;
             const outcome = await callTool(call, signal);
-            if (outcome === "withdrawn") return { reply: text, stopped: "aborted" };
+            if (outcome === "withdrawn") {
+              await closeRest(calls, index + 1, "the turn stopped before this call ran");
+              return { reply: text, stopped: "aborted" };
+            }
             if (outcome === "held" && held) {
+              await closeRest(
+                calls,
+                index + 1,
+                "the turn stopped for an approval before this call ran",
+              );
               return { reply: text, stopped: "approval", approval: held };
             }
           }
@@ -368,16 +380,6 @@ export async function createSession(
     signal: AbortSignal | undefined,
   ): Promise<"done" | "withdrawn" | "held"> {
     const workId = task?.id ?? id;
-    // The loop drives these itself; a model that calls them is refused before the runtime sees it.
-    const refusal = LOOP_ONLY_TOOLS.has(call.name)
-      ? `${call.name} is the loop's own; it is not a tool for the model`
-      : !task && (call.name === "work_complete" || call.name === "work_fail")
-        ? `${call.name} needs a work of its own: no work is open; start one with work_create`
-        : undefined;
-    if (refusal) {
-      finish(call.id, { content: [{ type: "text", text: refusal }], isError: true, text: "" });
-      return "done";
-    }
     events.push(
       local("tool.called", {
         callId: call.id,
@@ -387,6 +389,20 @@ export async function createSession(
       }),
     );
     await options.onEvent?.(workId, events.at(-1) as AnyEvent);
+    // The loop drives these itself; a model that calls them is refused before the runtime sees it.
+    const refusal = LOOP_ONLY_TOOLS.has(call.name)
+      ? `${call.name} is the loop's own; it is not a tool for the model`
+      : !task && (call.name === "work_complete" || call.name === "work_fail")
+        ? `${call.name} needs a work of its own: no work is open; start one with work_create`
+        : undefined;
+    if (refusal) {
+      await finish(call.id, {
+        content: [{ type: "text", text: refusal }],
+        isError: true,
+        text: "",
+      });
+      return "done";
+    }
     const input =
       call.name === "work_create" && call.input && typeof call.input === "object"
         ? { ...(call.input as Record<string, unknown>), parent: id, agent_name: agentName }
@@ -431,7 +447,7 @@ export async function createSession(
       if (call.name === "work_select" && data.status === "waiting_input") {
         const answered = await answerPending(workId, signal);
         if (answered === "withdrawn") {
-          finish(call.id, result);
+          await finish(call.id, result);
           return "withdrawn";
         }
         if (answered.length > 0) {
@@ -466,7 +482,7 @@ export async function createSession(
           answer = await options.onInput(asked, question);
         } catch {
           // The person took the question back: the work stays waiting_input.
-          finish(call.id, {
+          await finish(call.id, {
             content: [{ type: "text", text: "the person withdrew the question; the work waits" }],
             isError: true,
             text: "",
@@ -497,7 +513,7 @@ export async function createSession(
       // A review needs a qualified person, so the turn stops whatever the screen can ask.
       if (pending.kind === "review") {
         held = pending;
-        finish(call.id, {
+        await finish(call.id, {
           content: [
             {
               type: "text",
@@ -513,7 +529,7 @@ export async function createSession(
       // ends and the call stays held for /approve or for another client.
       if (!options.onApproval) {
         held = pending;
-        finish(call.id, {
+        await finish(call.id, {
           content: [
             {
               type: "text",
@@ -526,7 +542,7 @@ export async function createSession(
         return "held";
       }
       let answer: ApprovalAnswer;
-      if (standing.has(pending.ruleId)) {
+      if (pending.ruleId !== "" && standing.has(pending.ruleId)) {
         answer = { choice: "approve" };
       } else {
         try {
@@ -534,7 +550,7 @@ export async function createSession(
         } catch {
           // The person left it undecided: the work stays waiting_approval and the turn ends.
           held = pending;
-          finish(call.id, {
+          await finish(call.id, {
             content: [
               {
                 type: "text",
@@ -546,7 +562,7 @@ export async function createSession(
           });
           return "held";
         }
-        if (answer.choice === "always") standing.add(pending.ruleId);
+        if (answer.choice === "always" && pending.ruleId !== "") standing.add(pending.ruleId);
       }
       const standingNote =
         answer.choice === "always"
@@ -566,10 +582,14 @@ export async function createSession(
         | { result?: { content: ToolContent[]; isError: boolean } }
         | undefined;
       if (decided.isError) {
-        finish(call.id, decided);
-      } else if (answer.choice === "reject") {
+        // The work is still waiting; nothing the model does next can move it.
+        held = pending;
+        await finish(call.id, decided);
+        return "held";
+      }
+      if (answer.choice === "reject") {
         const said = answer.comment ? ` They said: ${answer.comment}` : "";
-        finish(call.id, {
+        await finish(call.id, {
           content: [
             {
               type: "text",
@@ -580,7 +600,7 @@ export async function createSession(
           text: "",
         });
       } else {
-        finish(call.id, {
+        await finish(call.id, {
           content: outcome?.result?.content ?? [{ type: "text", text: "approved" }],
           isError: outcome?.result?.isError ?? false,
           text: "",
@@ -588,7 +608,7 @@ export async function createSession(
       }
       return "done";
     }
-    finish(call.id, result);
+    await finish(call.id, result);
     if (!result.isError && (call.name === "work_complete" || call.name === "work_fail") && task) {
       const closed = task;
       task = undefined;
@@ -631,14 +651,25 @@ export async function createSession(
     return answers;
   }
 
-  function finish(callId: string, result: ClientResult): void {
+  /**
+   * Gives every call from `from` on a result, so that the projection stays well formed: a tool
+   * call without a result cannot be sent to a model, and the next turn would refuse to build.
+   */
+  async function closeRest(calls: { id: string }[], from: number, text: string): Promise<void> {
+    for (const call of calls.slice(from)) {
+      await finish(call.id, { content: [{ type: "text", text }], isError: true, text: "" });
+    }
+  }
+
+  async function finish(callId: string, result: ClientResult): Promise<void> {
     const event = local("tool.completed", {
       callId,
       content: result.content,
       isError: result.isError,
     });
     events.push(event);
-    void options.onEvent?.(task?.id ?? id, event);
+    // The screen draws from these in order, so the result waits for the caller as the call did.
+    await options.onEvent?.(task?.id ?? id, event);
   }
 
   /** Once a work is closed, only its summary stays in the conversation: the tool results are folded away. */

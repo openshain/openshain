@@ -150,4 +150,18 @@ describe("previewCall", () => {
     expect(long).toHaveLength(25);
     expect(long.at(-1)?.text).toMatch(/^ほか \d+ 行$/);
   });
+
+  test("a tool that does not write a file shows its input, not a diff of one", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-preview-"));
+    await writeFile(join(root, "note.md"), "元の行\n");
+
+    const lines = await previewCall(root, {
+      name: "email_send",
+      input: { path: "note.md", content: "差し替え\n" },
+    });
+
+    expect(lines).toEqual([
+      { kind: "note", text: JSON.stringify({ path: "note.md", content: "差し替え\n" }) },
+    ]);
+  });
 });

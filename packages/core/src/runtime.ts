@@ -159,8 +159,8 @@ export async function createToolRegistry(
 }
 
 /**
- * The one place that allows or refuses a call before it runs. At this stage it knows only
- * the allow lists; a later authority engine plugs in here.
+ * The one place that allows or refuses a call before it runs by name alone. What the workspace
+ * allows a call to do is decided after this, by the policy in `authority/`.
  */
 function authorize(
   registry: ToolRegistry,
