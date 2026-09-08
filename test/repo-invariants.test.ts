@@ -32,6 +32,18 @@ describe("packages", () => {
     expect(existsSync(join(packagesDir, name, "src", "index.ts"))).toBe(true);
   });
 
+  test.each(packages)("%s publishes the project's license and notice", (name: string) => {
+    // Apache-2.0 asks that both travel with every copy, and npm ships only what `files` lists.
+    const pkg = JSON.parse(readFileSync(join(packagesDir, name, "package.json"), "utf8"));
+    expect(pkg.files).toContain("LICENSE");
+    expect(pkg.files).toContain("NOTICE");
+    for (const file of ["LICENSE", "NOTICE"]) {
+      expect(readFileSync(join(packagesDir, name, file), "utf8")).toBe(
+        readFileSync(join(root, file), "utf8"),
+      );
+    }
+  });
+
   test("bun.lock records the version each workspace package declares", () => {
     // bun publish and bun pm pack take workspace versions from the lockfile, so a stale
     // lockfile publishes a package that depends on the previous release.

@@ -30,7 +30,8 @@
     "!src/**/*.test.ts",
     "!src/**/*.test.tsx",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "exports": {
     ".": {

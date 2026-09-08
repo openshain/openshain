@@ -59,6 +59,7 @@ jobs:
             bun scripts/build.ts --target "$target" --outfile "dist/openshain-${target#bun-}"
           done
           (cd dist && sha256sum openshain-* > SHA256SUMS)
+          test -s dist/THIRD-PARTY-NOTICES.txt
           ls -la dist
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -87,7 +88,7 @@ jobs:
           # A tag with a suffix (v0.2.0-rc.1, v0.2.0-beta.2) is a prerelease; only vX.Y.Z is stable.
           prerelease=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
-          gh release create "$GITHUB_REF_NAME" dist/openshain-* dist/SHA256SUMS --title "openshain ${GITHUB_REF_NAME#v}" --notes-file notes.md $prerelease
+          gh release create "$GITHUB_REF_NAME" dist/openshain-* dist/SHA256SUMS dist/THIRD-PARTY-NOTICES.txt --title "openshain ${GITHUB_REF_NAME#v}" --notes-file notes.md $prerelease
 
       - name: Tell the website about a stable release
         # The website builds from the commit named here. See docs/website-integration.md.

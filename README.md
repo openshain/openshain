@@ -304,6 +304,8 @@ bun run build:packages                 # npm に公開する JavaScript を各 p
 
 ## ライセンス
 
-Apache-2.0。[LICENSE](LICENSE) と [NOTICE](NOTICE) を見てください。
+Apache-2.0。[LICENSE](LICENSE) と [NOTICE](NOTICE) を確認してください。
+
+単体バイナリは依存するソフトウェアを同梱するため、それぞれのライセンスが求める表示をまとめた `THIRD-PARTY-NOTICES.txt` を Release に添付しています。npm のパッケージは依存を同梱しないので、各依存のライセンスはインストール先にそのまま入ります。
 
 <p align="center"><sub><a href="SECURITY.md">脆弱性の報告</a> · <a href="CONTRIBUTING.md">貢献のしかた</a> · <a href="CHANGELOG.md">変更の履歴</a> · <a href="assets/README.md">ロゴ</a></sub></p>

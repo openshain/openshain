@@ -306,4 +306,6 @@ bun run build:packages                 # emits the JavaScript published to npm i
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
+The single-file binaries carry the software they depend on, so every release ships a `THIRD-PARTY-NOTICES.txt` with the notices those licenses ask for. The npm packages bundle nothing, so each dependency arrives with its own license.
+
 <p align="center"><sub><a href="SECURITY.md">Report a vulnerability</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="assets/README.md">Logo</a></sub></p>
