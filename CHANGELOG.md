@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-09
+
 ### Added
 
 - 資格者の Review。規則が `review_required` と判定した呼び出しは、Review Package(呼び出し、そこまでの Tool 呼び出し、社員エージェントの提案、問い)を記録して止まります。`review_decide`(画面では `/review <id> approve`)で資格者の判断を記録すると、`authority/decisions/` に判断が書かれ、Runtime が呼び出しを実行します。`decision_backed` の規則はその判断を引き、有効日と適用範囲を確かめてから実行します。イベントは `review.requested`、`review.decided`、`decision.applied` です。Review Package の写しは `work/<id>/review/` に置きます。資格は会社の申告として記録し、openshain は検証しません。承認と判断の Tool は対話型 CLI のモデルには渡しません。規則が求める役(`reviewer.role`)と違う役の名では判断を記録できません
@@ -97,7 +99,8 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/openshain/openshain/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/openshain/openshain/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/openshain/openshain/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/openshain/openshain/compare/v0.1.1...v0.2.0

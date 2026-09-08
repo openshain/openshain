@@ -32,7 +32,7 @@ openshain · サンプル株式会社 · 社員エージェント すみれ · a
  ╔═╗ ╔═╗ ╔═╗ ╔╗╔ ╔═╗ ╦ ╦ ╔═╗ ╦ ╔╗╔
  ║ ║ ╠═╝ ║╣  ║║║ ╚═╗ ╠═╣ ╠═╣ ║ ║║║
  ╚═╝ ╩   ╚═╝ ╝╚╝ ╚═╝ ╩ ╩ ╩ ╩ ╩ ╝╚╝
-openshain 0.3.1
+openshain 0.4.0
 /home/alice/sample-company
 
 > 7月の領収書を category ごとに集計して、件数と合計を summary.md に書いて

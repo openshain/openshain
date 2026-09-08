@@ -34,7 +34,7 @@ openshain · Sample Inc. · 社員エージェント Reed · anthropic/claude-op
  ╔═╗ ╔═╗ ╔═╗ ╔╗╔ ╔═╗ ╦ ╦ ╔═╗ ╦ ╔╗╔
  ║ ║ ╠═╝ ║╣  ║║║ ╚═╗ ╠═╣ ╠═╣ ║ ║║║
  ╚═╝ ╩   ╚═╝ ╝╚╝ ╚═╝ ╩ ╩ ╩ ╩ ╩ ╝╚╝
-openshain 0.3.1
+openshain 0.4.0
 /home/alice/sample-company
 
 > Total July's receipts by category and write the counts and sums to summary.md
