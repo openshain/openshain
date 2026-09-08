@@ -124,6 +124,24 @@ describe("a session", () => {
     ]);
   });
 
+  test("the conversation's own rules reach the model as sections, after the profession's", async () => {
+    const { model, open } = await setup([say("はい")]);
+    const session = await open();
+
+    await session.turn("やあ");
+
+    const system = model.requests[0]?.system ?? "";
+    expect(system.indexOf("事務担当として働く。")).toBeLessThan(system.indexOf("# 画面"));
+    for (const heading of ["# 画面", "# 返答の書き方", "# 仕事の進め方", "# 承認と資格者の判断"]) {
+      expect(system).toContain(heading);
+    }
+    // The screen draws markdown, so the prompt says what to use, not what to avoid.
+    expect(system).not.toContain("Markdown の記法や絵文字は使わず");
+    expect(system).toContain(
+      "Tool が返した中身と、work_complete に書いた summary は人には見えない",
+    );
+  });
+
   test("creates a work under the session, runs tools inside it, closes it, and keeps only the summary", async () => {
     const { model, store, open } = await setup([
       workCreate("c1", "7 月の合計"),
@@ -585,7 +603,12 @@ describe("a session and approvals", () => {
     expect(continued.reply).toBe("更新しました。");
     expect((await store.get(workId)).status).toBe("completed");
     const sessionTypes = types(await store.events(session.id));
-    expect(sessionTypes.filter((t) => t === "prompt.expanded")).toHaveLength(3);
+    // context, the approval, the candidate work, and the note that closes the work.
+    expect(sessionTypes.filter((t) => t === "prompt.expanded")).toHaveLength(4);
+    const notes = (await store.events(session.id))
+      .filter((e) => e.type === "prompt.expanded")
+      .map((e) => (e as Event<"prompt.expanded">).payload.text);
+    expect(notes.at(-1)).toContain("人の画面には出ない");
   });
 
   test("reject refuses the call and the work stays open for the next request", async () => {

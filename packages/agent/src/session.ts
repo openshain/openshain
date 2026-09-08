@@ -34,8 +34,33 @@ const LOOP_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "review_decide",
 ]);
 
-const ROLE =
-  "あなたはこの会社の社員エージェントとして、受付の役で、この人と話す。作業が要るときは work_create で Work を作り(objective は人の言葉で書き、会話で分かった前提を添える)、その Work の中で Tool を呼び、終わったら work_complete で summary を人の言葉で書いて閉じる。会話の中では Tool を呼べないので、ファイルの中身を見ないと答えられない質問も Work を作って調べる。件数や金額は Tool が返した値をそのまま書き、計算し直さない。/work resume で候補として示された Work は、人の依頼がその objective に沿うときだけ work_select で続ける。沿わなければ続けず、その旨を伝えて新しい Work を作るか work_list で探し直す。返答は端末の画面に出るので、Markdown の記法や絵文字は使わず、短い文で書く。過去の作業は work_list と work_get で答える。日付や時刻が要るときは context を呼び、自分で推測しない。";
+/**
+ * What the conversation adds to the profession's own instructions. Written as sections, and as
+ * what to do rather than what to avoid: models differ in how much they say after a tool call,
+ * so the screen's side of the contract is stated here instead of left to a model's default.
+ */
+const ROLE = [
+  "# 画面",
+  "あなたの返答は端末の画面に出る。人に見えるのは、あなたが書いた文と、Tool 呼び出しの名前と引数の 1 行だけ。Tool が返した中身と、work_complete に書いた summary は人には見えない。依頼の答えは返答に書く。",
+  "",
+  "# 返答の書き方",
+  "- 結果から書く。前置き(「承知しました」)と後置き(「ご不明な点があれば」)は書かない",
+  "- 依頼が終わったターンでは、何をしたか、答えになる数字(件数、金額、書いたファイルの場所)を書く。次にできることがあれば 1 行で添える",
+  "- 見出し、箇条書き、番号、太字、コードブロック、引用が使える。画面がそのまま書式として描く。表は書式にならないので、箇条書きにする",
+  "- 数字は Tool が返した値をそのまま書く",
+  "- 長さは依頼の大きさに合わせる。1 行で足りる依頼には 1 行で答える",
+  "",
+  "# 仕事の進め方",
+  "- あなたは受付の役でこの人と話す。作業が要るときは work_create で Work を作り(objective は人の言葉で書き、会話で分かった前提を添える)、その Work の中で Tool を呼び、work_complete の summary に記録用の要約を書いて閉じる。summary は記録に残すもの、返答は人に伝えるもの",
+  "- 会話の中では Tool を呼べない。ファイルの中身を読まないと答えられない質問も、Work を作って調べる",
+  "- /work resume で候補として示された Work は、人の依頼がその objective に沿うときだけ work_select で続ける。沿わなければ続けず、その旨を伝えて新しい Work を作るか work_list で探し直す",
+  "- 過去の作業は work_list と work_get で答える",
+  "",
+  "# 承認と資格者の判断",
+  "- 承認が要る呼び出しは止まる。人が決めるまで待ち、同じ呼び出しを繰り返さない",
+  "- 実行しないと決められた呼び出しは、理由を読んで別の案を出す。同じ入力で呼び直さない",
+  "- 承認と判断は人と資格者の仕事で、あなたの仕事ではない",
+].join("\n");
 
 export interface SessionOptions {
   /** The model the conversation runs on. The client owns it; the runtime never calls one. */
@@ -613,6 +638,15 @@ export async function createSession(
       const closed = task;
       task = undefined;
       foldAway(closed, call.id);
+      // The rule that matters most is stated where it is needed, not only in the system prompt:
+      // the work is closed and its summary went to the record, so the person has read nothing
+      // yet. Smaller models end the turn with an acknowledgement without this.
+      const note =
+        call.name === "work_complete"
+          ? `Work ${closed.id} を閉じた。summary は記録に残るだけで、人の画面には出ない。この後の返答で、何をしたかと結果の数字を人に伝える。`
+          : `Work ${closed.id} は失敗として閉じた。この後の返答で、どこまで進んで何が起きたかを人に伝える。`;
+      events.push(local("prompt.expanded", { name: "work closed", source: "runtime", text: note }));
+      await record(id, "prompt.expanded", { name: "work closed", source: "runtime", text: note });
       await options.onEvent?.(
         closed.id,
         local(

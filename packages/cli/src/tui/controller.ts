@@ -280,6 +280,8 @@ export async function createController(options: ControllerOptions): Promise<Cont
   };
 
   let sessionId: WorkId | undefined;
+  /** Summaries of the works completed in this turn, until the agent reports them itself. */
+  let unreported: string[] = [];
   const session: Session = await createSession(client, {
     model,
     config,
@@ -309,6 +311,12 @@ export async function createController(options: ControllerOptions): Promise<Cont
           id: workId,
           status: event.type === "work.completed" ? "completed" : "failed",
         };
+        if (event.type === "work.completed") {
+          // Held, not shown: the agent is the one who tells the person what happened. It is
+          // shown only if the turn ends without the agent saying anything (see submit).
+          const { summary } = (event as Event<"work.completed">).payload;
+          if (summary.trim() !== "") unreported.push(summary.trim());
+        }
         return closingLines(workId);
       }
       // The work_* calls are the loop's own bookkeeping; the closing lines already say the work ended.
@@ -547,10 +555,15 @@ export async function createController(options: ControllerOptions): Promise<Cont
         return;
       }
       push("user", text);
+      unreported = [];
       await stoppable(async (signal) => {
         try {
           const result = await session.turn(text, { signal });
-          if (result.reply) push("assistant", result.reply);
+          // What the work recorded is the agent's own writing, so it stands in when the turn
+          // ends with nothing said. Without this the person is left with a work that finished
+          // and no answer, which is what a model that skips its summary leaves behind.
+          const reply = result.reply.trim() === "" ? unreported.join("\n\n") : result.reply;
+          if (reply) push("assistant", reply);
           const note = explain(result);
           if (note) push("notice", note);
         } catch (err) {

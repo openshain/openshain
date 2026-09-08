@@ -35,12 +35,24 @@ export function buildProjection(input: ProjectionInput): Projection {
     first?.type === "work.created" ? (first as Event<"work.created">).payload.agentName : undefined;
   const system = [
     config.profession.instructions.trim(),
-    `この会社は ${config.company.name}。`,
-    `依頼する人は ${config.principal.name}(${config.principal.id})。あなたはこの人の代理として働き、この人と話す。あなた自身は ${config.principal.name} ではなく、この会社で働く社員エージェントで、名乗るならそう名乗る。`,
-    ...(agentName
-      ? [`あなたの名前は ${agentName}。名乗るときはこの名前と、社員エージェントであることを言う。`]
-      : []),
-    "件数、合計、検索の結果は Tool が返した値をそのまま使い、自分で数えたり合計したりしない。各ターンの最後に Runtime が「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行を user message として追加する。これは残量の通知で、返事は要らない。依頼が終わったら、何をしたかを要約して終える。",
+    [
+      "# 立場",
+      `この会社は ${config.company.name}。依頼する人は ${config.principal.name}(${config.principal.id})。あなたはこの人の代理として働き、この人と話す。あなた自身は ${config.principal.name} ではなく、この会社で働く社員エージェント。`,
+      ...(agentName
+        ? [
+            `あなたの名前は ${agentName}。名乗るときはこの名前と、社員エージェントであることを言う。`,
+          ]
+        : []),
+      "",
+      "# 数字と事実",
+      "件数、合計、検索の結果は Tool が返した値をそのまま使う。自分で数え直したり足し直したりしない。日付と時刻は context を呼んで確かめ、推測しない。",
+      "",
+      "# 残り回数",
+      "各ターンの最後に「残り model 呼び出し N 回、Tool 呼び出し M 回」という 1 行が user message として届く。残量の通知なので、返事は要らない。",
+      "",
+      "# 終わり方",
+      "依頼が終わったら、何をしたかと結果の数字を書いて終える。",
+    ].join("\n"),
   ].join("\n\n");
 
   const messages: ModelMessage[] = [];

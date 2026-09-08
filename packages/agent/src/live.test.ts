@@ -31,7 +31,7 @@ principal:
 profession:
   id: generic
   instructions: |
-    あなたはこの会社の事務担当です。依頼された作業を、workspace 内のファイルだけを使って進めてください。
+    あなたはこの会社の一般事務の社員エージェントです。依頼された作業を、workspace 内のファイルだけを使って進めてください。
 model:
 ${modelSection}tools:
   - provider: standard
@@ -77,6 +77,34 @@ async function smoke(modelSection: string) {
   return { done, summary };
 }
 
+/** The models the reply has to reach the person on: a small one and a large one. */
+const REPORTING_MODELS = (
+  process.env.OPENSHAIN_LIVE_MODELS ?? "claude-haiku-4-5-20251001,claude-opus-5"
+)
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+
+/** Runs the same request and returns what the person would read on the screen. */
+async function report(modelSection: string) {
+  const root = await workspace(modelSection);
+  const config = await loadConfig(root, { modelProviders: Object.keys(providers.models) });
+  const modelConfig = config.model as NonNullable<typeof config.model>;
+  const model = (providers.models[modelConfig.provider] as (m: typeof modelConfig) => never)(
+    modelConfig,
+  );
+  const server = await createMcpServer({ workspaceRoot: root, tools: providers.tools });
+  const client = await connectInMemory(server);
+  const session = await createSession(client, { model, config });
+  const turn = await session.turn(
+    "receipts/2026-07.csv の amount を合計して、結果を教えてください。",
+  );
+  const store = new WorkStore(root);
+  const work = (await store.list()).works.find((w) => w.type !== "session");
+  const done = work ? await store.get(work.id) : { status: "no work" };
+  return { reply: turn.reply, done };
+}
+
 describe("live smoke", () => {
   test.skipIf(!live)(
     "Anthropic: reads the CSV and writes the summary",
@@ -103,4 +131,22 @@ describe("live smoke", () => {
     },
     180_000,
   );
+
+  // The person sees the reply and the tool call lines, never the tool results or the work's
+  // summary. A model that finishes the work and says nothing leaves them with no answer, so the
+  // number the tools produced has to appear in what the agent writes back.
+  for (const name of REPORTING_MODELS) {
+    test.skipIf(!live)(
+      `${name}: the total reaches the person in the reply`,
+      async () => {
+        const { reply, done } = await report(
+          `  provider: anthropic\n  model: ${name}\n  api_key_env: ANTHROPIC_API_KEY\n`,
+        );
+
+        expect(done.status).toBe("completed");
+        expect(reply).toContain("350");
+      },
+      180_000,
+    );
+  }
 });

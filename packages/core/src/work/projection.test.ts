@@ -102,8 +102,15 @@ describe("buildProjection", () => {
     expect(projection.system).toContain("依頼する人は Alice(alice)");
     expect(projection.system).toContain("あなた自身は Alice ではなく");
     expect(projection.system).toContain("返事は要らない");
-    expect(projection.system).toContain("自分で数えたり合計したりしない");
+    expect(projection.system).toContain("自分で数え直したり足し直したりしない");
     expect(projection.system).not.toContain("あなたの名前は");
+    // The prompt is written in sections, and the profession's own instructions come first.
+    expect(projection.system.indexOf("事務担当として働く。")).toBeLessThan(
+      projection.system.indexOf("# 立場"),
+    );
+    for (const heading of ["# 立場", "# 数字と事実", "# 残り回数", "# 終わり方"]) {
+      expect(projection.system).toContain(heading);
+    }
   });
 
   test("starts the conversation with the objective as a user message", () => {

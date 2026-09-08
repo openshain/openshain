@@ -177,6 +177,34 @@ describe("the screen's controller", () => {
     expect(controller.state().status.work?.status).toBe("completed");
   });
 
+  test("a turn that ends with nothing said shows the work's own summary", async () => {
+    // Some models put the result in the work's summary and say nothing to the person. The
+    // answer must still reach the screen.
+    const { controller } = await setup([
+      workCreate("c1", "集計して"),
+      csvRead("c2"),
+      workComplete("c3", "7月分は 296 件、合計 100 円でした。"),
+      say("   "),
+    ]);
+
+    await controller.submit("集計して");
+
+    expect(texts(controller, "assistant")).toEqual(["7月分は 296 件、合計 100 円でした。"]);
+  });
+
+  test("what the agent says stands on its own; the summary is not repeated under it", async () => {
+    const { controller } = await setup([
+      workCreate("c1", "集計して"),
+      csvRead("c2"),
+      workComplete("c3", "7月分は 100 円"),
+      say("7月分は 100 円でした。"),
+    ]);
+
+    await controller.submit("集計して");
+
+    expect(texts(controller, "assistant")).toEqual(["7月分は 100 円でした。"]);
+  });
+
   test("stops a running work on interrupt; /work resume makes it the candidate and the next request continues it", async () => {
     const { controller, store } = await setup([
       workCreate("c1", "集計して"),
