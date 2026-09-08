@@ -257,6 +257,154 @@ describe("openshain over MCP", () => {
     ]);
   });
 
+  test("a review holds the call, the package is recorded, the decision is written, and the next call cites it", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: tax-treatment-needs-review
+    match: { tool: csv_write, path: "ledger/**" }
+    decision: review_required
+    reviewer: { role: tax-accountant }
+    reason: 税務上の取扱いを確認してください
+`,
+    );
+    const { call, store } = await connected(undefined, root);
+    const id = (await call("work_create", { objective: "7 月の帳簿" })).json().id as string;
+    await call("csv_read", { path: "receipts/2026-07.csv" });
+
+    const held = await call("csv_write", {
+      path: "ledger/2026-07.csv",
+      rows: [{ date: "2026-07-01", amount: "100" }],
+    });
+
+    expect(held.isError).toBe(false);
+    expect(held.json()).toMatchObject({
+      pending: "review",
+      rule_id: "tax-treatment-needs-review",
+      reviewer: { role: "tax-accountant" },
+    });
+    const approvalId = held.json().approval_id as string;
+    expect((await store.get(id as never)).status).toBe("waiting_approval");
+    const requested = (await store.events(id as never)).find((e) => e.type === "review.requested");
+    expect(
+      (requested as { payload: { package: Record<string, unknown> } }).payload.package,
+    ).toMatchObject({
+      action: { tool: "csv_write" },
+      facts: ["csv_read receipts/2026-07.csv"],
+      question: "税務上の取扱いを確認してください",
+      requestedBy: "alice",
+    });
+
+    // A person cannot stand in for the reviewer.
+    const wrongDoor = await call("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+    expect(wrongDoor.isError).toBe(true);
+    expect(wrongDoor.text).toContain("review_decide");
+    const noWords = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer: { name: "田中", role: "tax-accountant" },
+    });
+    expect(noWords.isError).toBe(true);
+    expect(noWords.text).toContain("interpretation");
+
+    const decided = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer: { name: "田中 太郎", role: "tax-accountant", qualification: "税理士(会社の申告)" },
+      interpretation: "この処理で進めてよい",
+      applies_to: { path: "ledger/**" },
+    });
+
+    expect(decided.isError).toBe(false);
+    expect(decided.json().result.isError).toBe(false);
+    const decisionId = decided.json().decision_id as string;
+    expect(decided.json().decision_file).toBe(join("authority", "decisions", `${decisionId}.yaml`));
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toContain("2026-07-01");
+    expect((await store.get(id as never)).status).toBe("in_progress");
+    const types = (await store.events(id as never)).map((e) => e.type);
+    expect(types).toEqual(
+      expect.arrayContaining([
+        "approval.requested",
+        "review.requested",
+        "approval.decided",
+        "review.decided",
+      ]),
+    );
+
+    // With the decision written, a rule that cites it lets the same call run without a review.
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: tax-treatment-decided
+    match: { tool: csv_write, path: "ledger/**" }
+    decision: decision_backed
+    decision_id: ${decisionId}
+`,
+    );
+    const { call: after } = await connected(undefined, root);
+    const second = (await after("work_create", { objective: "8 月の帳簿" })).json().id as string;
+    const ran = await after("csv_write", {
+      path: "ledger/2026-08.csv",
+      rows: [{ date: "2026-08-01", amount: "200" }],
+    });
+
+    expect(ran.isError).toBe(false);
+    const applied = (await store.events(second as never)).find(
+      (e) => e.type === "decision.applied",
+    );
+    expect((applied as { payload: { decisionId: string } }).payload.decisionId).toBe(decisionId);
+  });
+
+  test("a rejected review refuses the call and the work goes on", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      "version: 1\ndefault: allow\nrules:\n  - id: needs-review\n    match: { tool: fs_write }\n    decision: review_required\n    reviewer: { role: tax-accountant }\n",
+    );
+    const { call, store } = await connected(undefined, root);
+    const id = (await call("work_create", { objective: "x" })).json().id as string;
+    const held = await call("fs_write", { path: "ledger/x.csv", content: "a\n" });
+
+    const rejected = await call("review_decide", {
+      approval_id: held.json().approval_id,
+      decision: "reject",
+      reviewer: { name: "田中", role: "tax-accountant" },
+      interpretation: "この処理は認められない",
+    });
+
+    expect(rejected.isError).toBe(false);
+    expect(existsSync(join(root, "ledger", "x.csv"))).toBe(false);
+    expect((await store.get(id as never)).status).toBe("in_progress");
+    const decided = (await store.events(id as never)).find((e) => e.type === "review.decided");
+    expect((decided as { payload: { decisionId?: string } }).payload.decisionId).toBeUndefined();
+    const refusal = (await store.events(id as never))
+      .filter((e) => e.type === "tool.rejected")
+      .at(-1);
+    expect((refusal as { payload: { reason: string } }).payload.reason).toBe(
+      "この処理は認められない",
+    );
+  });
+
   test("caps the size of what a client can record and the length of the names it can set", async () => {
     const { call } = await connected();
     const id = (await call("work_create", { objective: "会話", type: "session" })).json()

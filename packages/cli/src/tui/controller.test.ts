@@ -32,7 +32,7 @@ class HangingModel implements ModelProvider {
 async function setup(
   steps: FakeStep[],
   given?: ModelProvider,
-  options: { authority?: boolean } = {},
+  options: { authority?: boolean; review?: boolean } = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "openshain-tui-"));
   await writeFile(
@@ -65,7 +65,16 @@ tools:
     );
     await writeFile(
       join(root, "authority", "policy.yaml"),
-      `version: 1
+      options.review
+        ? `version: 1
+default: allow
+rules:
+  - id: ledger-needs-review
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: review_required
+    reviewer: { role: tax-accountant }
+`
+        : `version: 1
 default: allow
 rules:
   - id: ledger-needs-approval
@@ -408,6 +417,57 @@ describe("the screen's controller", () => {
     expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("a,b\n1,2\n");
     const work = (await requestWork(store)) as { status: string };
     expect(work.status).toBe("completed");
+  });
+
+  test("a call that needs a reviewer stops the turn and is recorded with /review", async () => {
+    const { controller, store, root } = await setup(
+      [
+        workCreate("c1", "帳簿を更新"),
+        callTools({
+          id: "c2",
+          name: "fs_write",
+          input: { path: "ledger/2026-07.csv", content: "a\n" },
+        }),
+        selectCandidate("c3"),
+        workComplete("c4", "更新しました"),
+        say("記録しました。"),
+      ],
+      undefined,
+      { authority: true, review: true },
+    );
+
+    await controller.submit("7 月の帳簿を書いて");
+
+    // The palette never opens: a person cannot stand in for a qualified reviewer.
+    expect(controller.state().approval).toBeUndefined();
+    const notice = texts(controller, "notice").at(-1) ?? "";
+    expect(notice).toContain("tax-accountantの判断が要ります");
+    const approvalId = /apr_[0-9a-f-]+/.exec(notice)?.[0] as string;
+    expect(notice).toContain(`/review ${approvalId}`);
+    const work = (await requestWork(store)) as { status: string };
+    expect(work.status).toBe("waiting_approval");
+    expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
+
+    await controller.submit("/review");
+    expect(texts(controller, "notice").at(-1)).toContain("approve か");
+
+    const recording = controller.submit(`/review ${approvalId} approve`);
+    await waitFor(() => controller.state().question !== undefined);
+    expect(texts(controller, "question").at(-1)).toContain("Reviewer の名前");
+    await controller.submit("田中 太郎 / 税理士");
+    await waitFor(() => (texts(controller, "question").at(-1) ?? "").includes("判断の本文"));
+    await controller.submit("この処理で進めてよい");
+    await recording;
+
+    expect(texts(controller, "line").at(-1)).toContain("田中 太郎");
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("a\n");
+    const decided = (await store.events((await requestWork(store))?.id as never)).find(
+      (e) => e.type === "review.decided",
+    );
+    expect((decided as { payload: { decisionId?: string } }).payload.decisionId).toMatch(/^dec_/);
+
+    await controller.submit("続けて");
+    expect(texts(controller, "assistant").at(-1)).toBe("記録しました。");
   });
 
   test("no, and tell the agent why: the reason is recorded and reaches the model", async () => {

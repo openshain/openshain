@@ -64,6 +64,9 @@ export interface HeldApproval {
   input: unknown;
   /** The rule that held it: the unit a person can say yes to for the rest of the conversation. */
   ruleId: string;
+  /** review when a qualified reviewer has to decide; a person cannot stand in for one. */
+  kind: "approval" | "review";
+  reviewer?: { role: string; name?: string };
 }
 
 /**
@@ -106,6 +109,14 @@ export interface Session {
     decision: "approve" | "reject",
     comment?: string,
   ): Promise<{ workId: WorkId; text: string }>;
+  /** Records what a qualified reviewer decided about a call held for review. */
+  review(input: {
+    approvalId: string;
+    decision: "approve" | "reject";
+    reviewer: { name: string; role: string; qualification?: string };
+    interpretation: string;
+    appliesTo?: { action?: string; path?: string };
+  }): Promise<{ workId: WorkId; text: string }>;
   /** The calls held for approval across the workspace. */
   approvals(): Promise<HeldApproval[]>;
   /** The work the model is on right now, if any. */
@@ -465,14 +476,32 @@ export async function createSession(
           : { content: [{ type: "text", text: answer }], isError: false, text: answer };
       }
     }
-    if (!result.isError && data?.pending === "approval" && task) {
+    if (!result.isError && (data?.pending === "approval" || data?.pending === "review") && task) {
+      const reviewer = data.reviewer as { role: string; name?: string } | undefined;
       const pending: HeldApproval = {
         approvalId: String(data.approval_id),
         workId: task.id,
         name: call.name,
         input: call.input,
         ruleId: String(data.rule_id ?? ""),
+        kind: data.pending === "review" ? "review" : "approval",
+        ...(reviewer && { reviewer }),
       };
+      // A review needs a qualified person, so the turn stops whatever the screen can ask.
+      if (pending.kind === "review") {
+        held = pending;
+        finish(call.id, {
+          content: [
+            {
+              type: "text",
+              text: `held for a review by a ${reviewer?.role ?? "reviewer"} (${pending.approvalId}); the work waits until the reviewer decides`,
+            },
+          ],
+          isError: false,
+          text: "",
+        });
+        return "held";
+      }
       // With a way to ask, the person decides here and the turn goes on. Without one, the turn
       // ends and the call stays held for /approve or for another client.
       if (!options.onApproval) {
@@ -685,6 +714,35 @@ export async function createSession(
       }
       return { workId, text: note };
     },
+    async review(input) {
+      const decided = await client.call("review_decide", {
+        approval_id: input.approvalId,
+        decision: input.decision,
+        reviewer: input.reviewer,
+        interpretation: input.interpretation,
+        ...(input.appliesTo && { applies_to: input.appliesTo }),
+      });
+      if (decided.isError) throw new Error(decided.text);
+      const data = jsonOf(decided) as {
+        work_id: string;
+        decision_id?: string;
+        decision_file?: string;
+        result?: { isError: boolean };
+      };
+      const workId = data.work_id as WorkId;
+      const note =
+        input.decision === "approve"
+          ? `${input.reviewer.name}(${input.reviewer.role})が承認し、判断を ${data.decision_file} に記録した。Work ${workId} は続けられる。`
+          : `${input.reviewer.name}(${input.reviewer.role})が認めなかった。理由: ${input.interpretation}。Work ${workId} は続けられる。`;
+      events.push(local("prompt.expanded", { name: "review", source: "runtime", text: note }));
+      await record(id, "prompt.expanded", { name: "review", source: "runtime", text: note });
+      const got = await client.call("work_get", { id: workId });
+      const work = jsonOf(got) as Work | undefined;
+      if (work && !isTerminal(work.status)) {
+        candidate = { id: work.id, objective: work.objective, status: work.status };
+      }
+      return { workId, text: note };
+    },
     async approvals() {
       const listed = await client.call("approval_list", {});
       if (listed.isError) throw new Error(listed.text);
@@ -693,6 +751,8 @@ export async function createSession(
           approvalId: string;
           work_id: string;
           ruleId: string;
+          kind: "approval" | "review";
+          reviewer?: { role: string; name?: string };
           call: { name: string; input: unknown };
         }[];
       };
@@ -702,6 +762,8 @@ export async function createSession(
         name: a.call.name,
         input: a.call.input,
         ruleId: a.ruleId,
+        kind: a.kind,
+        ...(a.reviewer && { reviewer: a.reviewer }),
       }));
     },
     async close() {

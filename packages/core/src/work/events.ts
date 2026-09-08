@@ -83,6 +83,12 @@ export interface EventPayloads {
     approvers?: string[];
     reviewer?: { role: string; name?: string };
   };
+  /** The package handed to the reviewer: the call, what the work established, and the question. */
+  "review.requested": { approvalId: string; package: ReviewPackage };
+  /** The reviewer's answer. A decision id when they wrote one; absent when they refused. */
+  "review.decided": { approvalId: string; decisionId?: string };
+  /** A call that ran because an approved decision covers it. */
+  "decision.applied": { callId: string; decisionId: string };
   /** The answer to an approval: approve runs the call, reject refuses it, modify runs it with the reviewer's input. */
   "approval.decided": {
     approvalId: string;
@@ -101,6 +107,23 @@ export interface EventPayloads {
   "evidence.recorded": { claim: string; refs: string[]; artifacts: Artifact[] };
   "work.completed": { summary: string };
   "work.failed": { reason: string; detail: string };
+}
+
+/** What a reviewer is asked to decide on, built from the work's own record. */
+export interface ReviewPackage {
+  approvalId: string;
+  workId: string;
+  action: { name: string; tool: string; input: unknown };
+  /** What the work established before this call: the tool calls it made. */
+  facts: string[];
+  /** Sources and company rules the work cited. Empty until knowledge is in. */
+  sources: { id: string; locator?: string; version?: string }[];
+  companyRules: { id: string; statement: string }[];
+  /** What the agent proposes, in its own words. */
+  proposal: string;
+  question: string;
+  requestedBy: string;
+  requestedAt: string;
 }
 
 export type EventType = keyof EventPayloads;
@@ -208,6 +231,32 @@ export const payloadFileSchemas = {
     approvers: z.array(z.string()).optional(),
     reviewer: z.looseObject({ role: z.string(), name: z.string().optional() }).optional(),
   }),
+  "review.requested": z.looseObject({
+    approval_id: z.string(),
+    package: z.looseObject({
+      approval_id: z.string(),
+      work_id: z.string(),
+      action: z.looseObject({ name: z.string(), tool: z.string(), input: z.unknown() }),
+      facts: z.array(z.string()),
+      sources: z.array(
+        z.looseObject({
+          id: z.string(),
+          locator: z.string().optional(),
+          version: z.string().optional(),
+        }),
+      ),
+      company_rules: z.array(z.looseObject({ id: z.string(), statement: z.string() })),
+      proposal: z.string(),
+      question: z.string(),
+      requested_by: z.string(),
+      requested_at: z.iso.datetime(),
+    }),
+  }),
+  "review.decided": z.looseObject({
+    approval_id: z.string(),
+    decision_id: z.string().optional(),
+  }),
+  "decision.applied": z.looseObject({ call_id: z.string(), decision_id: z.string() }),
   "approval.decided": z.looseObject({
     approval_id: z.string(),
     decision: z.enum(["approve", "reject", "modify"]),
@@ -511,6 +560,56 @@ const codecs: { [T in EventType]?: Codec<T> } = {
         },
       }),
     }),
+  },
+  "review.requested": {
+    toFile: (p) => ({
+      approval_id: p.approvalId,
+      package: {
+        approval_id: p.package.approvalId,
+        work_id: p.package.workId,
+        action: p.package.action,
+        facts: p.package.facts,
+        sources: p.package.sources,
+        company_rules: p.package.companyRules,
+        proposal: p.package.proposal,
+        question: p.package.question,
+        requested_by: p.package.requestedBy,
+        requested_at: p.package.requestedAt,
+      },
+    }),
+    fromFile: (p) => ({
+      approvalId: p.approval_id,
+      package: {
+        approvalId: p.package.approval_id,
+        workId: p.package.work_id,
+        action: p.package.action,
+        facts: p.package.facts,
+        sources: p.package.sources.map((source) => ({
+          id: source.id,
+          ...(source.locator !== undefined && { locator: source.locator }),
+          ...(source.version !== undefined && { version: source.version }),
+        })),
+        companyRules: p.package.company_rules,
+        proposal: p.package.proposal,
+        question: p.package.question,
+        requestedBy: p.package.requested_by,
+        requestedAt: p.package.requested_at,
+      },
+    }),
+  },
+  "review.decided": {
+    toFile: (p) => ({
+      approval_id: p.approvalId,
+      ...(p.decisionId !== undefined && { decision_id: p.decisionId }),
+    }),
+    fromFile: (p) => ({
+      approvalId: p.approval_id,
+      ...(p.decision_id !== undefined && { decisionId: p.decision_id }),
+    }),
+  },
+  "decision.applied": {
+    toFile: (p) => ({ call_id: p.callId, decision_id: p.decisionId }),
+    fromFile: (p) => ({ callId: p.call_id, decisionId: p.decision_id }),
   },
   "approval.decided": {
     toFile: (p) => ({

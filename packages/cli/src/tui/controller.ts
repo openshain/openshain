@@ -101,6 +101,7 @@ const HELP = [
   "/work resume <id>  止まった Work を候補にする。次の依頼がそれに沿えば続ける",
   "/approvals         承認待ちの一覧",
   "/approve <id>      承認して実行する。/reject <id> [理由] で拒否する",
+  "/review <id> approve|reject  資格者の判断を記録する。名前と本文を順に聞く",
   "/tools             使える Tool",
   "/quit              終わる",
   "↑ ↓                前に送った行を入力欄に呼び戻す。いちばん下は新しい入力",
@@ -199,6 +200,15 @@ export async function createController(options: ControllerOptions): Promise<Cont
   let closing: Promise<void> | undefined;
   const names = new Map<string, string>();
 
+  /** Asks the person for one line and waits for it. The next line they type is the answer. */
+  const askLine = (question: string): Promise<string> => {
+    state.question = question;
+    push("question", question);
+    notify();
+    return new Promise((resolve, reject) => {
+      pending = { resolve, reject };
+    });
+  };
   const ask = (workId: WorkId, question: string): Promise<string> => {
     state.question = question;
     push("question", `${question}(${workId})`);
@@ -345,6 +355,9 @@ export async function createController(options: ControllerOptions): Promise<Cont
       case "approval": {
         const a = result.approval;
         if (!a) return "承認が要ります。/approvals で確かめてください。";
+        if (a.kind === "review") {
+          return `${a.reviewer?.role ?? "資格者"}の判断が要ります: ${a.name} ${describeInput(a.input)}(${a.approvalId})。Review Package は work/${a.workId}/review/ にあります。返答が届いたら /review ${a.approvalId} approve か /review ${a.approvalId} reject で記録します。`;
+        }
         return `承認が要ります: ${a.name} ${describeInput(a.input)}(${a.approvalId})。/approve ${a.approvalId} で実行、/reject ${a.approvalId} で拒否します。`;
       }
       default:
@@ -432,6 +445,32 @@ export async function createController(options: ControllerOptions): Promise<Cont
       }
     } else if (name === "approve" || name === "reject") {
       push("notice", `/${name} には承認の id が要ります。/approvals で確かめてください。`);
+    } else if (name === "review" && sub && (args[1] === "approve" || args[1] === "reject")) {
+      const decision = args[1];
+      try {
+        const who = await askLine(
+          "Reviewer の名前と資格(例: 田中 太郎 / 税理士)。会社の申告として記録します",
+        );
+        const [reviewerName, qualification] = who.split("/").map((part) => part.trim());
+        const interpretation = await askLine(
+          decision === "approve" ? "判断の本文(そのまま記録します)" : "認めない理由",
+        );
+        const { text } = await session.review({
+          approvalId: sub,
+          decision,
+          reviewer: {
+            name: reviewerName || who,
+            role: "reviewer",
+            ...(qualification && { qualification }),
+          },
+          interpretation,
+        });
+        push("line", text);
+      } catch (err) {
+        push("notice", message(err));
+      }
+    } else if (name === "review") {
+      push("notice", "/review <id> approve か /review <id> reject の形です。");
     } else if (name === "resume") {
       push(
         "notice",

@@ -25,6 +25,7 @@ export const RESERVED_TOOL_NAMES: readonly string[] = [
   "context",
   "approval_list",
   "approval_decide",
+  "review_decide",
   "work_run",
   "work_show",
 ];

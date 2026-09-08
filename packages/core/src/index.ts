@@ -5,9 +5,12 @@ export {
   type Authority,
   type AuthorityRequest,
   DECISION_KINDS,
+  DECISIONS_DIR_NAME,
   DELEGATIONS_FILE_NAME,
   type Decision,
+  DecisionFileSchema,
   type DecisionKind,
+  type DecisionRecord,
   type Delegation,
   DelegationsFileSchema,
   evaluate,
@@ -18,6 +21,7 @@ export {
   type PolicyFile,
   PolicyFileSchema,
   type Rule,
+  writeDecision,
 } from "./authority/policy.ts";
 export {
   CONFIG_FILE_NAME,
@@ -98,6 +102,7 @@ export {
   type ModelUsage,
   parsePayloadFile,
   payloadFileSchemas,
+  type ReviewPackage,
   type StopReason,
   TOOL_REJECTION_CODES,
   type ToolContent,

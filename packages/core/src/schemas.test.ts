@@ -125,6 +125,32 @@ async function logWithEveryType() {
       type: "approval.decided",
       payload: { approvalId: "apr_1", decision: "approve", by: "alice" },
     });
+    await handle.append({
+      type: "review.requested",
+      payload: {
+        approvalId: "apr_2",
+        package: {
+          approvalId: "apr_2",
+          workId: work.id,
+          action: { name: "tax-treatment", tool: "csv_write", input: { path: "ledger/x.csv" } },
+          facts: ["csv_read receipts/2026-07.csv"],
+          sources: [{ id: "law/shohizei-57-4", locator: "第6項", version: "令和5年10月1日施行" }],
+          companyRules: [{ id: "invoice-retention", statement: "7 年保存する" }],
+          proposal: "この処理で進めたい",
+          question: "税務上の取扱いを確認してください",
+          requestedBy: "alice",
+          requestedAt: new Date().toISOString(),
+        },
+      },
+    });
+    await handle.append({
+      type: "review.decided",
+      payload: { approvalId: "apr_2", decisionId: "dec_1" },
+    });
+    await handle.append({
+      type: "decision.applied",
+      payload: { callId: "c9", decisionId: "dec_1" },
+    });
     await handle.append({ type: "model.failed", payload: { code: "network", message: "down" } });
     await handle.append({
       type: "evidence.recorded",

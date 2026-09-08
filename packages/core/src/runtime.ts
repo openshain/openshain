@@ -1,4 +1,10 @@
-import { type Authority, evaluate, loadAuthority, OPEN_AUTHORITY } from "./authority/policy.ts";
+import {
+  type Authority,
+  evaluate,
+  loadAuthority,
+  OPEN_AUTHORITY,
+  type Rule,
+} from "./authority/policy.ts";
 import { loadConfig } from "./config/load.ts";
 import type { Config, ModelConfig } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
@@ -8,7 +14,7 @@ import type { HiddenTool } from "./tool/registry.ts";
 import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
 import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
 import { uuidv7 } from "./uuid.ts";
-import type { ToolContent } from "./work/events.ts";
+import type { Event, ReviewPackage, ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
 import { type WorkHandle, WorkStore } from "./work/store.ts";
 
@@ -94,11 +100,16 @@ export function createToolCaller(input: {
   registry: ToolRegistry;
   config: Config;
   workspaceRoot: string;
-  /** Who may do what. Omitted: the workspace is open, as one without authority/ is. */
-  authority?: Authority;
+  /**
+   * Who may do what. Pass a function when it can change while the server runs, as it does when
+   * a reviewer writes a decision. Omitted: the workspace is open, as one without authority/ is.
+   */
+  authority?: Authority | (() => Authority);
 }): (work: WorkHandle, call: ToolCall, options?: CallOptions) => Promise<ToolResult> {
-  const authority = input.authority ?? OPEN_AUTHORITY;
-  return (work, call, options) => callTool({ ...input, authority, work, call, ...options });
+  const given = input.authority;
+  const current = typeof given === "function" ? given : () => given ?? OPEN_AUTHORITY;
+  return (work, call, options) =>
+    callTool({ ...input, authority: current(), work, call, ...options });
 }
 
 export interface CallOptions {
@@ -106,12 +117,15 @@ export interface CallOptions {
   approvedBy?: string;
 }
 
-/** What a held call answers with: the client shows it to the person and the turn ends. */
+/** What a held call answers with: the client shows it to the person and the turn stops there. */
 export interface PendingApprovalResult {
-  pending: "approval";
+  pending: "approval" | "review";
   approval_id: string;
   rule_id: string;
   approvers?: string[];
+  reviewer?: { role: string; name?: string };
+  /** For a review: why the policy asks for one, when a cited decision did not cover the call. */
+  why?: string;
 }
 
 /** Registers the tool providers the config names: the caller's factories by id, and modules from the workspace. Needs no model. */
@@ -199,33 +213,56 @@ async function callTool(input: {
       businessDate: businessDate(),
     });
     if (judged.kind === "deny") return reject("denied", judged.reason);
-    if (judged.kind === "approval_required") {
+    if (judged.kind === "approval_required" || judged.kind === "review_required") {
+      const review = judged.kind === "review_required";
       const approvalId = `apr_${uuidv7()}`;
       const approvers = judged.rule.approvers ?? [config.principal.id];
+      const declared = judged.rule.reviewer;
+      const reviewer = declared
+        ? { role: declared.role, ...(declared.name !== undefined && { name: declared.name }) }
+        : undefined;
       await work.append({
         type: "approval.requested",
         payload: {
           approvalId,
           call: { callId: call.id, name: call.name, input: call.input },
           ruleId: judged.rule.id,
-          kind: "approval",
-          approvers,
+          kind: review ? "review" : "approval",
+          ...(review ? reviewer && { reviewer } : { approvers }),
         },
       });
-      await work.transition("waiting_approval", `rule ${judged.rule.id} needs approval`);
+      if (review) {
+        await work.append({
+          type: "review.requested",
+          payload: {
+            approvalId,
+            package: await reviewPackage(work, {
+              approvalId,
+              call,
+              rule: judged.rule,
+              principal: config.principal.id,
+            }),
+          },
+        });
+      }
+      await work.transition(
+        "waiting_approval",
+        `rule ${judged.rule.id} needs ${review ? "a review" : "approval"}`,
+      );
       const held: PendingApprovalResult = {
-        pending: "approval",
+        pending: review ? "review" : "approval",
         approval_id: approvalId,
         rule_id: judged.rule.id,
-        approvers,
+        ...(review ? reviewer && { reviewer } : { approvers }),
+        ...(review && judged.why !== undefined && { why: judged.why }),
       };
       return { content: [{ type: "json", value: held }] };
     }
-    if (judged.kind !== "allow") {
-      return reject(
-        "denied",
-        `rule ${judged.rule.id} needs ${judged.kind.replace("_", " ")}, which this version cannot record yet; the call was not run`,
-      );
+    if (judged.kind === "allow" && judged.decision) {
+      await work.append({
+        type: "decision.applied",
+        payload: { callId: call.id, decisionId: judged.decision.id },
+      });
     }
   }
 
@@ -264,6 +301,53 @@ async function callTool(input: {
     payload: { kind: "tool_execution", provider: tool.providerId, usage: { durationMs } },
   });
   return result;
+}
+
+/**
+ * What the reviewer is asked to decide on, from the work's own record: the call, the tool calls
+ * that came before it, and the agent's last words as the proposal. Sources and company rules stay
+ * empty until knowledge is in.
+ */
+async function reviewPackage(
+  work: WorkHandle,
+  input: { approvalId: string; call: ToolCall; rule: Rule; principal: string },
+): Promise<ReviewPackage> {
+  const events = await work.events();
+  const facts: string[] = [];
+  let proposal = "";
+  for (const event of events) {
+    if (event.type === "tool.called") {
+      const { name, input: called } = (event as Event<"tool.called">).payload;
+      const path = pathOf(called);
+      facts.push(path === undefined ? name : `${name} ${path}`);
+    } else if (event.type === "model.completed") {
+      const text = (event as Event<"model.completed">).payload.content
+        .filter((part) => part.type === "text")
+        .map((part) => (part as { text: string }).text)
+        .join("\n")
+        .trim();
+      if (text !== "") proposal = text;
+    }
+  }
+  const current = await work.current();
+  return {
+    approvalId: input.approvalId,
+    workId: work.id,
+    action: {
+      name: input.rule.match.action?.toString() ?? input.call.name,
+      tool: input.call.name,
+      input: input.call.input,
+    },
+    facts,
+    sources: [],
+    companyRules: [],
+    proposal,
+    question:
+      input.rule.reason ??
+      `${current.objective} のために ${input.call.name} を実行してよいか、判断をお願いします。`,
+    requestedBy: input.principal,
+    requestedAt: new Date().toISOString(),
+  };
 }
 
 /** The path a call names, normalized to a workspace-relative posix path, when its input has one. */

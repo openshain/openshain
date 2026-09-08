@@ -74,7 +74,8 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   }
   if (work.status === "waiting_approval") {
     for (const a of pendingApprovals(events)) {
-      lines.push(`承認待ち  ${a.call.name} ${describeInput(a.call.input)}  (${a.approvalId})`);
+      const who = a.kind === "review" ? `${a.reviewer?.role ?? "資格者"}の判断待ち` : "承認待ち";
+      lines.push(`${who}  ${a.call.name} ${describeInput(a.call.input)}  (${a.approvalId})`);
     }
   }
 

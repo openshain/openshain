@@ -6,10 +6,13 @@ import { OpenshainError } from "../errors.ts";
 import {
   type Authority,
   type AuthorityRequest,
+  type DecisionRecord,
   evaluate,
   loadAuthority,
   matchGlob,
   OPEN_AUTHORITY,
+  type Rule,
+  writeDecision,
 } from "./policy.ts";
 
 const request = (over: Partial<AuthorityRequest> = {}): AuthorityRequest => ({
@@ -27,7 +30,38 @@ const delegated: Authority = {
   present: true,
   policy: { version: 1, default: "allow", rules: [] },
   delegations: [{ principal: "alice", profession: "generic" }],
+  decisions: new Map(),
 };
+
+const decision = (over: Partial<DecisionRecord> = {}): DecisionRecord => ({
+  id: "dec_1",
+  reviewer: { name: "田中", role: "tax-accountant" },
+  approval_id: "apr_1",
+  decided_at: "2026-09-01T00:00:00.000Z",
+  effective_from: "2026-09-01",
+  effective_until: null,
+  interpretation: "この処理で進めてよい",
+  applies_to: {},
+  ...over,
+});
+
+const backed = (rule: Partial<Rule>, decisions: DecisionRecord[]): Authority => ({
+  ...delegated,
+  policy: {
+    version: 1,
+    default: "allow",
+    rules: [
+      {
+        id: "tax",
+        match: { tool: "fs_write" },
+        decision: "decision_backed",
+        decision_id: "dec_1",
+        ...rule,
+      } as Rule,
+    ],
+  },
+  decisions: new Map(decisions.map((d) => [d.id, d])),
+});
 
 describe("matchGlob", () => {
   test("* is part of one segment, ** any number of segments", () => {
@@ -141,6 +175,50 @@ describe("evaluate", () => {
   });
 });
 
+describe("evaluate, with a reviewer's decision", () => {
+  test("a decision that is in effect and covers the call lets it run", () => {
+    const judged = evaluate(backed({}, [decision()]), request());
+
+    expect(judged.kind).toBe("allow");
+    expect(judged.kind === "allow" && judged.decision?.id).toBe("dec_1");
+  });
+
+  test("no decision, an expired one, or one that does not cover the call sends it back to review", () => {
+    const missing = evaluate(backed({}, []), request());
+    expect(missing).toMatchObject({ kind: "review_required" });
+    expect(missing.kind === "review_required" && missing.why).toContain("does not have");
+
+    const expired = evaluate(
+      backed({}, [decision({ effective_until: "2026-09-06" })]),
+      request({ businessDate: "2026-09-07" }),
+    );
+    expect(expired.kind === "review_required" && expired.why).toContain("not in effect");
+
+    const early = evaluate(
+      backed({}, [decision({ effective_from: "2026-10-01" })]),
+      request({ businessDate: "2026-09-07" }),
+    );
+    expect(early.kind).toBe("review_required");
+
+    const elsewhere = evaluate(
+      backed({}, [decision({ applies_to: { path: "receipts/**" } })]),
+      request({ path: "ledger/2026-07.csv" }),
+    );
+    expect(elsewhere.kind === "review_required" && elsewhere.why).toContain("does not cover");
+  });
+
+  test("applies_to narrows a decision to an action and a path", () => {
+    const scoped = decision({ applies_to: { action: "tax-treatment", path: "ledger/**" } });
+    expect(
+      evaluate(backed({}, [scoped]), request({ action: "tax-treatment", path: "ledger/a.csv" }))
+        .kind,
+    ).toBe("allow");
+    expect(evaluate(backed({}, [scoped]), request({ path: "ledger/a.csv" })).kind).toBe(
+      "review_required",
+    );
+  });
+});
+
 describe("loadAuthority", () => {
   test("reads policy.yaml and delegations.yaml, and reports problems with line numbers", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-authority-"));
@@ -179,5 +257,25 @@ rules:
       "version: 1\nrules:\n  - id: needs-decision\n    match: { tool: fs_write }\n    decision: decision_backed\n",
     );
     await expect(loadAuthority(root)).rejects.toThrow(/decision_id/);
+  });
+
+  test("writes a decision, reads it back, and refuses to overwrite one", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-authority-"));
+    await mkdir(join(root, "authority"));
+    const written = decision({
+      interpretation: "1 行目\n2 行目",
+      applies_to: { path: "ledger/**" },
+      reviewer: { name: "田中 太郎", role: "tax-accountant", qualification: "税理士(会社の申告)" },
+    });
+
+    const file = await writeDecision(root, written);
+
+    expect(file).toContain(join("authority", "decisions", "dec_1.yaml"));
+    const authority = await loadAuthority(root);
+    expect(authority.decisions.get("dec_1")).toEqual(written);
+    // Trailing blank lines are not kept: what is read back is what the reviewer wrote.
+    await writeDecision(root, decision({ id: "dec_2", interpretation: "本文\n\n" }));
+    expect((await loadAuthority(root)).decisions.get("dec_2")?.interpretation).toBe("本文");
+    await expect(writeDecision(root, written)).rejects.toThrow();
   });
 });

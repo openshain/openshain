@@ -1,3 +1,4 @@
+import { relative } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
@@ -13,6 +14,7 @@ import {
   countToolCalls,
   createToolCaller,
   createToolRegistry,
+  DecisionFileSchema,
   type Event,
   type EventType,
   type InputValidation,
@@ -38,6 +40,7 @@ import {
   type WorkId,
   WorkStore,
   workHistory,
+  writeDecision,
 } from "@openshain/core";
 import pkg from "../package.json" with { type: "json" };
 import { Session } from "./session.ts";
@@ -196,6 +199,42 @@ const WORK_TOOLS: Tool[] = [
     },
   },
   {
+    name: "review_decide",
+    description:
+      "Record what a qualified reviewer decided about a call the policy held for review. approve and modify write a decision under authority/decisions/ and run the call (modify runs the reviewer's input); reject refuses it. The reviewer is named by the company; openshain does not verify a qualification.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        approval_id: { type: "string", maxLength: 100 },
+        decision: { type: "string", enum: ["approve", "reject", "modify"] },
+        reviewer: {
+          type: "object",
+          properties: {
+            name: { type: "string", maxLength: 200 },
+            role: { type: "string", maxLength: 100 },
+            qualification: { type: "string", maxLength: 500 },
+          },
+          required: ["name", "role"],
+          additionalProperties: false,
+        },
+        interpretation: { type: "string", maxLength: 20_000 },
+        modified_input: { type: "object" },
+        effective_from: { type: "string", maxLength: 10 },
+        effective_until: { type: "string", maxLength: 10 },
+        applies_to: {
+          type: "object",
+          properties: {
+            action: { type: "string", maxLength: 200 },
+            path: { type: "string", maxLength: 1000 },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ["approval_id", "decision", "reviewer"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "work_record",
     description:
       "Record an event of the client itself on a work: what the person said (human.message), a prompt command expanded for the model (prompt.expanded), a model call (model.requested, model.completed, model.failed) or its usage (usage.recorded with kind model_inference). The payload is in the file form of spec/schemas/events.v1.json. Tool calls are recorded by the runtime and cannot be recorded here.",
@@ -254,8 +293,14 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
   const { workspaceRoot } = options;
   const config = await loadConfig(workspaceRoot);
   const registry = await createToolRegistry(workspaceRoot, config, options.tools);
-  const authority = await loadAuthority(workspaceRoot);
-  const callTool = createToolCaller({ registry, config, workspaceRoot, authority });
+  // Reloaded when a reviewer writes a decision, so the next call can cite it.
+  let authority = await loadAuthority(workspaceRoot);
+  const callTool = createToolCaller({
+    registry,
+    config,
+    workspaceRoot,
+    authority: () => authority,
+  });
   const works = new WorkStore(workspaceRoot);
   const session = new Session();
   const server = new Server(
@@ -473,6 +518,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (!found) return failure(`no pending approval ${approvalId}`);
         const { workId, approval } = found;
         const by = config.principal.id;
+        if (approval.kind === "review") {
+          return failure(
+            `${approvalId} waits for a qualified reviewer, not a person's approval; use review_decide`,
+          );
+        }
         if (approval.approvers && !approval.approvers.includes(by)) {
           return failure(
             `${by} may not decide ${approvalId}; approvers: ${approval.approvers.join(", ")}`,
@@ -508,6 +558,97 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             decision,
             work_id: workId,
             result: { content: result.content, isError: result.isError ?? false },
+          });
+        } finally {
+          await opened.close();
+        }
+      }
+      case "review_decide": {
+        const {
+          approval_id: approvalId,
+          decision,
+          reviewer,
+          interpretation,
+          modified_input: modifiedInput,
+          effective_from: effectiveFrom,
+          effective_until: effectiveUntil,
+          applies_to: appliesTo,
+        } = input as {
+          approval_id: string;
+          decision: "approve" | "reject" | "modify";
+          reviewer: { name: string; role: string; qualification?: string };
+          interpretation?: string;
+          modified_input?: Record<string, unknown>;
+          effective_from?: string;
+          effective_until?: string;
+          applies_to?: { action?: string; path?: string };
+        };
+        const found = await findApproval(works, approvalId);
+        if (!found) return failure(`no pending approval ${approvalId}`);
+        const { workId, approval } = found;
+        if (approval.kind !== "review") {
+          return failure(
+            `${approvalId} waits for a person's approval, not a review; use approval_decide`,
+          );
+        }
+        if (decision !== "reject" && (interpretation ?? "") === "") {
+          return failure("a decision needs the reviewer's interpretation in their own words");
+        }
+        const opened = await works.open(workId);
+        try {
+          await opened.append({
+            type: "approval.decided",
+            payload: { approvalId, decision, by: reviewer.name },
+          });
+          if (decision === "reject") {
+            await opened.append({ type: "review.decided", payload: { approvalId } });
+            await opened.append({
+              type: "tool.rejected",
+              payload: {
+                callId: approval.call.callId,
+                name: approval.call.name,
+                code: "rejected_by_person",
+                reason: interpretation ?? `${reviewer.name} did not approve ${approvalId}`,
+              },
+            });
+            await opened.transition("in_progress", `${reviewer.name} rejected ${approvalId}`);
+            return json({ approval_id: approvalId, decision, work_id: workId });
+          }
+          const today = new Date();
+          const record = DecisionFileSchema.parse({
+            id: `dec_${uuidv7()}`,
+            reviewer,
+            approval_id: approvalId,
+            decided_at: today.toISOString(),
+            effective_from: effectiveFrom ?? today.toISOString().slice(0, 10),
+            effective_until: effectiveUntil ?? null,
+            interpretation,
+            applies_to: appliesTo ?? {},
+          });
+          const file = await writeDecision(workspaceRoot, record);
+          await opened.append({
+            type: "review.decided",
+            payload: { approvalId, decisionId: record.id },
+          });
+          await opened.transition("in_progress", `${reviewer.name} decided ${approvalId}`);
+          const ran = await callTool(
+            opened,
+            {
+              id: approval.call.callId,
+              name: approval.call.name,
+              input: decision === "modify" && modifiedInput ? modifiedInput : approval.call.input,
+            },
+            { approvedBy: approvalId },
+          );
+          // The decision the reviewer just wrote is now part of the policy.
+          authority = await loadAuthority(workspaceRoot);
+          return json({
+            approval_id: approvalId,
+            decision,
+            work_id: workId,
+            decision_id: record.id,
+            decision_file: relative(workspaceRoot, file),
+            result: { content: ran.content, isError: ran.isError ?? false },
           });
         } finally {
           await opened.close();

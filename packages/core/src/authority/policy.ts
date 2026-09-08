@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { parseYamlFile } from "../config/yaml.ts";
@@ -7,6 +7,7 @@ import { parseYamlFile } from "../config/yaml.ts";
 export const AUTHORITY_DIR_NAME = "authority";
 export const POLICY_FILE_NAME = "policy.yaml";
 export const DELEGATIONS_FILE_NAME = "delegations.yaml";
+export const DECISIONS_DIR_NAME = "decisions";
 
 export const DECISION_KINDS = [
   "allow",
@@ -67,6 +68,27 @@ export const DelegationsFileSchema = z.strictObject({
     .default([]),
 });
 
+/** What a reviewer decided, written to authority/decisions/ and cited by a decision_backed rule. */
+export const DecisionFileSchema = z.strictObject({
+  id: z.string().min(1).max(200),
+  reviewer: z.strictObject({
+    name: z.string().min(1).max(200),
+    role: identifier,
+    /** As the company states it. openshain does not verify a qualification. */
+    qualification: z.string().max(500).optional(),
+  }),
+  approval_id: z.string().min(1).max(200),
+  decided_at: z.iso.datetime(),
+  effective_from: isoDate,
+  effective_until: isoDate.nullable().default(null),
+  interpretation: z.string().min(1).max(100_000),
+  applies_to: z
+    .strictObject({ action: z.string().max(200).optional(), path: z.string().max(1000).optional() })
+    .default({}),
+});
+
+export type DecisionRecord = z.output<typeof DecisionFileSchema>;
+
 export type PolicyFile = z.output<typeof PolicyFileSchema>;
 export type Rule = PolicyFile["rules"][number];
 export type Delegation = z.output<typeof DelegationsFileSchema>["delegations"][number];
@@ -77,6 +99,8 @@ export interface Authority {
   present: boolean;
   policy: PolicyFile;
   delegations: Delegation[];
+  /** The reviewers' decisions, by id. A decision_backed rule cites one. */
+  decisions: Map<string, DecisionRecord>;
 }
 
 /** One tool call, as the policy sees it. */
@@ -95,15 +119,16 @@ export interface AuthorityRequest {
 }
 
 export type Decision =
-  | { kind: "allow"; rule?: Rule }
+  | { kind: "allow"; rule?: Rule; decision?: DecisionRecord }
   | { kind: "deny"; rule?: Rule; reason: string }
-  | { kind: "approval_required" | "review_required" | "decision_backed"; rule: Rule };
+  | { kind: "approval_required" | "review_required"; rule: Rule; why?: string };
 
 /** An authority that allows everything: what a workspace without authority/ gets. */
 export const OPEN_AUTHORITY: Authority = Object.freeze<Authority>({
   present: false,
   policy: { version: 1, default: "allow", rules: [] },
   delegations: [],
+  decisions: new Map(),
 });
 
 /** Reads authority/ of a workspace. A workspace without it is open, as every workspace was before. */
@@ -118,6 +143,7 @@ export async function loadAuthority(workspaceRoot: string): Promise<Authority> {
   const delegations = await readOptional(join(dir, DELEGATIONS_FILE_NAME));
   return {
     present: true,
+    decisions: await readDecisions(join(dir, DECISIONS_DIR_NAME)),
     policy:
       policy === undefined
         ? { version: 1, default: "allow", rules: [] }
@@ -131,6 +157,78 @@ export async function loadAuthority(workspaceRoot: string): Promise<Authority> {
             `${AUTHORITY_DIR_NAME}/${DELEGATIONS_FILE_NAME}`,
           ).data.delegations,
   };
+}
+
+/** Every decision under authority/decisions/, by id. A file that cannot be read is a config error. */
+async function readDecisions(dir: string): Promise<Map<string, DecisionRecord>> {
+  let names: string[];
+  try {
+    names = (await readdir(dir)).filter((name) => name.endsWith(".yaml"));
+  } catch {
+    return new Map();
+  }
+  const decisions = new Map<string, DecisionRecord>();
+  for (const name of names.sort()) {
+    const text = await readFile(join(dir, name), "utf8");
+    const { data } = parseYamlFile(
+      text,
+      DecisionFileSchema,
+      `${AUTHORITY_DIR_NAME}/${DECISIONS_DIR_NAME}/${name}`,
+    );
+    decisions.set(data.id, data);
+  }
+  return decisions;
+}
+
+/** Writes one decision under authority/decisions/. The runtime owns that directory. */
+export async function writeDecision(
+  workspaceRoot: string,
+  decision: DecisionRecord,
+): Promise<string> {
+  const dir = join(workspaceRoot, AUTHORITY_DIR_NAME, DECISIONS_DIR_NAME);
+  await mkdir(dir, { recursive: true });
+  const file = join(dir, `${decision.id}.yaml`);
+  await writeFile(file, toYaml(decision), { flag: "wx" });
+  return file;
+}
+
+/**
+ * A decision as YAML. Written by hand so that core keeps one YAML dependency, for reading.
+ * The interpretation is a block scalar without trailing blank lines, so that what is read back
+ * equals what was written.
+ */
+function toYaml(decision: DecisionRecord): string {
+  const quote = (text: string) => JSON.stringify(text);
+  return `${[
+    `id: ${quote(decision.id)}`,
+    "reviewer:",
+    `  name: ${quote(decision.reviewer.name)}`,
+    `  role: ${decision.reviewer.role}`,
+    ...(decision.reviewer.qualification !== undefined
+      ? [`  qualification: ${quote(decision.reviewer.qualification)}`]
+      : []),
+    `approval_id: ${quote(decision.approval_id)}`,
+    `decided_at: ${quote(decision.decided_at)}`,
+    `effective_from: ${quote(decision.effective_from)}`,
+    `effective_until: ${decision.effective_until === null ? "null" : quote(decision.effective_until)}`,
+    "interpretation: |-",
+    ...decision.interpretation
+      .replace(/\n+$/, "")
+      .split("\n")
+      .map((line) => `  ${line}`),
+    // An empty applies_to is written inline: a bare key would read back as null, not as an object.
+    ...(decision.applies_to.action === undefined && decision.applies_to.path === undefined
+      ? ["applies_to: {}"]
+      : [
+          "applies_to:",
+          ...(decision.applies_to.action !== undefined
+            ? [`  action: ${quote(decision.applies_to.action)}`]
+            : []),
+          ...(decision.applies_to.path !== undefined
+            ? [`  path: ${quote(decision.applies_to.path)}`]
+            : []),
+        ]),
+  ].join("\n")}\n`;
 }
 
 async function readOptional(file: string): Promise<string | undefined> {
@@ -167,11 +265,44 @@ export function evaluate(authority: Authority, request: AuthorityRequest): Decis
         reason:
           rule?.reason ?? (rule ? `denied by rule ${rule.id}` : "denied by the policy's default"),
       };
+    case "decision_backed": {
+      // The rule cites a reviewer's decision. Without a valid one that covers this call, the
+      // reviewer has to look at it again: the rule falls back to a review.
+      const named = rule ?? { id: "default", match: {}, decision: kind };
+      const decision = named.decision_id ? authority.decisions.get(named.decision_id) : undefined;
+      const why = !decision
+        ? `rule ${named.id} cites decision ${named.decision_id}, which this workspace does not have`
+        : !inEffect(decision, request.businessDate)
+          ? `decision ${decision.id} is not in effect on ${request.businessDate}`
+          : !covers(decision, request)
+            ? `decision ${decision.id} does not cover this call`
+            : undefined;
+      if (decision && why === undefined) return { kind: "allow", rule: named, decision };
+      return { kind: "review_required", rule: named, ...(why !== undefined && { why }) };
+    }
     default:
-      // approval_required, review_required and decision_backed need a rule to name approvers,
-      // a reviewer or a decision; a default of that kind is treated as a rule-less request.
+      // approval_required and review_required need a rule to name approvers or a reviewer;
+      // a default of that kind is treated as a rule-less request.
       return { kind, rule: rule ?? { id: "default", match: {}, decision: kind } };
   }
+}
+
+/** Whether the business date falls in the decision's window. */
+function inEffect(decision: DecisionRecord, businessDate: string): boolean {
+  return (
+    decision.effective_from <= businessDate &&
+    (decision.effective_until === null || businessDate <= decision.effective_until)
+  );
+}
+
+/** Whether the decision was written for this kind of call. An empty applies_to covers the rule. */
+function covers(decision: DecisionRecord, request: AuthorityRequest): boolean {
+  const { action, path } = decision.applies_to;
+  if (action !== undefined && action !== (request.action ?? request.tool)) return false;
+  if (path !== undefined && (request.path === undefined || !matchGlob(path, request.path))) {
+    return false;
+  }
+  return true;
 }
 
 function delegated(delegations: Delegation[], request: AuthorityRequest): boolean {
