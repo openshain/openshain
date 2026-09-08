@@ -9,7 +9,7 @@ import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
 import { connectInMemory } from "./client.ts";
 import { AGENT_NAMES } from "./names.ts";
-import { createSession, type SessionOptions } from "./session.ts";
+import { createSession, type SessionOptions, TURN_LIMITS } from "./session.ts";
 import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
 
 async function setup(steps: FakeStep[], options: { authority?: boolean } = {}) {
@@ -384,6 +384,89 @@ describe("a session and approvals", () => {
     const next = await session.turn("ではあとで");
     expect(next.reply).toBe("承認が済んだので続けます。");
     expect((await store.get(stopped.approval?.workId as WorkId)).status).toBe("waiting_approval");
+  });
+
+  test("a turn stopped part way through leaves no call without a result", async () => {
+    const controller = new AbortController();
+    const many = Array.from({ length: TURN_LIMITS.toolCalls + 1 }, (_, i) => ({
+      id: `t${i}`,
+      name: "fs_list",
+      input: { path: "." },
+    }));
+    const { store, open } = await setup([
+      // The person interrupts while the model is answering.
+      () => {
+        controller.abort();
+        return callTools(
+          { id: "a1", name: "fs_list", input: { path: "." } },
+          { id: "a2", name: "fs_list", input: { path: "." } },
+        );
+      },
+      workCreate("c1", "一覧"),
+      callTools(...many),
+      say("止めました。"),
+    ]);
+    const session = await open();
+
+    const aborted = await session.turn("一覧を出して", { signal: controller.signal });
+    expect(aborted.stopped).toBe("aborted");
+
+    // The next turn builds the conversation from the same log: no call is left open.
+    const limited = await session.turn("では全部");
+    expect(limited.stopped).toBe("turn_limit");
+    expect(limited.detail).toBe(`tool calls in one turn (${TURN_LIMITS.toolCalls})`);
+    const said = await session.turn("わかりました");
+    expect(said.reply).toBe("止めました。");
+    const events = await store.events(session.id);
+    const called = events.filter((e) => e.type === "tool.called").length;
+    expect(called).toBeGreaterThan(0);
+  });
+
+  test("a person who leaves the call undecided keeps the work waiting and ends the turn", async () => {
+    const { store, open } = await setup(
+      [
+        workCreate("c1", "帳簿"),
+        callTools(
+          {
+            id: "c2",
+            name: "fs_write",
+            input: { path: "ledger/2026-07.csv", content: "a\n" },
+          },
+          { id: "c3", name: "fs_list", input: { path: "." } },
+        ),
+        say("あとで続けます。"),
+      ],
+      { authority: true },
+    );
+    const session = await open({
+      onApproval: async () => {
+        throw new Error("the screen closed before an answer");
+      },
+    });
+
+    const result = await session.turn("7 月の帳簿を書いて");
+
+    expect(result.stopped).toBe("approval");
+    const work = (await store.list()).works.find((w) => w.type !== "session");
+    expect((await store.get(work?.id as WorkId)).status).toBe("waiting_approval");
+    const next = await session.turn("続けて");
+    expect(next.reply).toBe("あとで続けます。");
+  });
+
+  test("stops the turn on each of the model's stop reasons, including the unnamed one", async () => {
+    const stopped = (stopReason: string) => ({
+      message: { role: "assistant" as const, content: [{ type: "text" as const, text: "途中" }] },
+      stopReason: stopReason as "max_tokens",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const { open } = await setup([stopped("max_tokens"), stopped("refusal"), stopped("other")]);
+    const session = await open();
+
+    expect(await session.turn("長い話")).toMatchObject({ reply: "途中", stopped: "max_tokens" });
+    expect(await session.turn("次")).toMatchObject({ reply: "途中", stopped: "refusal" });
+    const other = await session.turn("その次");
+    expect(other.stopped).toBe("model_error");
+    expect(other.detail).toContain("other");
   });
 
   test("a decision that lands elsewhere first leaves the call held and the turn stopped", async () => {
