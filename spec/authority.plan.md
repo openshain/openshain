@@ -26,7 +26,7 @@ spec は [authority.md](authority.md) です。小さい縦の切れ目で進め
 - 検証: `bun test packages/mcp packages/agent packages/cli`、擬似端末で実走
 - サイズ: L
 
-#### Task 3: Review と Decision
+#### Task 3: Review と Decision(2026-09-08 完了)
 
 `review_required`、Review Package の生成と `work/<id>/review/` への写し、`review.requested`、`review_decide`、`authority/decisions/` への書き込み、`decision_backed` の判定、`decision.applied`。`/review <id> approve` の入力。
 

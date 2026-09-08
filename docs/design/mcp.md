@@ -27,6 +27,12 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 理由。承認された呼び出しを model が呼び直す形にすると、承認したものと実行されたものが同じである保証がなくなります。Runtime が承認の記録にある入力をそのまま実行するので、承認と実行が 1 対 1 で記録に残ります。
 
+## Review は資格者だけが決める
+
+決めたこと。`review_required` で止まった呼び出しは `review_decide` でしか決められません。`approval_decide` で決めようとすると断ります。逆も同じです。`approve` と `modify` は Decision を `authority/decisions/` に書き、Runtime がその場で呼び出しを実行し、書いた Decision をすぐ読み直します。次の呼び出しが `decision_backed` でそれを引けるようにするためです。
+
+理由。会社の人の承認と、資格者の判断は別のものです(professional-boundary.md)。同じ Tool で決められると、人が資格者の代わりを務められます。Reviewer の資格は会社の申告として記録し、openshain は検証しません。
+
 ## `context` は session でも呼べる
 
 決めたこと。`context` は現在時刻(オフセット付き)、タイムゾーン、今日の業務日、会社フォルダ、会社、依頼する人、職種、現在の Work を返す Runtime の Tool です。現在の Work があれば session でも記録します。client は会話を開くときに 1 回呼び、結果を `prompt.expanded` として記録します。

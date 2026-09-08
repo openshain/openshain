@@ -71,7 +71,7 @@ rules:
 - 規則は上から順に見て、最初に一致したものを採ります。一致しなければ `default` です
 - `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`work_type`、`action`
 - `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。判定は path guard を通した後の正規化したパスに対して行います
-- `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあるときだけ `allow` と同じに動き、記録に Decision の id を残します。無ければ `review_required` として扱います
+- `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあり、`applies_to`(action と path)がその呼び出しを覆うときだけ `allow` と同じに動き、`decision.applied` を記録します。どれかを満たさなければ `review_required` として扱い、理由を呼び出し元に返します。無ければ `review_required` として扱います
 - 資格名や法域の規則は core に置きません。`action` の名前と `reviewer.role` は Pack や会社の Policy が決める文字列で、core はそれを比べるだけです
 
 ### `authority/delegations.yaml`
@@ -96,11 +96,11 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 | `allow` | 実行し、記録する | `in_progress` |
 | `deny` | 実行せず `tool.rejected`(code `denied`、reason は規則の `reason`)を記録する | `in_progress` |
 | `approval_required` | `approval.requested`(approval_id、call、規則、approvers)を記録し、`waiting_approval` にする。呼び出し元には `pending: "approval"` と approval_id を返す | `waiting_approval` |
-| `review_required` | Review Package を作って `review.requested` を記録し、`work/<id>/review/` に写しを置き、`waiting_approval` にする。呼び出し元には `pending: "review"` を返す | `waiting_approval` |
+| `review_required` | Review Package を作って `review.requested` を記録し、`waiting_approval` にする。呼び出し元には `pending: "review"` と reviewer の条件を返す | `waiting_approval` |
 | `decision_backed` | Decision を確かめ、`decision.applied`(decision_id)を記録して実行する | `in_progress` |
 
 - 承認は `approval_decide`(approval_id、`approve` か `reject`、by、comment)で記録します。`approve` なら Runtime がそのときに Tool を実行し、`tool.called` と `tool.completed` を残して `in_progress` に戻します。`reject` なら `tool.rejected`(code `rejected_by_person`)を残して `in_progress` に戻します。client は結果を model に渡します
-- Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、decision の本文)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Action を実行します。`modify` は Reviewer が書き換えた入力で実行します
+- Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、interpretation、任意で applies_to と有効日)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Runtime が Action を実行します。`modify` は Reviewer が書き換えた入力で実行します。`reject` は Decision を書かず、`tool.rejected`(`rejected_by_person`)を残します。承認の Tool(`approval_decide`)では Review を決められず、その逆もできません
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
 - 承認する人の確認は、この版では接続を通して行います。対話型 CLI と MCP の接続は `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます。端末の認証と複数人は後の版です
 - 「この会話では常に承認する」は client の中だけの決定です。`authority/` には書かず、会話を閉じれば消えます。承認の記録は毎回残ります。`review_required` にはこの選択肢を出しません。資格者の承認を人が肩代わりできないためです
