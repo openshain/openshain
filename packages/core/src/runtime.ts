@@ -11,6 +11,7 @@ import { loadConfig } from "./config/load.ts";
 import type { Config, ModelConfig } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
 import type { ModelProvider } from "./model/types.ts";
+import { businessDate } from "./time.ts";
 import { loadToolModule } from "./tool/load-module.ts";
 import type { HiddenTool } from "./tool/registry.ts";
 import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
@@ -215,7 +216,7 @@ async function callTool(input: {
       principal: config.principal.id,
       profession: config.profession.id,
       workType: (await work.current()).type,
-      businessDate: businessDate(),
+      businessDate: businessDate(config.company.timezone),
     });
     if (judged.kind === "deny") return reject("denied", judged.reason);
     if (judged.kind === "approval_required" || judged.kind === "review_required") {
@@ -370,11 +371,6 @@ function pathOf(input: unknown): string | undefined {
 }
 
 /** Today's date on this machine's clock, YYYY-MM-DD. */
-function businessDate(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
 
 function isRejectionCode(code: string): code is ToolRejectionCode {
   return (TOOL_REJECTION_CODES as readonly string[]).includes(code);

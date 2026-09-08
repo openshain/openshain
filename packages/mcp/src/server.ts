@@ -10,6 +10,8 @@ import {
   type AnyEvent,
   type Artifact,
   ASK_USER,
+  businessDate,
+  companyTime,
   compileInputValidator,
   countToolCalls,
   createToolCaller,
@@ -466,11 +468,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
       }
       case "context": {
         const now = new Date();
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const timezone = config.company.timezone;
         const info = {
-          now: localIso(now),
+          now: companyTime(timezone, now),
           timezone,
-          business_date: localIso(now).slice(0, 10),
+          business_date: businessDate(timezone, now),
           workspace: workspaceRoot,
           company: config.company.name,
           principal: { id: config.principal.id, name: config.principal.name },
@@ -886,17 +888,4 @@ async function findApproval(
     if (approval) return { workId: w.id, approval };
   }
   return undefined;
-}
-
-/** ISO 8601 with the local offset instead of Z, so the time reads as the person's clock. */
-function localIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const offset = -date.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const abs = Math.abs(offset);
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
-    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
-  );
 }

@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
+import { hostTimezone } from "../time.ts";
 import { loadConfig, parseConfig } from "./load.ts";
 
 const example = `version: 1
@@ -60,7 +61,12 @@ describe("parseConfig", () => {
     const config = parseConfig(example);
 
     expect(config.version).toBe(1);
-    expect(config.company).toEqual({ name: "サンプル株式会社", language: "ja" });
+    // The timezone falls back to the machine's when the file names none.
+    expect(config.company).toEqual({
+      name: "サンプル株式会社",
+      language: "ja",
+      timezone: hostTimezone(),
+    });
     expect(config.principal).toEqual({ id: "alice", name: "Alice" });
     expect(config.profession.instructions).toBe("あなたはこの会社の事務担当です。\n");
     expect(config.model).toEqual({

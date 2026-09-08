@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { hostTimezone, isTimezone } from "../time.ts";
 
 const identifier = z
   .string()
@@ -43,6 +44,16 @@ export const ConfigFileSchema = z.strictObject({
   company: z.strictObject({
     name: z.string().min(1).max(200),
     language: z.enum(LANGUAGES).default("ja"),
+    // The company's own clock decides every business date, so a workspace answers the same
+    // whether it runs on a laptop in Tokyo or in a container set to UTC.
+    // No default in the schema: it would bake the machine that generated it into the published
+    // JSON Schema. The fallback is applied when the file is turned into a Config.
+    timezone: z
+      .string()
+      .min(1)
+      .max(100)
+      .refine(isTimezone, "not a timezone name, such as Asia/Tokyo")
+      .optional(),
   }),
   principal: z.strictObject({ id: identifier, name: z.string().min(1).max(200) }),
   profession: z.strictObject({ id: identifier, instructions: z.string().min(1).max(100_000) }),
@@ -96,7 +107,7 @@ export interface ModelConfig {
 
 export interface Config {
   version: 1;
-  company: { name: string; language: Language };
+  company: { name: string; language: Language; timezone: string };
   principal: { id: string; name: string };
   profession: { id: string; instructions: string };
   /** The model the interactive CLI runs on. Absent when the workspace is used from other agents only. */
@@ -109,7 +120,11 @@ export interface Config {
 export function toConfig(file: ConfigFile): Config {
   return {
     version: file.version,
-    company: { name: file.company.name, language: file.company.language },
+    company: {
+      name: file.company.name,
+      language: file.company.language,
+      timezone: file.company.timezone ?? hostTimezone(),
+    },
     principal: { id: file.principal.id, name: file.principal.name },
     profession: { id: file.profession.id, instructions: file.profession.instructions },
     ...(file.model && {

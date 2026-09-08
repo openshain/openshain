@@ -22,7 +22,7 @@ Status: v0.1(実装済み。完了の条件 1 から 7 を満たしています�
 - Delegation: 代表者から社員エージェント(職種)への職務権限の委任です。誰の代理で、どの職種として、いつからいつまで働くかを書きます
 - Resource: Action の対象です。この版では Tool の名前と、入力の `path` です
 - Action: Tool の呼び出しです。effect(observe か mutate)と名前を持ちます
-- Context: 判定に使う周辺の事実です。この版では代理する Principal、Work の type、業務日です
+- Context: 判定に使う周辺の事実です。この版では代理する Principal、Work の type、業務日です。業務日は `company.timezone` の時刻で決めます
 - 判定: `allow`、`approval_required`、`review_required`、`deny`、`decision_backed` の 5 つです(professional-boundary.md)
 - Approval: 会社の人による承認です。Review: 会社が指名した Reviewer による承認です。Decision: Review の結果として記録される承認済みの判断です
 

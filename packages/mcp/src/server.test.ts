@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { WorkStore } from "@openshain/core";
+import { businessDate, WorkStore } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { createMcpServer } from "./server.ts";
 
@@ -255,6 +255,60 @@ describe("openshain over MCP", () => {
       "human.message",
       "usage.recorded",
     ]);
+  });
+
+  test("the business date a delegation is judged against is the company's, not the machine's", async () => {
+    // Two timezones 25 hours apart never share a date, so the delegation that is valid today
+    // in one is not yet valid in the other, whatever time the test runs at.
+    const early = businessDate("Pacific/Kiritimati");
+    const yaml = (timezone: string) =>
+      `company:\n  name: サンプル株式会社\n  timezone: ${timezone}\n`;
+
+    for (const [timezone, allowed] of [
+      ["Pacific/Kiritimati", true],
+      ["Pacific/Niue", false],
+    ] as const) {
+      const root = await mkdtemp(join(tmpdir(), "openshain-tz-"));
+      await writeFile(
+        join(root, "openshain.yaml"),
+        `version: 1\n${yaml(timezone)}principal:\n  id: alice\n  name: Alice\nprofession:\n  id: generic\n  instructions: 事務担当として働く。\ntools:\n  - provider: standard\n`,
+      );
+      await mkdir(join(root, "authority"));
+      await writeFile(
+        join(root, "authority", "delegations.yaml"),
+        `version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n    valid_from: ${early}\n`,
+      );
+      await writeFile(
+        join(root, "authority", "policy.yaml"),
+        "version: 1\ndefault: allow\nrules: []\n",
+      );
+      const { call } = await connected(undefined, root);
+      await call("work_create", { objective: "一覧" });
+
+      const listed = await call("fs_list", { path: "." });
+
+      expect({ timezone, ok: !listed.isError }).toEqual({ timezone, ok: allowed });
+      if (!allowed) expect(listed.text).toContain("no delegation");
+    }
+  });
+
+  test("context reports the company's clock, not the machine's", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-tz-ctx-"));
+    await writeFile(
+      join(root, "openshain.yaml"),
+      "version: 1\ncompany:\n  name: サンプル株式会社\n  timezone: Pacific/Kiritimati\nprincipal:\n  id: alice\n  name: Alice\nprofession:\n  id: generic\n  instructions: 事務担当として働く。\ntools:\n  - provider: standard\n",
+    );
+    const { call } = await connected(undefined, root);
+
+    const info = (await call("context", {})).json() as {
+      timezone: string;
+      business_date: string;
+      now: string;
+    };
+
+    expect(info.timezone).toBe("Pacific/Kiritimati");
+    expect(info.business_date).toBe(businessDate("Pacific/Kiritimati"));
+    expect(info.now).toContain("+14:00");
   });
 
   test("a review holds the call, the package is recorded, the decision is written, and the next call cites it", async () => {

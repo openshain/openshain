@@ -413,6 +413,7 @@ version: 1
 company:
   name: サンプル株式会社
   language: ja                   # ja | en。社員エージェントの名前の言語
+  timezone: Asia/Tokyo           # 会社の時刻。業務日と有効日はこれで決まる
 principal:
   id: alice
   name: Alice
@@ -442,6 +443,7 @@ limits:
 - `model` は任意です。対話型 CLI が使い、Claude Code や Codex から MCP で使うだけなら書きません。`model` を書き換えるだけで provider が切り替わります。コードは変えません。
 - `allow` に書かれていない Tool は model に定義を渡しません。呼ばれたら `tool.rejected`(code: `not_allowed`)です。
 - `company.language` は `ja` か `en` で、省略時は `ja` です。`openshain init` が OS の locale から初期値を埋めます。値の出どころは設定で、OS ではありません。
+- `company.timezone` は IANA の名前(`Asia/Tokyo`)です。業務日と有効日はこの時刻で決めます。省略したときだけ、動かしている機械の設定を使います。会社フォルダを別の機械に移しても同じ日付になるように、設定に書くことを勧めます。
 - `principal.id`、`profession.id`、`model.provider` は `^[a-z][a-z0-9_-]*$` です。`profession.instructions` は 100,000 文字までです。`base_url` に資格情報(`user:pass@`)は書けません。`base_url` は https か、この機械を指す http(localhost、127.0.0.0/8、::1)だけです。`tools` を省略すると `[{ provider: standard }]` になります。
 - `api_key_env`、`base_url`、`options`、`debug` は環境の節です。それ以外は会社の manifest です(「openshain.yaml の責務」を参照してください)。
 

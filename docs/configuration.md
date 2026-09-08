@@ -13,6 +13,7 @@
 | `version` | 必須 | `1` |
 | `company.name` | 必須 | 会社名です。model に伝わります。1 から 200 文字 |
 | `company.language` | 任意 | 会社の言語です。`ja` か `en`。社員エージェントの名前をこの言語の一覧から選びます。画面と CLI の文言は日本語のままです。省略時は `ja`。`openshain init` が OS の locale から埋めます |
+| `company.timezone` | 任意 | 会社の時刻です(`Asia/Tokyo` のような IANA の名前)。業務日と、判断や委任の有効日はこの時刻で決まります。省略すると openshain を動かしている機械の設定を使います。`openshain init` がその値を埋めます |
 | `principal.id` | 必須 | 依頼する人の id です。小文字の英字で始まり、英数字と `_` と `-` で構成します。記録に残ります |
 | `principal.name` | 必須 | 表示名です。1 から 200 文字 |
 | `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じ規則です |

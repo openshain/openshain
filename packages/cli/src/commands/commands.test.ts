@@ -76,7 +76,8 @@ describe("init", () => {
     expect(detectLanguage({ LANG: "C.UTF-8" })).toBe("ja");
     expect(detectLanguage({})).toBe("ja");
     expect(detectLanguage({ LANG: "fr_FR.UTF-8" })).toBe("en");
-    expect(configTemplate("en")).toContain("language: en");
+    expect(configTemplate("en", "Asia/Tokyo")).toContain("language: en");
+    expect(configTemplate("ja", "Europe/Berlin")).toContain("timezone: Europe/Berlin");
   });
 
   test("the template tells an outside agent not to decide its own approvals", async () => {
