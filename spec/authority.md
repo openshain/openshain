@@ -1,6 +1,6 @@
 # Spec: Authority(権限と承認)
 
-Status: draft v0.1(未実装。専門職の責務境界(professional-boundary.md)で決めた判定の種類を、Company Workspace と Runtime の形にします)
+Status: v0.1(実装済み。完了の条件 1 から 7 を満たしています。ChangeSet と Need-to-Know、端末の認証、専門家への送付の自動化は後の版です)
 
 ## 目的
 

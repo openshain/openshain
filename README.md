@@ -94,6 +94,8 @@ openshain はエージェントハーネスとして、会社の社員として�
 - **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めた Work は会話の `/work resume <id>` で続けます
 - **モデル**: 対話型 CLI が使うモデルは `openshain init` が作る設定ファイルで指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています。Claude Code や Codex から使うときは、モデルの設定も API キーも要りません
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
+- **権限と承認**: `authority/` に書いた規則が、Tool の呼び出しごとに、そのまま実行する、人の承認を待つ、資格者の判断を待つ、実行しない、のどれかを決めます。判定はコードが行い、モデルの出力では変わりません
+- **資格者の判断**: 税務や法務のように資格が要る判断は、Review Package を作って止まります。会社が指名した専門家の判断を記録すると実行し、その判断は次から根拠として引かれます
 - **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
 - **Claude Code などの汎用エージェントから使う**: `openshain mcp` が MCP サーバーです。Claude Code や Codex に登録すると、同じハーネスがそれらのエージェントの上で動きます
 
@@ -105,7 +107,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 職種は `openshain.yaml` の `profession` で選びます。指示文と読む場所を書けば、独自の職種を定義します。
 
 > [!NOTE]
-> 権限、承認、専門家へのエスカレーションはこれからです。
+> 職種ごとの知識の同梱(Profession Pack)と、専門家への送付の自動化はこれからです。承認と資格者の判断は、いまは会社が `authority/` に規則を書いて使います。
 
 ### 仕組み
 
@@ -196,6 +198,8 @@ openshain tools list            # 使える Tool を表示します
 openshain mcp                   # MCP サーバーとして起動します(通常はエージェントが起動します)
 ```
 
+会話の中では、`/approvals` で承認待ちを見て、`/approve <id>` と `/reject <id>` で決めます。資格者の判断は `/review <id> approve` で記録します。`/help` で一覧が出ます。
+
 Tool を追加する例は [examples/](examples/README.md) にあります。
 
 ### Claude Code から
@@ -206,6 +210,34 @@ Tool を追加する例は [examples/](examples/README.md) にあります。
 4. 依頼の記録と成果物は会社フォルダの `work/` に残り、`openshain work list` と `openshain work show <id>` で参照します
 
 Codex など他のエージェントでも、`openshain mcp` を stdio の MCP サーバーとして登録すると、Claude Code と同じ手順で動きます。
+
+## 権限と承認
+
+会社フォルダの `authority/` に、誰の代理で働いてよいか(`delegations.yaml`)と、どの呼び出しに何が要るか(`policy.yaml`)を書きます。
+
+```yaml
+version: 1
+default: allow
+rules:
+  - id: receipts-are-read-only       # 領収書は読むだけ
+    match: { effect: mutate, path: "receipt/**" }
+    decision: deny
+    reason: 領収書は変更しません
+  - id: ledger-needs-approval        # 帳簿への書き込みは人の承認を待つ
+    match: { tool: [fs_write, csv_write], path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+  - id: tax-needs-review             # 税務の判断は資格者に送る
+    match: { action: tax-treatment }
+    decision: review_required
+    reviewer: { role: tax-accountant }
+```
+
+- 規則は上から順に見て、最初に一致したものが決めます。一致しなければ `default` です
+- 承認が要る呼び出しは、画面が選択の形になり、何が変わるか(書き込みなら差分)を見てから決めます
+- 資格者の判断が要る呼び出しは、Review Package を `work/<id>/review/` に置いて止まります。判断を記録すると `authority/decisions/` に残り、次からは根拠として引かれます
+- `authority/` を置かない会社フォルダは、これまでどおりすべて許可です
+- 書き方は [docs/configuration.md](docs/configuration.md)、仕様は [spec/authority.md](spec/authority.md) にあります
 
 ## 設定
 
@@ -248,7 +280,7 @@ OSS はどの提供元の知識でも読み込みます(Bring Your Own Knowledge
 - 会社フォルダの外には出ません。SaaS や会計ソフトの代わりにはならず、そこから書き出したファイルを扱います
 - 金額の計算、権限の判断、状態の遷移をモデルに任せません。これらはコードが持ちます
 - 利用者のデータを openshain の運営者に送りません。通信先は設定したモデルの API だけです
-- 資格者(税理士、弁護士など)としての判断を確定しません。会社の決まりと、会社が指名した専門家の承認済みの判断を業務に適用します。権限、承認、専門家の Review の仕組みはこれからで、設計は [spec/professional-boundary.md](spec/professional-boundary.md) にあります
+- 資格者(税理士、弁護士など)としての判断を確定しません。会社の決まりと、会社が指名した専門家の承認済みの判断を業務に適用します。境界の設計は [spec/professional-boundary.md](spec/professional-boundary.md)、権限と承認の仕様は [spec/authority.md](spec/authority.md) にあります
 
 ## 開発
 

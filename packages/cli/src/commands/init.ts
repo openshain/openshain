@@ -60,7 +60,8 @@ export const AGENTS_TEMPLATE = `# この会社フォルダで働くエージェ�
 - ファイルは \`fs_list\`、\`fs_search\`、\`fs_read\`、\`csv_read\`、\`markdown_read\` で見る。合計や件数は \`csv_aggregate\` に任せ、自分で合計しない
 - 書くときは \`fs_write\` か \`csv_write\`
 - 終わったら \`work_complete\` に、何をしたかと、書いたファイルを渡す。続けられないときは \`work_fail\`
-- \`openshain.yaml\` と \`work/\` は Runtime のもの。変更しない
+- \`openshain.yaml\`、\`work/\`、\`principals/\`、\`authority/\` は Runtime のもの。変更しない
+- 呼び出しの結果が \`pending\` なら、会社の権限の規則がその呼び出しを止めている。承認は会社の人が openshain の画面で決める。自分で \`approval_decide\` や \`review_decide\` を呼んで通さない。人に伝えて、決まるまで別の作業をする
 `;
 
 export const CLAUDE_TEMPLATE = "@AGENTS.md\n";

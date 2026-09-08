@@ -79,6 +79,17 @@ describe("init", () => {
     expect(configTemplate("en")).toContain("language: en");
   });
 
+  test("the template tells an outside agent not to decide its own approvals", async () => {
+    const root = await tmp();
+
+    await init({ workspaceRoot: root, write: () => {} });
+
+    const agents = await readFile(join(root, "AGENTS.md"), "utf8");
+    expect(agents).toContain("authority/");
+    expect(agents).toContain("approval_decide");
+    expect(agents).toContain("会社の人が openshain の画面で決める");
+  });
+
   test("keeps an AGENTS.md that is already there", async () => {
     const root = await tmp();
     await writeFile(join(root, "AGENTS.md"), "# mine\n");

@@ -94,6 +94,8 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stopped is continued from the conversation with `/work resume <id>`
 - **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
+- **Permissions and approval**: rules in `authority/` decide, for every tool call, whether it runs, waits for a person's approval, waits for a qualified reviewer, or does not run at all. The judgment is code; the model's output never changes it
+- **Qualified review**: a judgment that takes a licence (tax, law) stops with a review package. Record the decision of the expert your company names and the call runs; later calls cite that decision
 - **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
 - **From Claude Code and other agents**: `openshain mcp` is the MCP server. Register it in Claude Code or Codex and the same harness works on top of those agents
 
@@ -105,7 +107,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 The profession is chosen with `profession` in `openshain.yaml`. Write instructions and the places to read, and that defines your own profession.
 
 > [!NOTE]
-> Permissions, approval, and escalation to an expert are still to come.
+> Profession packs, with the knowledge that comes with a profession, and sending a package to an expert automatically, are still to come. Permissions and review work today from the rules your company writes in `authority/`.
 
 ### How it fits together
 
@@ -196,6 +198,8 @@ openshain tools list            # lists the tools available
 openshain mcp                   # runs as an MCP server (normally the agent starts it)
 ```
 
+Inside the conversation, `/approvals` lists what is waiting, `/approve <id>` and `/reject <id>` decide it, and `/review <id> approve` records what a qualified reviewer said. `/help` lists them all.
+
 An example of adding a tool is in [examples/](examples/README.md).
 
 ### From Claude Code
@@ -206,6 +210,34 @@ An example of adding a tool is in [examples/](examples/README.md).
 4. The record and the output of the request stay in `work/` in the company folder, readable with `openshain work list` and `openshain work show <id>`
 
 Any other agent, Codex included, follows the same steps as Claude Code once `openshain mcp` is registered as a stdio MCP server.
+
+## Permissions and approval
+
+`authority/` in the company folder holds who the agent may act for (`delegations.yaml`) and what each call needs (`policy.yaml`).
+
+```yaml
+version: 1
+default: allow
+rules:
+  - id: receipts-are-read-only       # receipts are read, never written
+    match: { effect: mutate, path: "receipt/**" }
+    decision: deny
+    reason: 領収書は変更しません
+  - id: ledger-needs-approval        # a write to the ledger waits for a person
+    match: { tool: [fs_write, csv_write], path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+  - id: tax-needs-review             # a tax judgment goes to someone qualified
+    match: { action: tax-treatment }
+    decision: review_required
+    reviewer: { role: tax-accountant }
+```
+
+- The first rule that matches decides; the `default` closes the list
+- A call that needs approval turns the input box into a choice, with a diff of what would change
+- A call that needs a reviewer leaves a package in `work/<id>/review/` and waits. The recorded decision lands in `authority/decisions/` and later calls cite it
+- A company folder without `authority/` allows everything, as before
+- The fields are in [docs/configuration.md](docs/configuration.md), the specification in [spec/authority.md](spec/authority.md)
 
 ## Configuration
 
@@ -248,7 +280,7 @@ The full text of the principles is in [docs/principles.md](docs/principles.md), 
 - It never leaves the company folder. It is not a replacement for SaaS or accounting software; it works on the files exported from them
 - It never leaves money arithmetic, authority checks, or state transitions to the model. Those are code
 - It never sends your data to the people who run openshain. The only network peer is the model API you configured
-- It never settles a judgment that takes a licensed professional (a tax accountant, a lawyer). It applies the company's rules and the approved decisions of the experts the company names. Permissions, approval and expert review are still to come; the design is in [spec/professional-boundary.md](spec/professional-boundary.md)
+- It never settles a judgment that takes a licensed professional (a tax accountant, a lawyer). It applies the company's rules and the approved decisions of the experts the company names. The boundary is in [spec/professional-boundary.md](spec/professional-boundary.md) and the rules in [spec/authority.md](spec/authority.md)
 
 ## Development
 
