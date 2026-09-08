@@ -101,12 +101,17 @@ jobs:
             echo "WEBSITE_REPOSITORY or WEBSITE_DISPATCH_TOKEN is not set; the website is not told about this release"
             exit 0
           fi
-          gh api "repos/$WEBSITE_REPOSITORY/dispatches" \
+          # The dispatch only makes the website update sooner. What is published is decided by
+          # the GitHub Release, which the site also reads from releases/latest, so a dispatch
+          # that does not arrive must not fail the release or hold back the npm publish.
+          if ! gh api "repos/$WEBSITE_REPOSITORY/dispatches" \
             -f event_type=openshain-release \
             -f "client_payload[tag]=$GITHUB_REF_NAME" \
             -f "client_payload[version]=${GITHUB_REF_NAME#v}" \
             -f "client_payload[sha]=$GITHUB_SHA" \
-            -f "client_payload[release_url]=https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"
+            -f "client_payload[release_url]=https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME"; then
+            echo "::warning::the website was not told about $GITHUB_REF_NAME; it will pick the release up from releases/latest"
+          fi
 
   publish:
     # Publishes the five packages to npm through trusted publishing (OIDC): no npm token is
