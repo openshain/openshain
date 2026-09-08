@@ -319,6 +319,15 @@ rules:
     expect(noWords.isError).toBe(true);
     expect(noWords.text).toContain("interpretation");
 
+    const wrongRole = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer: { name: "誰か", role: "reviewer" },
+      interpretation: "よい",
+    });
+    expect(wrongRole.isError).toBe(true);
+    expect(wrongRole.text).toContain("asks for a tax-accountant");
+
     const decided = await call("review_decide", {
       approval_id: approvalId,
       decision: "approve",

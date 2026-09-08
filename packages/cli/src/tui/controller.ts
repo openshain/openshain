@@ -448,8 +448,16 @@ export async function createController(options: ControllerOptions): Promise<Cont
     } else if (name === "review" && sub && (args[1] === "approve" || args[1] === "reject")) {
       const decision = args[1];
       try {
+        // The rule already says which role has to decide; the person only says who they are.
+        const held = (await session.approvals()).find((a) => a.approvalId === sub);
+        if (!held)
+          throw new Error(`${sub} は承認待ちにありません。/approvals で確かめてください。`);
+        if (held.kind !== "review") {
+          throw new Error(`${sub} は人の承認待ちです。/approve か /reject で決めます。`);
+        }
+        const role = held.reviewer?.role ?? "reviewer";
         const who = await askLine(
-          "Reviewer の名前と資格(例: 田中 太郎 / 税理士)。会社の申告として記録します",
+          `${role} の名前と資格(例: 田中 太郎 / 税理士)。会社の申告として記録します`,
         );
         const [reviewerName, qualification] = who.split("/").map((part) => part.trim());
         const interpretation = await askLine(
@@ -460,7 +468,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
           decision,
           reviewer: {
             name: reviewerName || who,
-            role: "reviewer",
+            role,
             ...(qualification && { qualification }),
           },
           interpretation,

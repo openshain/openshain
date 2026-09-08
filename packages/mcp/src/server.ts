@@ -594,6 +594,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (decision !== "reject" && (interpretation ?? "") === "") {
           return failure("a decision needs the reviewer's interpretation in their own words");
         }
+        if (approval.reviewer && approval.reviewer.role !== reviewer.role) {
+          return failure(
+            `rule ${approval.ruleId} asks for a ${approval.reviewer.role}; the decision names a ${reviewer.role}`,
+          );
+        }
         if (decision === "modify" && modifiedInput) {
           // Checked before anything is recorded: a refused input leaves the approval pending.
           const before = (approval.call.input ?? {}) as { path?: unknown };
