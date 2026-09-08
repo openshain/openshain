@@ -17,7 +17,7 @@ An agent harness that turns a general agent into a professional employee of a co
 - Build the CLI binary: `bun run build`
 - Build the npm packages: `bun run build:packages` (in dependency order; a package's `tsconfig.build.json` resolves its siblings through their `dist/`)
 - Schemas: `bun run schemas` regenerates `spec/schemas/` from the zod schemas in `packages/core`; CI fails when the committed files are stale
-- Static analysis: CI runs Semgrep with the public rulesets and `.semgrep/`, which holds the rules for this codebase's own invariants (a tool never runs outside the policy, an approval names who decided, a status is never assigned outside the reducer, a key never reaches a log line)
+- Static analysis: CI runs Semgrep with the public rulesets and `.semgrep/`, which holds the rules for this codebase's own invariants (a tool never runs outside the policy, an approval names who decided, a status is never assigned outside the reducer, a key never reaches a log line, a line reaches the screen only after it is cleaned). A second workflow runs CodeQL (`security-and-quality`) on every change and once a week; its findings appear under the repository's code scanning results
 
 ## Layout
 
