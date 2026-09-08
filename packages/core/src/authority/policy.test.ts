@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -277,5 +278,17 @@ rules:
     await writeDecision(root, decision({ id: "dec_2", interpretation: "本文\n\n" }));
     expect((await loadAuthority(root)).decisions.get("dec_2")?.interpretation).toBe("本文");
     await expect(writeDecision(root, written)).rejects.toThrow();
+  });
+
+  test("a decision id names a file, so it may not be a path, and it needs an authority/ to live in", async () => {
+    const root = await mkdtemp(join(tmpdir(), "openshain-authority-"));
+
+    await expect(writeDecision(root, decision({ id: "dec_1" }))).rejects.toThrow(/authority/);
+
+    await mkdir(join(root, "authority"));
+    for (const id of ["../evil", "a/b", ".hidden", ""]) {
+      await expect(writeDecision(root, decision({ id }))).rejects.toThrow();
+    }
+    expect(existsSync(join(root, "..", "evil.yaml"))).toBe(false);
   });
 });

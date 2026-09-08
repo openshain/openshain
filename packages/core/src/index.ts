@@ -56,6 +56,7 @@ export {
   createToolRegistry,
   MAX_TOOL_TEXT_CHARS,
   type PendingApprovalResult,
+  REVIEW_DIR_NAME,
   type Runtime,
   type RuntimeProviders,
   type ToolSummary,

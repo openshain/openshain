@@ -31,7 +31,7 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 決めたこと。`review_required` で止まった呼び出しは `review_decide` でしか決められません。`approval_decide` で決めようとすると断ります。逆も同じです。`approve` と `modify` は Decision を `authority/decisions/` に書き、Runtime がその場で呼び出しを実行し、書いた Decision をすぐ読み直します。次の呼び出しが `decision_backed` でそれを引けるようにするためです。
 
-理由。会社の人の承認と、資格者の判断は別のものです(professional-boundary.md)。同じ Tool で決められると、人が資格者の代わりを務められます。Reviewer の資格は会社の申告として記録し、openshain は検証しません。
+理由。会社の人の承認と、資格者の判断は別のものです(professional-boundary.md)。同じ Tool で決められると、人が資格者の代わりを務められます。Reviewer の資格は会社の申告として記録し、openshain は検証しません。`modify` で触る先を変えることはできません。承認したものと実行するものがずれるからです。入力を断るときは、記録に何も書く前に断ります。断られた呼び出しは保留のまま残ります。
 
 ## `context` は session でも呼べる
 

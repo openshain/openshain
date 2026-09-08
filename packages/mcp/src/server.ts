@@ -594,6 +594,16 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (decision !== "reject" && (interpretation ?? "") === "") {
           return failure("a decision needs the reviewer's interpretation in their own words");
         }
+        if (decision === "modify" && modifiedInput) {
+          // Checked before anything is recorded: a refused input leaves the approval pending.
+          const before = (approval.call.input ?? {}) as { path?: unknown };
+          const after = modifiedInput as { path?: unknown };
+          if (before.path !== after.path) {
+            return failure(
+              `a modified call must touch the same path: ${String(before.path)} was held, ${String(after.path)} was given`,
+            );
+          }
+        }
         const opened = await works.open(workId);
         try {
           await opened.append({

@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { parseYamlFile } from "../config/yaml.ts";
+import { OpenshainError } from "../errors.ts";
 
 /** Files under authority/ the runtime reads. */
 export const AUTHORITY_DIR_NAME = "authority";
@@ -70,7 +71,15 @@ export const DelegationsFileSchema = z.strictObject({
 
 /** What a reviewer decided, written to authority/decisions/ and cited by a decision_backed rule. */
 export const DecisionFileSchema = z.strictObject({
-  id: z.string().min(1).max(200),
+  // One path segment: the id becomes the file name under authority/decisions/.
+  id: z
+    .string()
+    .min(1)
+    .max(200)
+    .regex(
+      /^[A-Za-z0-9][A-Za-z0-9._-]*$/,
+      "a decision id is letters, digits, dot, dash and underscore",
+    ),
   reviewer: z.strictObject({
     name: z.string().min(1).max(200),
     role: identifier,
@@ -185,10 +194,20 @@ export async function writeDecision(
   workspaceRoot: string,
   decision: DecisionRecord,
 ): Promise<string> {
+  // The id is checked again here: this function is public, and the id names a file.
+  const checked = DecisionFileSchema.parse(decision);
+  try {
+    if (!(await stat(join(workspaceRoot, AUTHORITY_DIR_NAME))).isDirectory()) throw new Error();
+  } catch {
+    throw new OpenshainError(
+      "config",
+      `this workspace has no ${AUTHORITY_DIR_NAME}/, so it has no policy to decide under`,
+    );
+  }
   const dir = join(workspaceRoot, AUTHORITY_DIR_NAME, DECISIONS_DIR_NAME);
   await mkdir(dir, { recursive: true });
-  const file = join(dir, `${decision.id}.yaml`);
-  await writeFile(file, toYaml(decision), { flag: "wx" });
+  const file = join(dir, `${checked.id}.yaml`);
+  await writeFile(file, toYaml(checked), { flag: "wx" });
   return file;
 }
 

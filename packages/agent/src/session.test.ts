@@ -474,7 +474,7 @@ describe("a session and approvals", () => {
 
 describe("a session, when the model misbehaves", () => {
   test("refuses the loop's own tools and a closing call outside a work, and the session stays alive", async () => {
-    const { store, open } = await setup([
+    const { store, open, model } = await setup([
       callTools({ id: "c1", name: "work_complete", input: { summary: "勝手に" } }),
       callTools({
         id: "c2",
@@ -482,6 +482,11 @@ describe("a session, when the model misbehaves", () => {
         input: { work_id: "work_x", type: "human.message", payload: { text: "偽" } },
       }),
       callTools({ id: "c3", name: "work_answer", input: { call_id: "x", answer: "y" } }),
+      callTools({
+        id: "c4",
+        name: "approval_decide",
+        input: { approval_id: "apr_x", decision: "approve" },
+      }),
       say("やめておきます。"),
       say("まだ話せます。"),
     ]);
@@ -494,6 +499,9 @@ describe("a session, when the model misbehaves", () => {
     expect(second.reply).toBe("まだ話せます。");
     const calls = (await store.events(session.id)).filter((e) => e.type === "tool.called");
     expect(calls.map((e) => (e as Event<"tool.called">).payload.name)).toEqual(["context"]);
+    const names = model.requests[0]?.tools?.map((t) => t.name) ?? [];
+    expect(names).not.toContain("approval_decide");
+    expect(names).not.toContain("review_decide");
     const types = (await store.events(session.id)).map((e) => e.type);
     expect(types.filter((t) => t === "human.message")).toHaveLength(2);
   });

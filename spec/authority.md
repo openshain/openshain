@@ -39,7 +39,7 @@ Status: draft v0.1(未実装。専門職の責務境界(professional-boundary.md
 │   └── decisions/
 │       └── <id>.yaml        承認済みの Decision(Review の結果)。decision_backed が参照する
 └── work/<id>/
-    └── review/<approval-id>.json   Review Package(送付用の写し)
+    └── review/<approval-id>.json   Review Package(送付用の写し。Runtime が書きます)
 ```
 
 `principals/` と `authority/` は Runtime の予約パスです。Tool からは読み書きとも拒否します。無いときは、`openshain.yaml` の `principal` だけが Principal で、判定の表は空(すべて `allow`)です。いまの workspace はそのまま動きます。
@@ -100,7 +100,7 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 | `decision_backed` | Decision を確かめ、`decision.applied`(decision_id)を記録して実行する | `in_progress` |
 
 - 承認は `approval_decide`(approval_id、`approve` か `reject`、by、comment)で記録します。`approve` なら Runtime がそのときに Tool を実行し、`tool.called` と `tool.completed` を残して `in_progress` に戻します。`reject` なら `tool.rejected`(code `rejected_by_person`)を残して `in_progress` に戻します。client は結果を model に渡します
-- Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、interpretation、任意で applies_to と有効日)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Runtime が Action を実行します。`modify` は Reviewer が書き換えた入力で実行します。`reject` は Decision を書かず、`tool.rejected`(`rejected_by_person`)を残します。承認の Tool(`approval_decide`)では Review を決められず、その逆もできません
+- Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、interpretation、任意で applies_to と有効日)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Runtime が Action を実行します。`modify` は Reviewer が書き換えた入力で実行しますが、触る先(`path`)は保留した呼び出しと同じでなければ受け付けません。Decision の id は 1 つのパスの要素で、`/` や `..` を含みません。`reject` は Decision を書かず、`tool.rejected`(`rejected_by_person`)を残します。承認の Tool(`approval_decide`)では Review を決められず、その逆もできません
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
 - 承認する人の確認は、この版では接続を通して行います。対話型 CLI と MCP の接続は `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます。端末の認証と複数人は後の版です
 - 「この会話では常に承認する」は client の中だけの決定です。`authority/` には書かず、会話を閉じれば消えます。承認の記録は毎回残ります。`review_required` にはこの選択肢を出しません。資格者の承認を人が肩代わりできないためです

@@ -331,6 +331,11 @@ rules:
     expect(decided.json().result.isError).toBe(false);
     const decisionId = decided.json().decision_id as string;
     expect(decided.json().decision_file).toBe(join("authority", "decisions", `${decisionId}.yaml`));
+    // The package the person sends to the reviewer sits next to the work's own record.
+    const copy = JSON.parse(
+      await readFile(join(root, "work", id, "review", `${approvalId}.json`), "utf8"),
+    );
+    expect(copy).toMatchObject({ approvalId, action: { tool: "csv_write" } });
     expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toContain("2026-07-01");
     expect((await store.get(id as never)).status).toBe("in_progress");
     const types = (await store.events(id as never)).map((e) => e.type);
@@ -367,6 +372,48 @@ rules:
       (e) => e.type === "decision.applied",
     );
     expect((applied as { payload: { decisionId: string } }).payload.decisionId).toBe(decisionId);
+  });
+
+  test("a modified call must touch the path that was held", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      "version: 1\ndefault: allow\nrules:\n  - id: needs-review\n    match: { tool: fs_write }\n    decision: review_required\n    reviewer: { role: tax-accountant }\n",
+    );
+    const { call } = await connected(undefined, root);
+    await call("work_create", { objective: "x" });
+    const held = await call("fs_write", { path: "ledger/x.csv", content: "a\n" });
+    const reviewer = { name: "田中", role: "tax-accountant" };
+
+    const elsewhere = await call("review_decide", {
+      approval_id: held.json().approval_id,
+      decision: "modify",
+      reviewer,
+      interpretation: "別の場所に書かせる",
+      modified_input: { path: "ledger/other.csv", content: "b\n" },
+    });
+
+    expect(elsewhere.isError).toBe(true);
+    expect(elsewhere.text).toContain("same path");
+    expect(existsSync(join(root, "ledger", "other.csv"))).toBe(false);
+
+    const corrected = await call("review_decide", {
+      approval_id: held.json().approval_id,
+      decision: "modify",
+      reviewer,
+      interpretation: "中身だけ直す",
+      modified_input: { path: "ledger/x.csv", content: "直した\n" },
+    });
+
+    expect(corrected.text).not.toContain("same path");
+    expect(corrected.isError).toBe(false);
+    expect(await readFile(join(root, "ledger", "x.csv"), "utf8")).toBe("直した\n");
   });
 
   test("a rejected review refuses the call and the work goes on", async () => {

@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   type Authority,
   evaluate,
@@ -16,7 +18,7 @@ import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/
 import { uuidv7 } from "./uuid.ts";
 import type { Event, ReviewPackage, ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
-import { type WorkHandle, WorkStore } from "./work/store.ts";
+import { WORK_DIR_NAME, type WorkHandle, WorkStore } from "./work/store.ts";
 
 export interface RuntimeProviders {
   /** Model providers by the id used in openshain.yaml. */
@@ -38,6 +40,9 @@ export interface ToolSummary {
 
 /** Longer tool output is cut here so that one tool cannot flood the model's context. */
 export const MAX_TOOL_TEXT_CHARS = 50_000;
+
+/** Where a work keeps the review packages a person sends to a reviewer. */
+export const REVIEW_DIR_NAME = "review";
 
 export interface Runtime {
   readonly workspaceRoot: string;
@@ -232,17 +237,18 @@ async function callTool(input: {
         },
       });
       if (review) {
-        await work.append({
-          type: "review.requested",
-          payload: {
-            approvalId,
-            package: await reviewPackage(work, {
-              approvalId,
-              call,
-              rule: judged.rule,
-              principal: config.principal.id,
-            }),
-          },
+        const built = await reviewPackage(work, {
+          approvalId,
+          call,
+          rule: judged.rule,
+          principal: config.principal.id,
+        });
+        await work.append({ type: "review.requested", payload: { approvalId, package: built } });
+        // A copy the person can send to the reviewer, next to the work's own record.
+        const dir = join(workspaceRoot, WORK_DIR_NAME, work.id, REVIEW_DIR_NAME);
+        await mkdir(dir, { recursive: true });
+        await writeFile(join(dir, `${approvalId}.json`), `${JSON.stringify(built, null, 2)}\n`, {
+          flag: "wx",
         });
       }
       await work.transition(
