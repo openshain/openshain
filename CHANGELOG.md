@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-09
+
 ### Fixed
 
 - 業務日を会社の時刻で決めるようにしました。これまでは openshain を動かしている機械の時刻をそのまま使っていたため、UTC のサーバーで動かすと、判断や委任の有効日が日本時間より 9 時間遅れて有効になっていました。`openshain.yaml` に `company.timezone`(`Asia/Tokyo` のような IANA の名前)を追加します。省略したときはこれまでどおり機械の設定を使い、`openshain init` はその値を書きます。`context` Tool が返す時刻と業務日も会社の時刻になります
@@ -103,7 +105,8 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/openshain/openshain/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/openshain/openshain/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/openshain/openshain/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/openshain/openshain/compare/v0.2.0...v0.3.0
