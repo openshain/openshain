@@ -12,6 +12,9 @@ export interface Notice {
   home?: string;
 }
 
+/** What npm allows as a package name: an optional scope, then the name. */
+const PACKAGE_NAME = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+
 /** The files a package puts its license in, in the order they are looked for. */
 const LICENSE_FILES = /^(LICEN[CS]E|COPYING|LICEN[CS]E[.-].*)(\.(md|txt))?$/i;
 
@@ -29,6 +32,9 @@ async function readJson(file: string): Promise<Record<string, unknown> | undefin
  * really is and finds the dependencies installed beside it.
  */
 async function resolvePackage(fromDir: string, name: string): Promise<string | undefined> {
+  // A dependency names itself, so the name decides which directories are read. Only a real
+  // package name is followed; anything else could walk out of the tree.
+  if (!PACKAGE_NAME.test(name)) throw new Error(`not a package name: ${name}`);
   let dir = fromDir;
   for (;;) {
     const candidate = join(dir, "node_modules", name);

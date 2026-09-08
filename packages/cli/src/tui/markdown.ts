@@ -193,11 +193,20 @@ function listRows(list: Tokens.List, width: number, depth: number): Span[][] {
 }
 
 /**
+ * How much of a reply is read as markdown. Reading it costs more than the square of its length
+ * (10,000 characters take about 0.14 seconds, 20,000 about 0.46, 140,000 over a minute), and the
+ * screen draws on one thread, so a longer reply would hold it. Above this the reply is shown as
+ * plain text: every character is still there, with its marks.
+ */
+const MAX_SOURCE = 20_000;
+
+/**
  * A reply as rows of styled pieces. The model writes markdown, so the screen shows the emphasis
  * and the structure instead of the characters that mark them. What this does not draw yet is
  * shown as it was written, never dropped.
  */
 export function markdownRows(source: string, width: number): Span[][] {
+  if (source.length > MAX_SOURCE) return wrap([{ text: source }], width);
   const rows = blockRows(marked.lexer(source), width);
   while (rows.length > 0 && (rows[0]?.length ?? 0) === 0) rows.shift();
   while (rows.length > 0 && (rows.at(-1)?.length ?? 0) === 0) rows.pop();

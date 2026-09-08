@@ -44,6 +44,20 @@ export function wrapText(text: string, width: number): string[] {
   return out;
 }
 
+/**
+ * The rows of one reply, kept until the entry goes or the width changes. The screen redraws
+ * every entry whenever a line is added, and reading markdown is the expensive part of that.
+ */
+const drawn = new WeakMap<Entry, { width: number; rows: Span[][] }>();
+
+export function rowsFor(entry: Entry, width: number): Span[][] {
+  const held = drawn.get(entry);
+  if (held && held.width === width) return held.rows;
+  const rows = markdownRows(entry.text, width);
+  drawn.set(entry, { width, rows });
+  return rows;
+}
+
 /** A blank row goes before an entry that starts something new: a message, a reply, a notice, a question. */
 function startsBlock(kind: EntryKind, previous: EntryKind | undefined): boolean {
   if (previous === undefined) return false;
@@ -70,7 +84,7 @@ export function screenLines(entries: readonly Entry[], width: number): ScreenLin
     const room = Math.max(8, width - displayWidth(marker));
     if (entry.kind === "assistant") {
       // The reply is written in markdown; the screen draws it rather than showing its marks.
-      for (const [i, row] of markdownRows(entry.text, room).entries()) {
+      for (const [i, row] of rowsFor(entry, room).entries()) {
         // A row with nothing on it is drawn as an empty one: no marker, no indent, no pieces.
         if (row.length === 0) {
           lines.push({ kind: entry.kind, text: "" });

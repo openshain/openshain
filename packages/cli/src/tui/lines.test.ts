@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { screenLines, wrapText } from "./lines.ts";
+import type { Entry } from "./controller.ts";
+import { rowsFor, screenLines, wrapText } from "./lines.ts";
 
 describe("wrapping for the screen", () => {
   test("breaks at the display width, counting Japanese characters as two columns", () => {
@@ -51,6 +52,15 @@ describe("wrapping for the screen", () => {
     ]);
     expect(lines[0]?.spans).toEqual([{ text: "⏺ " }, { text: "7 月", bold: true, color: "cyan" }]);
     expect(lines[2]?.spans?.[1]).toEqual({ text: "合計", bold: true });
+  });
+
+  test("reads a reply once for a width, and again when the width changes", () => {
+    const entry: Entry = { id: 1, kind: "assistant", text: "**合計** は 123 円です。" };
+
+    const first = rowsFor(entry, 40);
+
+    expect(rowsFor(entry, 40)).toBe(first);
+    expect(rowsFor(entry, 20)).not.toBe(first);
   });
 
   test("keeps a logo row whole and colors it from the left edge to the right", () => {

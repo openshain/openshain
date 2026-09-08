@@ -76,6 +76,16 @@ describe("third-party notices", () => {
     expect(notices.find((n) => n.name === "ink")).toMatchObject({ license: "MIT", text: "" });
   });
 
+  test("refuses a dependency whose name would walk out of the tree", async () => {
+    const root = await workspace();
+    await pkg(join(root, "packages", "cli"), {
+      name: "@openshain/cli",
+      dependencies: { "../../../etc": "1.0.0" },
+    });
+
+    await expect(collectNotices(root)).rejects.toThrow(/not a package name/);
+  });
+
   test("refuses a package that declares no license", async () => {
     const root = await workspace();
     await pkg(join(root, "node_modules", ".store", "ink", "node_modules", "chalk"), {
