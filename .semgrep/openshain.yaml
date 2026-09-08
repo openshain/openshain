@@ -26,6 +26,14 @@ rules:
   - pattern: console.log(<... process.env[$K] ...>)
   - pattern: console.error(<... process.env[$K] ...>)
   - pattern: console.log(<... $M.apiKey ...>)
+- id: openshain-screen-text-not-cleaned
+  languages:
+  - typescript
+  severity: ERROR
+  message: A line reaches the screen without plain(). A model's reply, a Tool result or a file's content can carry escape sequences that move the cursor, retitle the window or write the clipboard. The screen draws what is added here, markdown included, so this is the one place it is cleaned.
+  patterns:
+  - pattern: '$S.entries = [...$REST, { ..., text: $T, ... }]'
+  - pattern-not: '$S.entries = [...$REST, { ..., text: plain(...), ... }]'
 - id: openshain-work-status-set-outside-the-state-machine
   languages:
   - typescript
