@@ -206,11 +206,25 @@ export function App({ controller }: { controller: Controller }) {
       <Box flexDirection="column" height={paneRows}>
         {visible.map((line) => {
           const color = COLORS[line.kind];
-          if (line.segments) {
+          if (line.spans) {
+            // Each piece is named by the column it starts at, which does not move.
+            let column = 0;
+            const pieces = line.spans.map((span) => {
+              const at = column;
+              column += span.text.length;
+              return { ...span, at };
+            });
             return (
-              <Text key={line.row} wrap="truncate">
-                {line.segments.map((s) => (
-                  <Text key={s.at} color={s.color}>
+              <Text key={line.row} wrap="truncate" {...(color && { color })}>
+                {pieces.map((s) => (
+                  <Text
+                    key={`${line.row}-${s.at}`}
+                    {...(s.color && { color: s.color })}
+                    {...(s.bold && { bold: true })}
+                    {...(s.italic && { italic: true })}
+                    {...(s.dim && { dimColor: true })}
+                    {...(s.strikethrough && { strikethrough: true })}
+                  >
                     {s.text}
                   </Text>
                 ))}

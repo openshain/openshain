@@ -75,6 +75,24 @@ describe("the screen", () => {
     expect(frame).toContain("model 1 回、入力 10、出力 5 トークン");
   });
 
+  test("shows a reply with its markdown drawn, not with its marks", async () => {
+    const { controller, add } = fakeController([]);
+    const { lastFrame } = render(<App controller={controller} />);
+    add({
+      id: 9,
+      kind: "assistant",
+      text: "## 集計\n\n**合計** は `123` 円です。\n\n- 領収書を読む",
+    });
+    await tick();
+
+    const frame = lastFrame() ?? "";
+    expect(frame).toContain("⏺ 集計");
+    expect(frame).toContain("合計 は 123 円です。");
+    expect(frame).toContain("• 領収書を読む");
+    expect(frame).not.toContain("**");
+    expect(frame).not.toContain("## ");
+  });
+
   test("draws the wordmark with its gradient and the banner rows", () => {
     const { controller } = fakeController([
       { id: 1, kind: "logo", text: " ╔═╗ ╔═╗" },

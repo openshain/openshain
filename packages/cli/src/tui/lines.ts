@@ -1,12 +1,14 @@
 import { displayWidth } from "../format.ts";
-import { logoSegments, type Segment } from "./banner.ts";
+import { logoSegments } from "./banner.ts";
 import type { Entry, EntryKind } from "./controller.ts";
+import { markdownRows, type Span } from "./markdown.ts";
 
 export interface ScreenLine {
   kind: EntryKind | "blank";
+  /** The row as plain characters, marker included. */
   text: string;
-  /** Colored pieces of a logo row; the other rows are one color. */
-  segments?: Segment[];
+  /** The row as styled pieces: a logo row, or a reply the screen drew from its markdown. */
+  spans?: Span[];
 }
 
 /** What starts a line of each kind. The continuation lines of a wrapped entry are indented to match. */
@@ -59,14 +61,28 @@ export function screenLines(entries: readonly Entry[], width: number): ScreenLin
     if (startsBlock(entry.kind, previous)) lines.push({ kind: "blank", text: "" });
     if (entry.kind === "logo") {
       // Never wrapped: a cut row of the wordmark reads better than a broken one.
-      lines.push({ kind: "logo", text: entry.text, segments: logoSegments(entry.text) });
+      lines.push({ kind: "logo", text: entry.text, spans: logoSegments(entry.text) });
       previous = entry.kind;
       continue;
     }
     const marker = MARKERS[entry.kind];
     const indent = " ".repeat(displayWidth(marker));
-    const body = wrapText(entry.text, Math.max(8, width - displayWidth(marker)));
-    for (const [i, text] of body.entries()) {
+    const room = Math.max(8, width - displayWidth(marker));
+    if (entry.kind === "assistant") {
+      // The reply is written in markdown; the screen draws it rather than showing its marks.
+      for (const [i, row] of markdownRows(entry.text, room).entries()) {
+        // A row with nothing on it is drawn as an empty one: no marker, no indent, no pieces.
+        if (row.length === 0) {
+          lines.push({ kind: entry.kind, text: "" });
+          continue;
+        }
+        const spans = [{ text: i === 0 ? marker : indent }, ...row];
+        lines.push({ kind: entry.kind, text: spans.map((s) => s.text).join(""), spans });
+      }
+      previous = entry.kind;
+      continue;
+    }
+    for (const [i, text] of wrapText(entry.text, room).entries()) {
       lines.push({ kind: entry.kind, text: (i === 0 ? marker : indent) + text });
     }
     previous = entry.kind;

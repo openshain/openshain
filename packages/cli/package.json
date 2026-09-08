@@ -54,6 +54,7 @@
     "@openshain/mcp": "workspace:*",
     "@openshain/tools": "workspace:*",
     "ink": "7.1.1",
+    "marked": "18.0.12",
     "react": "19.2.8"
   },
   "devDependencies": {

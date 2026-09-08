@@ -36,12 +36,29 @@ describe("wrapping for the screen", () => {
     expect(lines[5]?.kind).toBe("assistant");
   });
 
+  test("draws the reply from its markdown, under the marker and the indent", () => {
+    const lines = screenLines(
+      [{ id: 1, kind: "assistant", text: "## 7 月\n\n**合計** は 123 円です。\n\n- 領収書" }],
+      40,
+    );
+
+    expect(lines.map((l) => l.text)).toEqual([
+      "⏺ 7 月",
+      "",
+      "  合計 は 123 円です。",
+      "",
+      "  • 領収書",
+    ]);
+    expect(lines[0]?.spans).toEqual([{ text: "⏺ " }, { text: "7 月", bold: true, color: "cyan" }]);
+    expect(lines[2]?.spans?.[1]).toEqual({ text: "合計", bold: true });
+  });
+
   test("keeps a logo row whole and colors it from the left edge to the right", () => {
     const [row] = screenLines([{ id: 1, kind: "logo", text: " ╔═╗ ╔═╗" }], 4);
 
     expect(row?.text).toBe(" ╔═╗ ╔═╗");
-    expect(row?.segments?.[0]).toEqual({ text: " ", color: "#4ea8ff", at: 0 });
-    expect(row?.segments?.at(-1)).toEqual({ text: "╗", color: "#7f88ff", at: 7 });
+    expect(row?.spans?.[0]).toEqual({ text: " ", color: "#4ea8ff" });
+    expect(row?.spans?.at(-1)).toEqual({ text: "╗", color: "#7f88ff" });
   });
 
   test("shows the banner rows without markers or blank rows between them", () => {

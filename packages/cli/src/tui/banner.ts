@@ -1,4 +1,5 @@
 import cli from "../../package.json" with { type: "json" };
+import type { Span } from "./markdown.ts";
 
 /** The version of the openshain command, from its package.json. */
 export const VERSION: string = cli.version;
@@ -19,15 +20,8 @@ const GRADIENT: readonly [readonly [number, number, number], readonly [number, n
   [127, 136, 255],
 ];
 
-export interface Segment {
-  text: string;
-  color: string;
-  /** Position in the row; the screen keys by it. */
-  at: number;
-}
-
-/** One colored segment per character, so the gradient runs across the row. */
-export function logoSegments(row: string): Segment[] {
+/** One colored piece per character, so the gradient runs across the row. */
+export function logoSegments(row: string): Span[] {
   const chars = [...row];
   const last = Math.max(1, chars.length - 1);
   return chars.map((text, at) => {
@@ -35,6 +29,6 @@ export function logoSegments(row: string): Segment[] {
     const [from, to] = GRADIENT;
     const channel = (k: 0 | 1 | 2) => Math.round(from[k] + (to[k] - from[k]) * t);
     const hex = [channel(0), channel(1), channel(2)].map((v) => v.toString(16).padStart(2, "0"));
-    return { text, color: `#${hex.join("")}`, at };
+    return { text, color: `#${hex.join("")}` };
   });
 }
