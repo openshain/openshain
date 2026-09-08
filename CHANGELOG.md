@@ -7,7 +7,7 @@
 ### Added
 
 - 資格者の Review。規則が `review_required` と判定した呼び出しは、Review Package(呼び出し、そこまでの Tool 呼び出し、社員エージェントの提案、問い)を記録して止まります。`review_decide`(画面では `/review <id> approve`)で資格者の判断を記録すると、`authority/decisions/` に判断が書かれ、Runtime が呼び出しを実行します。`decision_backed` の規則はその判断を引き、有効日と適用範囲を確かめてから実行します。イベントは `review.requested`、`review.decided`、`decision.applied` です。Review Package の写しは `work/<id>/review/` に置きます。資格は会社の申告として記録し、openshain は検証しません。承認と判断の Tool は対話型 CLI のモデルには渡しません。規則が求める役(`reviewer.role`)と違う役の名では判断を記録できません
-- 承認の流れ。規則が `approval_required` と判定した Tool 呼び出しは `waiting_approval` で止まります。対話型 CLI では入力欄が承認の選択画面に変わり、何が変わるか(書き込みなら差分)を見て、実行する、この会話では常に承認する、実行しない、から選びます。選ぶとターンはそのまま続きます。MCP では `approval_list` と `approval_decide`、画面では `/approvals` と `/approve <id>` と `/reject <id>` も使えます。承認すると Runtime がその場で実行します。イベントは `approval.requested` と `approval.decided`、拒否の code は `rejected_by_person` です
+- 承認の流れ。規則が `approval_required` と判定した Tool 呼び出しは `waiting_approval` で止まります。対話型 CLI では入力欄が承認の選択画面に変わり、何が変わるか(書き込みなら差分)を確認して、実行する、この会話では常に承認する、実行しない、から選びます。選ぶとターンはそのまま続きます。MCP では `approval_list` と `approval_decide`、画面では `/approvals` と `/approve <id>` と `/reject <id>` も使えます。承認すると Runtime がその場で実行します。イベントは `approval.requested` と `approval.decided`、拒否の code は `rejected_by_person` です
 - `authority/policy.yaml` と `authority/delegations.yaml`。Tool 呼び出しを規則の表で判定し(最初の一致、`*` と `**` の glob)、委任の無い代理と規則で拒否した呼び出しを `tool.rejected`(`denied`)として記録します。Review が要る規則は、その仕組みが入るまで拒否として動きます。`principals/` と `authority/` は予約パスです。JSON Schema は `spec/schemas/authority-*.v1.json` にあります
 - Runtime の Tool `context`。現在時刻、タイムゾーン、今日の業務日、会社フォルダ、依頼する人、現在の Work を返します。対話型 CLI は会話の開始時に 1 回呼んで記録し、社員エージェントは日付が要るときに呼び直します
 

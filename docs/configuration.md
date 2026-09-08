@@ -12,7 +12,7 @@
 |---|---|---|
 | `version` | 必須 | `1` |
 | `company.name` | 必須 | 会社名です。model に伝わります。1 から 200 文字 |
-| `company.language` | 任意 | 会社の言語です。`ja` か `en`。社員エージェントの名前をこの言語の一覧から選びます。省略時は `ja`。`openshain init` が OS の locale を見て埋めます |
+| `company.language` | 任意 | 会社の言語です。`ja` か `en`。社員エージェントの名前をこの言語の一覧から選びます。画面と CLI の文言は日本語のままです。省略時は `ja`。`openshain init` が OS の locale から埋めます |
 | `principal.id` | 必須 | 依頼する人の id です。小文字の英字で始まり、英数字と `_` と `-` で構成します。記録に残ります |
 | `principal.name` | 必須 | 表示名です。1 から 200 文字 |
 | `profession.id` | 必須 | 職種の id です。今は `generic` だけです。形式は `principal.id` と同じ規則です |
@@ -100,7 +100,7 @@ rules:
 | `rules[].reviewer` | 任意 | `review_required` で判断できる役です(`{ role: tax-accountant }`)。判断はこの役の名で記録しなければ受け付けません |
 | `rules[].decision_id` | `decision_backed` で必須 | 根拠にする判断の id です |
 
-規則は上から順に見て、最初に一致したものが決めます。判定は普通のコードが行い、model の出力では変わりません。
+規則は上から順に読み、最初に一致したものが決めます。判定は普通のコードが行い、model の出力では変わりません。
 
 ### 判定ごとの動き
 
@@ -116,7 +116,7 @@ rules:
 
 Runtime が書きます。手で消さないでください。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
 
-同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が書き足します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
+同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が追加します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
 
 ## 記録
 
@@ -132,4 +132,4 @@ Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)�
 | `AGENTS.md` | MCP 経由で入る外部エージェントへの指示です。会社のファイルは openshain の Tool で扱い、`work_create` から始めて `work_complete` で終えます。|
 | `CLAUDE.md` | `@AGENTS.md` の 1 行です。Claude Code に同じ指示を読ませます |
 
-Claude Code はフォルダを信頼するまで `.mcp.json` を読みません。起動時の確認で信頼を選んでから `/mcp` を見てください。
+Claude Code はフォルダを信頼するまで `.mcp.json` を読みません。起動時の確認で信頼を選んでから `/mcp` で確認してください。

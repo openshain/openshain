@@ -3,8 +3,8 @@ import type { ToolProvider } from "@openshain/core";
 /**
  * The smallest tool provider: one tool that returns what it was given. Point openshain.yaml at
  * this file with `- module: ./tools/echo/tool.ts` and the tool appears in `openshain tools list`,
- * is callable by the model in `openshain run`, and is offered over MCP, all without any change
- * to the runtime.
+ * is callable by the model on the screen, and is offered over MCP, all without any change to
+ * the runtime.
  */
 const echo: ToolProvider = {
   id: "echo",

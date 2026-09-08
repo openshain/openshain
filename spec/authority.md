@@ -68,7 +68,7 @@ rules:
     decision_id: dec_2026-09-01-consumption-tax
 ```
 
-- 規則は上から順に見て、最初に一致したものを採ります。一致しなければ `default` です
+- 規則は上から順に読み、最初に一致したものを採ります。一致しなければ `default` です
 - `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`work_type`、`action`
 - `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。判定は path guard を通した後の正規化したパスに対して行います
 - `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあり、`applies_to`(action と path)がその呼び出しを覆うときだけ `allow` と同じに動き、`decision.applied` を記録します。どれかを満たさなければ `review_required` として扱い、理由を呼び出し元に返します。無ければ `review_required` として扱います

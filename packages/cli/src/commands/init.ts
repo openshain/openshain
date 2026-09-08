@@ -21,7 +21,7 @@ profession:
   id: generic
   # model への指示。100,000 文字まで
   instructions: |
-    あなたはこの会社の事務担当です。依頼された作業を、workspace 内のファイルだけを使って進めてください。
+    あなたはこの会社の一般事務の社員エージェントです。依頼された作業を、workspace 内のファイルだけを使って進めてください。
 model:
   provider: anthropic      # anthropic | openai-compatible
   model: claude-opus-5

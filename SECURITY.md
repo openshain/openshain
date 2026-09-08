@@ -17,3 +17,7 @@ Please do not open a public issue for a vulnerability. Use "Report a vulnerabili
 openshain reads API keys from environment variables only and never writes them to configuration or records, and its tools cannot reach files outside the workspace. Reports that break either assumption are especially welcome.
 
 `tools[].module` in `openshain.yaml` loads and runs code from inside the workspace. Do not run openshain in a folder you would not trust, for the same reason Claude Code asks before trusting one.
+
+Approval (`approval_required` in `authority/`) has a limit in this version. The approver is the principal the connection acts for, and the runtime cannot tell whether that person really acted. On the interactive screen a person chooses; an outside agent connected over MCP (Claude Code, for one) can approve the very call that was held from it. If approval is your gate for a person, do not leave rules that need it to an outside agent: decide them on the interactive screen. Terminal authentication comes in a later version. A qualified reviewer's decision (`review_decide`) works the same way: the name is what the company declares. On the interactive screen, the deciding tools are never offered to the model.
+
+Rules in `authority/` match the normalized path string a tool was given. Where a symlink inside the workspace points outside it (the path guard refuses anything outside the workspace), or on a case-insensitive filesystem, what a rule matches and what is written can differ. Write rules against real directories and keep symlinks out of them.

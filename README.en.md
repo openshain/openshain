@@ -30,11 +30,11 @@ The Japanese [README.md](README.md) is the primary one; documentation is written
 
 ```
 $ openshain
-openshain · サンプル株式会社 · 社員エージェント みなと · anthropic/claude-haiku-4-5-20251001
+openshain · Sample Inc. · 社員エージェント Reed · anthropic/claude-opus-5
  ╔═╗ ╔═╗ ╔═╗ ╔╗╔ ╔═╗ ╦ ╦ ╔═╗ ╦ ╔╗╔
  ║ ║ ╠═╝ ║╣  ║║║ ╚═╗ ╠═╣ ╠═╣ ║ ║║║
  ╚═╝ ╩   ╚═╝ ╝╚╝ ╚═╝ ╩ ╩ ╩ ╩ ╩ ╝╚╝
-openshain 0.1.0
+openshain 0.3.1
 /home/alice/sample-company
 
 > Total July's receipts by category and write the counts and sums to summary.md
@@ -44,34 +44,30 @@ openshain 0.1.0
   ⎿ csv_read receipt/2026-07.csv
   ⎿ csv_aggregate receipt/2026-07.csv
   ⎿ fs_write summary.md
-  ⎿ Completed.
-  ⎿ wrote summary.md
-  ⎿ model calls 6, tool calls 5, input 22738 tokens (4602 cached), output 1077 tokens
-  ⎿ Nobody needs to act next.
+  ⎿ 完了。
+  ⎿ 書き込み summary.md
+  ⎿ model 呼び出し 6 回、Tool 呼び出し 5 回、入力 36295 トークン(うちキャッシュ 34158)、出力
+     885 トークン
+  ⎿ 次に動く人はいません。
 
-⏺ Done.
-  
-  I totalled July's receipts by category and wrote summary.md.
-  
-  Receipts: 296
-  Grand total: 3,258,930 yen
-  
-  By category:
-  - Meetings: 18 receipts, 23,370 yen
-  - Advertising: 31 receipts, 793,220 yen
-  - Fees: 31 receipts, 1,170,950 yen
-  - Books and subscriptions: 24 receipts, 104,580 yen
-  - Travel: 66 receipts, 132,980 yen
-  - Utilities: 31 receipts, 585,690 yen
-  - Supplies: 28 receipts, 99,300 yen
-  - Welfare: 18 receipts, 38,570 yen
-  - Shipping: 20 receipts, 137,900 yen
-  - Communications: 29 receipts, 172,370 yen
-  
-  They are in summary.md.
+⏺ Done. I totaled receipt/2026-07.csv (296 rows) by category and wrote summary.md.
+
+  Counts and sums:
+  • Travel 66, 2,991,019
+  • Communications 29, 1,558,878
+  • Advertising 31, 1,511,823
+  • Fees 31, 1,465,646
+  • Utilities 31, 1,285,839
+  • Supplies 28, 1,050,439
+  • Shipping 20, 1,010,830
+  • Books 24, 955,856
+  • Welfare 18, 874,424
+  • Meetings 18, 721,809
+
+  Overall: 296 receipts, 13,426,563.
 ```
 
-The interactive CLI, in conversation with an employee agent.
+The interactive CLI, in conversation with an employee agent. The interface text is Japanese; what the agent writes follows the model and the instructions you give it, as above.
 
 ## Three lines to start
 
@@ -90,7 +86,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 
 ## What it does
 
-- **Interactive CLI**: `openshain` starts a conversation with an employee agent. Give it a request and the agent turns it into a Work, carries it out, and reports back
+- **Interactive CLI**: `openshain` starts a conversation with an employee agent. Give it a request and the agent turns it into a Work, carries it out, and reports back. Replies are drawn with their headings and lists as formatting
 - **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stopped is continued from the conversation with `/work resume <id>`
 - **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
