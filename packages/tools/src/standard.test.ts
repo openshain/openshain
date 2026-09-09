@@ -30,7 +30,13 @@ async function workspace() {
   await writeFile(join(root, "receipts", "2026-07.csv"), RECEIPTS);
   await writeFile(join(root, "notes.md"), NOTES);
   await writeFile(join(root, ".secret"), "x");
-  const ctx: ToolContext = { workId: newWorkId(), principalId: "alice", workspaceRoot: root };
+  const ctx: ToolContext = {
+    workId: newWorkId(),
+    principalId: "alice",
+    profession: "generic",
+    businessDate: "2026-09-09",
+    workspaceRoot: root,
+  };
   const provider = standardTools();
   const call = (name: string, input: unknown) => provider.call({ id: "c", name, input }, ctx);
   return { root, provider, call };
@@ -92,7 +98,7 @@ describe("standard tools", () => {
       total: 2,
       truncated: false,
     });
-    expect(result.observation?.source).toBe(".");
+    expect(result.observation?.[0]?.source).toBe(".");
   });
 
   test("fs_list keeps the names matching the glob and cuts the list at limit", async () => {
@@ -137,7 +143,7 @@ describe("standard tools", () => {
       bytes: Buffer.byteLength(NOTES),
     });
     expect(textOf(result)).toBe(NOTES);
-    expect(result.observation?.source).toBe("notes.md");
+    expect(result.observation?.[0]?.source).toBe("notes.md");
     expect(result.isError).toBeFalsy();
   });
 
@@ -242,7 +248,7 @@ describe("standard tools", () => {
         { date: "2026-07-02", vendor: 'Quote "Q"', amount: "30" },
       ],
     });
-    expect(result.observation?.source).toBe("receipts/2026-07.csv");
+    expect(result.observation?.[0]?.source).toBe("receipts/2026-07.csv");
   });
 
   test("csv_read pages through the rows with offset and limit", async () => {
@@ -305,7 +311,7 @@ describe("standard tools", () => {
       },
       truncated: false,
     });
-    expect(result.observation?.source).toBe("ledger.csv");
+    expect(result.observation?.[0]?.source).toBe("ledger.csv");
   });
 
   test("csv_aggregate applies the filter and makes one group when there is no group_by", async () => {

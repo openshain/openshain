@@ -89,7 +89,7 @@ async function logWithEveryType() {
           { type: "text", text: "x" },
         ],
         isError: false,
-        observation: { source: ".", retrievedAt: now },
+        observation: [{ source: ".", retrievedAt: now }],
         after: [{ path: "a.md", sha256: "00", claimed: true }],
       },
     });

@@ -118,6 +118,7 @@ export {
 export {
   ASK_USER_TOOL_NAME,
   type JsonSchema,
+  type Observation,
   RESERVED_TOOL_NAMES,
   TOOL_NAME_PATTERN,
   type ToolCall,

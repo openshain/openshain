@@ -121,7 +121,7 @@ outcome:
 | `model.completed` | stop_reason、content(text と tool_call)、raw(`debug.persist_raw` のときだけ)。`max_tokens` で切れた途中の出力もここに残します |
 | `model.failed` | code、message |
 | `tool.called` | call_id、provider、name、input |
-| `tool.completed` | call_id、content、is_error、observation、after(mutate のとき、書き込み後の path と sha256) |
+| `tool.completed` | call_id、content、is_error、observation(読んだものの一覧)、after(mutate のとき、書き込み後の path と sha256) |
 | `tool.rejected` | call_id、name、code(`schema_mismatch`、`unknown_tool`、`not_allowed`、`reserved_path`、`outside_workspace`、`invalid_path`、`limit_reached`、`denied`、`rejected_by_person`)、reason |
 | `approval.requested` | approval_id、call(call_id、name、input)、rule_id、kind(`approval` か `review`)、approvers、reviewer。規則が承認を求めた呼び出しです。Work は `waiting_approval` になります |
 | `approval.decided` | approval_id、decision(`approve`、`reject`、`modify`)、by、comment、modified_input |
@@ -230,6 +230,8 @@ export interface ToolDefinition {
 export interface ToolContext {
   workId: WorkId;
   principalId: string;
+  profession: string;          // 何の職種として働いているか
+  businessDate: string;        // 会社の時刻での今日。有効日はこれで判定する
   workspaceRoot: string;
   signal?: AbortSignal;
 }
@@ -237,7 +239,8 @@ export interface ToolContext {
 export interface ToolResult {
   content: Array<{ type: "text"; text: string } | { type: "json"; value: unknown }>;
   isError?: boolean;
-  observation?: { source: string; retrievedAt: string }; // 出典
+  // 読んだものの一覧。1 回の呼び出しが複数の出典を引くことがある
+  observation?: Array<{ source: string; retrievedAt: string; version?: string }>;
   after?: Array<{ path: string; sha256: string }>; // mutate のとき、書き込み後の状態
 }
 ```

@@ -25,7 +25,9 @@ export interface RuntimeProviders {
   /** Model providers by the id used in openshain.yaml. */
   models: Record<string, (model: ModelConfig) => ModelProvider>;
   /** Tool providers by the id used in openshain.yaml. Modules are loaded from the config directly. */
-  tools: Record<string, () => ToolProvider>;
+  /** By the provider id used in openshain.yaml. The workspace is given, since what a provider
+   * offers can depend on what is in it. */
+  tools: Record<string, (workspaceRoot: string) => ToolProvider>;
 }
 
 export interface CreateRuntimeOptions {
@@ -151,7 +153,7 @@ export async function createToolRegistry(
           `unknown tool provider "${entry.provider}"; known providers: ${Object.keys(tools).join(", ")}`,
         );
       }
-      await registry.register(factory(), registerOptions);
+      await registry.register(factory(workspaceRoot), registerOptions);
     } else {
       await registry.register(await loadToolModule(workspaceRoot, entry.module), registerOptions);
     }
@@ -283,6 +285,8 @@ async function callTool(input: {
     result = await tool.provider.call(call, {
       workId: work.id,
       principalId: config.principal.id,
+      profession: config.profession.id,
+      businessDate: businessDate(config.company.timezone),
       workspaceRoot,
     });
   } catch (err) {

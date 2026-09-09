@@ -68,7 +68,7 @@ export interface EventPayloads {
     callId: string;
     content: ToolContent[];
     isError: boolean;
-    observation?: { source: string; retrievedAt: string };
+    observation?: { source: string; retrievedAt: string; version?: string }[];
     after?: Artifact[];
   };
   "tool.rejected": { callId: string; name: string; code: ToolRejectionCode; reason: string };
@@ -212,7 +212,20 @@ export const payloadFileSchemas = {
     call_id: z.string(),
     content: z.array(z.discriminatedUnion("type", [textPart, jsonPart])),
     is_error: z.boolean(),
-    observation: z.looseObject({ source: z.string(), retrieved_at: z.iso.datetime() }).optional(),
+    // One call may cite several sources. A record written before that was true carries a single
+    // object; it is read as the one observation it is.
+    observation: z
+      .union([
+        z.array(
+          z.looseObject({
+            source: z.string(),
+            retrieved_at: z.iso.datetime(),
+            version: z.string().optional(),
+          }),
+        ),
+        z.looseObject({ source: z.string(), retrieved_at: z.iso.datetime() }),
+      ])
+      .optional(),
     after: z.array(artifact).optional(),
   }),
   "tool.rejected": z.looseObject({
@@ -508,7 +521,11 @@ const codecs: { [T in EventType]?: Codec<T> } = {
         is_error: p.isError,
       };
       if (p.observation) {
-        out.observation = { source: p.observation.source, retrieved_at: p.observation.retrievedAt };
+        out.observation = p.observation.map((o) => ({
+          source: o.source,
+          retrieved_at: o.retrievedAt,
+          ...(o.version !== undefined && { version: o.version }),
+        }));
       }
       if (p.after) out.after = p.after;
       return out;
@@ -520,7 +537,14 @@ const codecs: { [T in EventType]?: Codec<T> } = {
         isError: p.is_error,
       };
       if (p.observation) {
-        out.observation = { source: p.observation.source, retrievedAt: p.observation.retrieved_at };
+        const listed = Array.isArray(p.observation) ? p.observation : [p.observation];
+        out.observation = listed.map((o) => ({
+          source: o.source,
+          retrievedAt: o.retrieved_at,
+          ...((o as { version?: string }).version !== undefined && {
+            version: (o as { version?: string }).version,
+          }),
+        }));
       }
       if (p.after) out.after = p.after.map((a) => ({ path: a.path, sha256: a.sha256 }));
       return out;

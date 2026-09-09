@@ -2,6 +2,7 @@ import { open, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   MAX_READ_BYTES,
+  type Observation,
   RESERVED_PATHS,
   readWorkspaceText,
   resolveWorkspacePath,
@@ -749,6 +750,6 @@ function neutralizeFormula(value: unknown): unknown {
   return /^[=+@\t\r]/.test(value) || /^-(?![0-9.])/.test(value) ? `'${value}` : value;
 }
 
-function observed(path: string): { source: string; retrievedAt: string } {
-  return { source: path, retrievedAt: new Date().toISOString() };
+function observed(path: string): Observation[] {
+  return [{ source: path, retrievedAt: new Date().toISOString() }];
 }

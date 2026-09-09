@@ -47,15 +47,27 @@ export interface ToolCall {
 export interface ToolContext {
   workId: WorkId;
   principalId: string;
+  /** The profession the agent works as. What a tool may show can depend on it. */
+  profession: string;
+  /** The day the company is on, from its own timezone. Effective days are judged against it. */
+  businessDate: string;
   workspaceRoot: string;
   signal?: AbortSignal;
+}
+
+/** One thing a tool read: a file of the company folder, or a source of the knowledge. */
+export interface Observation {
+  source: string;
+  retrievedAt: string;
+  /** The version of a source that carries one. */
+  version?: string;
 }
 
 export interface ToolResult {
   content: ToolContent[];
   isError?: boolean;
-  /** Where the observation came from and when it was retrieved. */
-  observation?: { source: string; retrievedAt: string };
+  /** Where what the tool returned came from, and when it was read. One call may cite several. */
+  observation?: Observation[];
   /** For mutate tools: the files as they are after the call. */
   after?: Artifact[];
 }

@@ -58,7 +58,7 @@ const samples: Event[] = [
       callId: "call_1",
       content: [{ type: "text", text: "a,b\n1,2" }],
       isError: false,
-      observation: { source: "a.csv", retrievedAt: "2026-09-10T01:23:45.050Z" },
+      observation: [{ source: "a.csv", retrievedAt: "2026-09-10T01:23:45.050Z" }],
       after: [{ path: "out.md", sha256: "abc" }],
     },
   },
@@ -141,9 +141,33 @@ describe("event file mapping", () => {
     ]);
     expect(payload.call_id).toBe("call_1");
     expect(payload.is_error).toBe(false);
-    expect((payload.observation as Record<string, unknown>).retrieved_at).toBe(
-      "2026-09-10T01:23:45.050Z",
-    );
+    expect(payload.observation).toEqual([
+      { source: "a.csv", retrieved_at: "2026-09-10T01:23:45.050Z" },
+    ]);
+  });
+
+  test("a record written when an observation was one object reads as the one it is", () => {
+    const file = {
+      v: 1 as const,
+      id: "evt_1",
+      work_id: "work_1",
+      seq: 1,
+      type: "tool.completed",
+      occurred_at: "2026-09-10T01:23:45.000Z",
+      recorded_at: "2026-09-10T01:23:45.000Z",
+      payload: {
+        call_id: "call_1",
+        content: [{ type: "text", text: "a" }],
+        is_error: false,
+        observation: { source: "a.csv", retrieved_at: "2026-09-10T01:23:45.050Z" },
+      },
+    };
+
+    const event = eventFromFile(file as never) as Event<"tool.completed">;
+
+    expect(event.payload.observation).toEqual([
+      { source: "a.csv", retrievedAt: "2026-09-10T01:23:45.050Z" },
+    ]);
   });
 
   test("keeps arbitrary keys inside tool input as written", () => {
