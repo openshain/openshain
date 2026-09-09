@@ -695,6 +695,18 @@ export async function createSession(
     }
   }
 
+  /**
+   * A work that is going again is what the next request most likely means, so it becomes the
+   * candidate. One that has ended is not offered: there is nothing to continue.
+   */
+  async function offerAsCandidate(workId: WorkId): Promise<void> {
+    const got = await client.call("work_get", { id: workId });
+    const work = jsonOf(got) as Work | undefined;
+    if (work && !isTerminal(work.status)) {
+      candidate = { id: work.id, objective: work.objective, status: work.status };
+    }
+  }
+
   async function finish(callId: string, result: ClientResult): Promise<void> {
     const event = local("tool.completed", {
       callId,
@@ -779,11 +791,7 @@ export async function createSession(
       const note = `承認 ${approvalId} を${decision === "approve" ? "承認" : "拒否"}した(${outcome})。Work ${workId} は続けられる。`;
       events.push(local("prompt.expanded", { name: "approval", source: "runtime", text: note }));
       await record(id, "prompt.expanded", { name: "approval", source: "runtime", text: note });
-      const got = await client.call("work_get", { id: workId });
-      const work = jsonOf(got) as Work | undefined;
-      if (work && !isTerminal(work.status)) {
-        candidate = { id: work.id, objective: work.objective, status: work.status };
-      }
+      await offerAsCandidate(workId);
       return { workId, text: note };
     },
     async review(input) {
@@ -808,11 +816,7 @@ export async function createSession(
           : `${input.reviewer.name}(${input.reviewer.role})が認めなかった。理由: ${input.interpretation}。Work ${workId} は続けられる。`;
       events.push(local("prompt.expanded", { name: "review", source: "runtime", text: note }));
       await record(id, "prompt.expanded", { name: "review", source: "runtime", text: note });
-      const got = await client.call("work_get", { id: workId });
-      const work = jsonOf(got) as Work | undefined;
-      if (work && !isTerminal(work.status)) {
-        candidate = { id: work.id, objective: work.objective, status: work.status };
-      }
+      await offerAsCandidate(workId);
       return { workId, text: note };
     },
     async approvals() {

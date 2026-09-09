@@ -26,6 +26,19 @@ rules:
   - pattern: console.log(<... process.env[$K] ...>)
   - pattern: console.error(<... process.env[$K] ...>)
   - pattern: console.log(<... $M.apiKey ...>)
+- id: openshain-work-opened-without-closing-it
+  languages:
+  - typescript
+  severity: ERROR
+  message: A work is opened through withWork, which closes it however the call ends. Opening it here leaves the single-writer lock to a finally somebody has to remember.
+  paths:
+    include:
+    - "packages/mcp/src/*.ts"
+    exclude:
+    - "*.test.ts"
+  patterns:
+  - pattern: $STORE.open($ID)
+  - pattern-not-inside: 'async function withWork<T>(id: WorkId, use: (opened: WorkHandle) => Promise<T>): Promise<T> { ... }'
 - id: openshain-workspace-file-read-outside-the-guard
   languages:
   - typescript

@@ -40,6 +40,7 @@ import {
   uuidv7,
   verifyArtifact,
   type Work,
+  type WorkHandle,
   type WorkId,
   WorkStore,
   workHistory,
@@ -305,6 +306,20 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
     authority: () => authority,
   });
   const works = new WorkStore(workspaceRoot);
+
+  /**
+   * Opens a work for one piece of work on it, and closes it however that ends. The lock a work
+   * holds is the single-writer rule, so it must not outlive the call that took it; releasing it
+   * here means no caller can forget to.
+   */
+  async function withWork<T>(id: WorkId, use: (opened: WorkHandle) => Promise<T>): Promise<T> {
+    const opened = await works.open(id);
+    try {
+      return await use(opened);
+    } finally {
+      await opened.close();
+    }
+  }
   const session = new Session();
   const server = new Server(
     { name: "openshain", version: pkg.version },
@@ -394,17 +409,14 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         }
         const { question } = input as { question: string };
         const callId = newCallId();
-        const opened = await works.open(gate.id);
-        try {
+        await withWork(gate.id, async (opened) => {
           await opened.append({
             type: "tool.called",
             payload: { callId, provider: RUNTIME_PROVIDER_ID, name: ASK_USER.name, input },
           });
           await opened.append({ type: "human.input_requested", payload: { callId, question } });
           await opened.transition("waiting_input", "the agent asked the person a question");
-        } finally {
-          await opened.close();
-        }
+        });
         return json({ pending: true, call_id: callId, question });
       }
       case "work_answer": {
@@ -421,8 +433,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             `no unanswered question with call_id ${callId}; pending: ${pending.map((q) => q.callId).join(", ") || "none"}`,
           );
         }
-        const opened = await works.open(gate.id);
-        try {
+        return await withWork(gate.id, async (opened) => {
           await opened.append({ type: "human.input_provided", payload: { callId, answer } });
           await opened.append({
             type: "tool.completed",
@@ -430,9 +441,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           });
           await opened.transition("in_progress", "the person answered");
           return json(await opened.current());
-        } finally {
-          await opened.close();
-        }
+        });
       }
       case "work_record": {
         const { work_id, type, payload } = input as {
@@ -456,15 +465,12 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         if (type === "usage.recorded" && (parsed as { kind: string }).kind !== "model_inference") {
           return failure("usage.recorded from a client must have kind model_inference");
         }
-        const opened = await works.open(id);
-        try {
+        return await withWork(id, async (opened) => {
           const status = (await opened.current()).status;
           if (isTerminal(status)) return failure(`work ${id} is already ${status}`);
           const event = await opened.append({ type, payload: parsed } as never);
           return json({ id: event.id, seq: event.seq });
-        } finally {
-          await opened.close();
-        }
+        });
       }
       case "context": {
         const now = new Date();
@@ -484,8 +490,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const current = session.current;
         if (current && !isTerminal((await works.get(current)).status)) {
           const callId = newCallId();
-          const opened = await works.open(current);
-          try {
+          await withWork(current, async (opened) => {
             await opened.append({
               type: "tool.called",
               payload: { callId, provider: RUNTIME_PROVIDER_ID, name: "context", input: {} },
@@ -494,9 +499,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
               type: "tool.completed",
               payload: { callId, content: [{ type: "json", value: info }], isError: false },
             });
-          } finally {
-            await opened.close();
-          }
+          });
         }
         return result;
       }
@@ -531,8 +534,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             `${by} may not decide ${approvalId}; approvers: ${approval.approvers.join(", ")}`,
           );
         }
-        const opened = await works.open(workId);
-        try {
+        return await withWork(workId, async (opened) => {
           // Under the lock: another connection may have decided this approval in between.
           if (!pendingApprovals(await opened.events()).some((a) => a.approvalId === approvalId)) {
             return failure(`approval ${approvalId} was already decided`);
@@ -566,9 +568,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             work_id: workId,
             result: { content: result.content, isError: result.isError ?? false },
           });
-        } finally {
-          await opened.close();
-        }
+        });
       }
       case "review_decide": {
         const {
@@ -638,8 +638,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           }
           record = parsed.data;
         }
-        const opened = await works.open(workId);
-        try {
+        return await withWork(workId, async (opened) => {
           // Under the lock: another connection may have decided this approval in between.
           if (!pendingApprovals(await opened.events()).some((a) => a.approvalId === approvalId)) {
             return failure(`approval ${approvalId} was already decided`);
@@ -693,9 +692,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             decision_file: relative(workspaceRoot, file),
             result: { content: ran.content, isError: ran.isError ?? false },
           });
-        } finally {
-          await opened.close();
-        }
+        });
       }
       case "work_list": {
         const { works: all, problems } = await works.list();
@@ -723,7 +720,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           summary: string;
           artifacts?: { path: string; sha256?: string }[];
         };
-        const work = await complete(works, workspaceRoot, gate.id, summary, artifacts ?? []);
+        const work = await withWork(gate.id, (opened) =>
+          complete(workspaceRoot, opened, summary, artifacts ?? []),
+        );
         session.clear();
         return json(work);
       }
@@ -731,12 +730,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const gate = await openWork();
         if ("refused" in gate) return gate.refused;
         const { reason, detail } = input as { reason: string; detail?: string };
-        const opened = await works.open(gate.id);
-        try {
+        await withWork(gate.id, async (opened) => {
           await opened.append({ type: "work.failed", payload: { reason, detail: detail ?? "" } });
-        } finally {
-          await opened.close();
-        }
+        });
         session.clear();
         return json(await works.get(gate.id));
       }
@@ -755,8 +751,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             `work ${gate.id} is waiting for an approval; decide it with approval_decide (see approval_list) before calling tools`,
           );
         }
-        const opened = await works.open(gate.id);
-        try {
+        return await withWork(gate.id, async (opened) => {
           const limit = config.limits.maxToolCalls;
           if (countToolCalls(await opened.events()) >= limit) {
             const reason = `this work has reached its limit of ${limit} tool calls; finish it with work_complete or work_fail`;
@@ -768,9 +763,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           }
           const result = await callTool(opened, { id: newCallId(), name, input });
           return toMcpResult(result);
-        } finally {
-          await opened.close();
-        }
+        });
       }
     }
   }
@@ -799,38 +792,32 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
  * of this work wrote is marked claimed, so a reader can tell the agent's word from the record.
  */
 async function complete(
-  works: WorkStore,
   workspaceRoot: string,
-  id: WorkId,
+  opened: WorkHandle,
   summary: string,
   claimed: { path: string; sha256?: string }[],
 ): Promise<Work> {
   for (const { path } of claimed) await resolveWorkspacePath(workspaceRoot, path);
-  const opened = await works.open(id);
-  try {
-    const events = await opened.events();
-    const refs: string[] = [];
-    const byPath = new Map<string, string>();
-    for (const event of writesWithAfter(events)) {
-      refs.push(event.id);
-      for (const { path, sha256 } of event.payload.after ?? []) byPath.set(path, sha256);
-    }
-    const written = new Set(byPath.keys());
-    for (const { path, sha256 } of claimed) if (!byPath.has(path)) byPath.set(path, sha256 ?? "");
-    const artifacts: Artifact[] = [];
-    for (const [path, reported] of byPath) {
-      const artifact = await verifyArtifact(workspaceRoot, path, reported);
-      artifacts.push(written.has(path) ? artifact : { ...artifact, claimed: true });
-    }
-    await opened.append({
-      type: "evidence.recorded",
-      payload: { claim: summary, refs, artifacts },
-    });
-    await opened.append({ type: "work.completed", payload: { summary } });
-    return opened.current();
-  } finally {
-    await opened.close();
+  const events = await opened.events();
+  const refs: string[] = [];
+  const byPath = new Map<string, string>();
+  for (const event of writesWithAfter(events)) {
+    refs.push(event.id);
+    for (const { path, sha256 } of event.payload.after ?? []) byPath.set(path, sha256);
   }
+  const written = new Set(byPath.keys());
+  for (const { path, sha256 } of claimed) if (!byPath.has(path)) byPath.set(path, sha256 ?? "");
+  const artifacts: Artifact[] = [];
+  for (const [path, reported] of byPath) {
+    const artifact = await verifyArtifact(workspaceRoot, path, reported);
+    artifacts.push(written.has(path) ? artifact : { ...artifact, claimed: true });
+  }
+  await opened.append({
+    type: "evidence.recorded",
+    payload: { claim: summary, refs, artifacts },
+  });
+  await opened.append({ type: "work.completed", payload: { summary } });
+  return opened.current();
 }
 
 function writesWithAfter(events: AnyEvent[]): Event<"tool.completed">[] {
