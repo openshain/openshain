@@ -7,6 +7,7 @@ import {
   checkKnowledge,
   hashKnowledgeInput,
   newWorkId,
+  parsePayloadFile,
   type ToolContext,
   type ToolResult,
   writeIndex,
@@ -185,9 +186,26 @@ describe("the knowledge tools", () => {
     });
     expect(result.observation).toContainEqual({
       source: "internal.expense-policy",
-      retrievedAt: "2026-09-01",
+      retrievedAt: expect.any(String),
       version: "2026-04",
     });
+    // The runtime records this, and a record it cannot write loses the whole call.
+    for (const observed of result.observation ?? []) {
+      expect(() =>
+        parsePayloadFile("tool.completed", {
+          call_id: "c",
+          content: [{ type: "text", text: "x" }],
+          is_error: false,
+          observation: [
+            {
+              source: observed.source,
+              retrieved_at: observed.retrievedAt,
+              ...(observed.version !== undefined && { version: observed.version }),
+            },
+          ],
+        }),
+      ).not.toThrow();
+    }
   });
 
   test("what the person may not read is not in the results, the count, or a direct read", async () => {
@@ -257,7 +275,7 @@ describe("the knowledge tools", () => {
       "1 万円以上は原本を保存します。",
     );
     expect(result.observation).toEqual([
-      { source: "internal.expense-policy", retrievedAt: "2026-09-01", version: "2026-04" },
+      { source: "internal.expense-policy", retrievedAt: expect.any(String), version: "2026-04" },
     ]);
   });
 

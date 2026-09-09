@@ -116,10 +116,15 @@ function visibleTo(scope: KnowledgeScope | null, principalId: string): boolean {
   return false;
 }
 
+/**
+ * What this call read and when it read it, which is the same question the file tools answer.
+ * The day a person last checked the source against its publisher is a different thing: it is in
+ * the index and in the result, and the version here says which edition was read.
+ */
 function citation(unit: IndexUnit): Observation {
   return {
     source: unit.ref,
-    retrievedAt: unit.provenance?.retrieved_at ?? new Date().toISOString().slice(0, 10),
+    retrievedAt: new Date().toISOString(),
     ...(unit.provenance?.version !== undefined && { version: unit.provenance.version }),
   };
 }
