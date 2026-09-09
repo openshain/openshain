@@ -18,7 +18,7 @@ import {
   type Work,
   type WorkId,
 } from "@openshain/core";
-import { type ClientResult, jsonOf, type RuntimeClient } from "./client.ts";
+import { type ClientResult, jsonOf, jsonPart, type RuntimeClient } from "./client.ts";
 import { pickAgentName } from "./names.ts";
 
 /** How much one turn of the conversation may do before it stops and the person is told. */
@@ -48,19 +48,57 @@ const ROLE = [
   "- 依頼が終わったターンでは、何をしたか、答えになる数字(件数、金額、書いたファイルの場所)を書く。次にできることがあれば 1 行で添える",
   "- 見出し、箇条書き、番号、太字、コードブロック、引用が使える。画面がそのまま書式として描く。表は書式にならないので、箇条書きにする",
   "- 数字は Tool が返した値をそのまま書く",
+  "- 会社の決まりを引いて答えたときは、使った決まりごとに id と有効日を返答に書く。Tool が返した中身は人に見えないので、返答に書かないと何に基づく答えか残らない",
   "- 長さは依頼の大きさに合わせる。1 行で足りる依頼には 1 行で答える",
   "",
   "# 仕事の進め方",
   "- あなたは受付の役でこの人と話す。作業が要るときは work_create で Work を作り(objective は人の言葉で書き、会話で分かった前提を添える)、その Work の中で Tool を呼び、work_complete の summary に記録用の要約を書いて閉じる。summary は記録に残すもの、返答は人に伝えるもの",
-  "- 会話の中では Tool を呼べない。ファイルの中身を読まないと答えられない質問も、Work を作って調べる",
+  "- 会話の中では Tool を呼べない。ファイルの中身や会社の決まりを読まないと答えられない質問も、Work を作って調べる。作ってよいかは確認しない",
   "- /work resume で候補として示された Work は、人の依頼がその objective に沿うときだけ work_select で続ける。沿わなければ続けず、その旨を伝えて新しい Work を作るか work_list で探し直す",
   "- 過去の作業は work_list と work_get で答える",
+  "",
+  "# 会社の決まり",
+  "- 会社が決めていそうなこと(経費、支払、承認、書類の扱い)を聞かれたら、答える前に knowledge_search で引く。自分の一般的な知識で答えない",
+  "- 使った決まりは、id と有効日を添えて示す。根拠の資料があれば出典も書く",
+  "- 該当する決まりが見つからないときは「該当する決まりが見つかりません」と言う。無いことを伝えるのも答えのうち",
+  "- 当てはまりそうな決まりが複数あるときは、黙って 1 つを選ばず、両方を示すか、いま有効なほうを理由とともに選ぶ",
   "",
   "# 承認と資格者の判断",
   "- 承認が要る呼び出しは止まる。人が決めるまで待ち、同じ呼び出しを繰り返さない",
   "- 実行しないと決められた呼び出しは、理由を読んで別の案を出す。同じ入力で呼び直さない",
   "- 承認と判断は人と資格者の仕事で、あなたの仕事ではない",
 ].join("\n");
+
+/** A rule the knowledge tools returned in this turn: enough to name it in the reply. */
+interface CitedRule {
+  id: string;
+  from: string;
+  to: string | null;
+}
+
+/** At most this many rules are named for the person when the reply names none itself. */
+const CITED_AT_MOST = 3;
+
+/**
+ * The rules a knowledge result carried, in the order they were ranked. The result reaches the
+ * loop as MCP parts, so the JSON of the answer is one part among the text, not the whole of it.
+ */
+function citedRules(name: string, result: ClientResult): CitedRule[] {
+  const data = jsonPart(result);
+  if (data === undefined) return [];
+  const units =
+    name === "knowledge_search" ? ((data.hits as Record<string, unknown>[]) ?? []) : [data];
+  const rules: CitedRule[] = [];
+  for (const unit of units) {
+    if (unit?.kind !== "rule" || typeof unit.id !== "string") continue;
+    rules.push({
+      id: unit.id.replace(/^rule:/, ""),
+      from: String(unit.effective_from ?? ""),
+      to: typeof unit.effective_to === "string" ? unit.effective_to : null,
+    });
+  }
+  return rules;
+}
 
 export interface SessionOptions {
   /** The model the conversation runs on. The client owns it; the runtime never calls one. */
@@ -214,6 +252,8 @@ export async function createSession(
   let task: TaskState | undefined;
   let candidate: { id: WorkId; objective: string; status: string } | undefined;
   let held: HeldApproval | undefined;
+  /** The rules this turn looked up. Emptied when a turn starts. */
+  let cited: CitedRule[] = [];
   /** Rules the person said yes to for the rest of this conversation. */
   const standing = new Set<string>();
 
@@ -446,6 +486,11 @@ export async function createSession(
     const data = result.isError
       ? undefined
       : (jsonOf(result) as Record<string, unknown> | undefined);
+    if (!result.isError && (call.name === "knowledge_search" || call.name === "knowledge_read")) {
+      for (const rule of citedRules(call.name, result)) {
+        if (!cited.some((seen) => seen.id === rule.id)) cited.push(rule);
+      }
+    }
 
     if (
       !result.isError &&
@@ -641,10 +686,13 @@ export async function createSession(
       // The rule that matters most is stated where it is needed, not only in the system prompt:
       // the work is closed and its summary went to the record, so the person has read nothing
       // yet. Smaller models end the turn with an acknowledgement without this.
+      // The note arrives in the conversation as the person's own turn, since that is the only
+      // place the projection has for it. Said plainly, a smaller model reads it as a complaint
+      // and apologizes instead of reporting, so it says whose words these are.
       const note =
         call.name === "work_complete"
-          ? `Work ${closed.id} を閉じた。summary は記録に残るだけで、人の画面には出ない。この後の返答で、何をしたかと結果の数字を人に伝える。`
-          : `Work ${closed.id} は失敗として閉じた。この後の返答で、どこまで進んで何が起きたかを人に伝える。`;
+          ? `(記録からの注記。人の発言ではない)Work ${closed.id} を閉じた。summary は記録に残るだけで、人の画面には出ない。ここから先の返答が人に届く。何をしたかと結果の数字を書く。会社の決まりを引いたなら、その id と有効日も書く。`
+          : `(記録からの注記。人の発言ではない)Work ${closed.id} は失敗として閉じた。ここから先の返答が人に届く。どこまで進んで何が起きたかを書く。`;
       events.push(local("prompt.expanded", { name: "work closed", source: "runtime", text: note }));
       await record(id, "prompt.expanded", { name: "work closed", source: "runtime", text: note });
       await options.onEvent?.(
@@ -718,6 +766,26 @@ export async function createSession(
     await options.onEvent?.(task?.id ?? id, event);
   }
 
+  /**
+   * The reply with the rules it rests on, when the model wrote the answer without naming them.
+   * The screen shows no tool results, so a reply that quotes a rule without its id leaves the
+   * person with a claim they cannot check. A turn that found nothing appends nothing.
+   */
+  function withCitation(result: TurnResult): TurnResult {
+    if (cited.length === 0 || result.reply.trim() === "") return result;
+    if (result.reply.includes("見つかりません")) return result;
+    if (cited.some((rule) => result.reply.includes(rule.id))) return result;
+    const lines = cited
+      .slice(0, CITED_AT_MOST)
+      .map(
+        (rule) => `- ${rule.id}(${rule.from} から${rule.to === null ? "" : ` ${rule.to} まで`})`,
+      );
+    return {
+      ...result,
+      reply: `${result.reply.trimEnd()}\n\n参照した会社の決まり\n${lines.join("\n")}`,
+    };
+  }
+
   /** Once a work is closed, only its summary stays in the conversation: the tool results are folded away. */
   function foldAway(closed: TaskState, closingCallId: string): void {
     for (const event of events) {
@@ -738,6 +806,7 @@ export async function createSession(
     agentName,
     async turn(text, turnOptions = {}) {
       held = undefined;
+      cited = [];
       events.push(local("human.message", { text }));
       await record(id, "human.message", { text });
       if (candidate) {
@@ -748,7 +817,7 @@ export async function createSession(
         await record(id, "prompt.expanded", { name: "work resume", source: "builtin", text: note });
       }
       try {
-        const result = await runTurn(turnOptions.signal);
+        const result = withCitation(await runTurn(turnOptions.signal));
         return task ? { ...result, work: task.id } : result;
       } finally {
         // Whatever the turn did, the next one starts from the conversation: a work it left open

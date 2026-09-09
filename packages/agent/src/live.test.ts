@@ -2,7 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, type RuntimeProviders, WorkStore } from "@openshain/core";
+import {
+  buildIndex,
+  checkKnowledge,
+  hashKnowledgeInput,
+  loadConfig,
+  type RuntimeProviders,
+  WorkStore,
+  writeIndex,
+} from "@openshain/core";
 import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
 import { connectInMemory } from "./client.ts";
@@ -54,7 +62,7 @@ const providers: RuntimeProviders = {
     anthropic: (m) => anthropicProvider(m),
     "openai-compatible": (m) => openaiCompatibleProvider(m),
   },
-  tools: { standard: () => standardTools() },
+  tools: { standard: (workspaceRoot: string) => standardTools(workspaceRoot) },
 };
 
 async function smoke(modelSection: string) {
@@ -75,6 +83,89 @@ async function smoke(modelSection: string) {
   const done = work ? await store.get(work.id) : { status: "no work" };
   const summary = await readFile(join(root, "summary.md"), "utf8").catch(() => "");
   return { done, summary };
+}
+
+const EXPENSE_SOURCE = `---
+id: internal.expense-policy
+title: 経費規程
+publisher: サンプル株式会社
+url: https://example.invalid/expenses
+retrieved_at: 2026-04-01
+effective_from: 2020-01-01
+effective_to: null
+expertise: none
+---
+
+## 3.2 領収書
+
+1 万円以上の経費には領収書の原本が要ります。
+
+## 3.3 交際費
+
+交際費は 5,000 円以上で領収書の原本が要ります。
+`;
+
+const EXPENSE_RULES = `version: 1
+rules:
+  - id: expenses.receipt-required
+    statement: 1 万円以上の経費には領収書の原本が要ります。
+    aliases: [領収書, レシート, 証憑]
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "3.2 領収書" }
+  - id: expenses.receipt-required-old
+    statement: 3 万円以上の経費には領収書の原本が要りました。2026 年 3 月までの決まりです。
+    effective_from: 2020-04-01
+    effective_to: 2026-03-31
+    expertise: none
+    source: { id: internal.expense-policy, section: "3.2 領収書" }
+`;
+
+/** One more rule, in effect at the same time, that a question about a meal could also fall under. */
+const ENTERTAINMENT_RULE = `  - id: expenses.entertainment-receipt
+    statement: 交際費は 5,000 円以上で領収書の原本が要ります。
+    aliases: [交際費, 接待, 飲食]
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "3.3 交際費" }
+`;
+
+/** A workspace whose knowledge is written and built, as a company would leave it. */
+async function withKnowledge(model: string, extraRules = "") {
+  const root = await workspace(
+    `  provider: anthropic\n  model: ${model}\n  api_key_env: ANTHROPIC_API_KEY\n`,
+  );
+  await mkdir(join(root, "knowledge", "rules"), { recursive: true });
+  await mkdir(join(root, "knowledge", "sources"), { recursive: true });
+  await writeFile(join(root, "knowledge/sources/expenses.md"), EXPENSE_SOURCE);
+  await writeFile(join(root, "knowledge/rules/expenses.yaml"), `${EXPENSE_RULES}${extraRules}`);
+  const checked = await checkKnowledge(root);
+  expect(checked.problems).toEqual([]);
+  await writeIndex(root, buildIndex(checked), {
+    hash: await hashKnowledgeInput(root),
+    rules: checked.rules.length,
+    sources: checked.sources.length,
+  });
+  return root;
+}
+
+/** Opens a conversation on that workspace and asks one thing. */
+async function asked(root: string, request: string) {
+  const config = await loadConfig(root, { modelProviders: Object.keys(providers.models) });
+  const modelConfig = config.model as NonNullable<typeof config.model>;
+  const model = (providers.models[modelConfig.provider] as (m: typeof modelConfig) => never)(
+    modelConfig,
+  );
+  const server = await createMcpServer({
+    workspaceRoot: root,
+    tools: providers.tools,
+  });
+  const client = await connectInMemory(server);
+  const session = await createSession(client, { model, config });
+  const turn = await session.turn(request);
+  return { reply: turn.reply, store: new WorkStore(root) };
 }
 
 /** The models the reply has to reach the person on: a small one and a large one. */
@@ -147,6 +238,55 @@ describe("live smoke", () => {
         expect(reply).toContain("350");
       },
       180_000,
+    );
+  }
+
+  // The whole point of the knowledge slice: a person asks something the company has decided, and
+  // the agent looks it up rather than answering from what a model happens to know.
+  for (const name of REPORTING_MODELS) {
+    test.skipIf(!live)(
+      `${name}: looks up a rule nobody named, and cites it`,
+      async () => {
+        const root = await withKnowledge(name);
+
+        const { reply } = await asked(root, "8000 円の会議費に領収書は要りますか。");
+
+        expect(reply).toContain("expenses.receipt-required");
+        expect(reply).toContain("2026-04-01");
+        // The rule in effect today, not the one that ended in March.
+        expect(reply).not.toContain("expenses.receipt-required-old");
+      },
+      240_000,
+    );
+
+    // Two rules can both fit one question, and which one applies is the person's call to make.
+    // An agent that picks one and says nothing about the other hides that choice from them.
+    test.skipIf(!live)(
+      `${name}: shows both rules when two of them could apply`,
+      async () => {
+        const root = await withKnowledge(name, ENTERTAINMENT_RULE);
+
+        const { reply } = await asked(root, "8,000 円の飲食代に領収書は要りますか。");
+
+        // Both rules have to be in the reply: the one for entertainment and the general one,
+        // with what separates them. Whether each carries its id is the earlier test's business.
+        expect(reply).toContain("交際費");
+        expect(reply).toMatch(/5,?000/);
+        expect(reply).toMatch(/1\s?万円|10,?000/);
+      },
+      240_000,
+    );
+
+    test.skipIf(!live)(
+      `${name}: says there is no rule rather than answering from general knowledge`,
+      async () => {
+        const root = await withKnowledge(name);
+
+        const { reply } = await asked(root, "出張の日当はいくらですか。");
+
+        expect(reply).toContain("見つかりません");
+      },
+      240_000,
     );
   }
 });

@@ -71,3 +71,23 @@ export function jsonOf(result: ClientResult): unknown {
     return undefined;
   }
 }
+
+/** The JSON part of a result that also carries text, as the knowledge tools' results do. */
+export function jsonPart(result: ClientResult): Record<string, unknown> | undefined {
+  for (const part of result.content) {
+    if (part.type !== "text") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(part.text);
+    } catch {
+      continue;
+    }
+    if (parsed === null || typeof parsed !== "object") continue;
+    const value =
+      (parsed as { type?: string; value?: unknown }).type === "json"
+        ? (parsed as { value?: unknown }).value
+        : parsed;
+    if (value !== null && typeof value === "object") return value as Record<string, unknown>;
+  }
+  return undefined;
+}

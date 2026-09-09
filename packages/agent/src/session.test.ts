@@ -4,7 +4,17 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type AnyEvent, type Event, loadConfig, type WorkId, WorkStore } from "@openshain/core";
+import {
+  type AnyEvent,
+  buildIndex,
+  checkKnowledge,
+  type Event,
+  hashKnowledgeInput,
+  loadConfig,
+  type WorkId,
+  WorkStore,
+  writeIndex,
+} from "@openshain/core";
 import { createMcpServer } from "@openshain/mcp";
 import { standardTools } from "@openshain/tools";
 import { connectInMemory } from "./client.ts";
@@ -714,5 +724,108 @@ describe("the agent package as a client", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+const KNOWLEDGE_SOURCE = `---
+id: internal.expense-policy
+title: 経費規程
+publisher: サンプル株式会社
+url: https://example.invalid/expenses
+retrieved_at: 2026-04-01
+effective_from: 2020-01-01
+effective_to: null
+expertise: none
+---
+
+## 3.2 領収書
+
+1 万円以上の経費には領収書の原本が要ります。
+`;
+
+const KNOWLEDGE_RULES = `version: 1
+rules:
+  - id: expenses.receipt-required
+    statement: 1 万円以上の経費には領収書の原本が要ります。
+    aliases: [領収書, レシート]
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "3.2 領収書" }
+`;
+
+/** A session on a company folder whose knowledge is written and built. */
+async function withKnowledge(steps: FakeStep[]) {
+  const { root, open, ...rest } = await setup(steps);
+  await mkdir(join(root, "knowledge", "rules"), { recursive: true });
+  await mkdir(join(root, "knowledge", "sources"), { recursive: true });
+  await writeFile(join(root, "knowledge/sources/expenses.md"), KNOWLEDGE_SOURCE);
+  await writeFile(join(root, "knowledge/rules/expenses.yaml"), KNOWLEDGE_RULES);
+  const checked = await checkKnowledge(root);
+  expect(checked.problems).toEqual([]);
+  await writeIndex(root, buildIndex(checked), {
+    hash: await hashKnowledgeInput(root),
+    rules: checked.rules.length,
+    sources: checked.sources.length,
+  });
+  const model = new FakeModelProvider(steps);
+  const server = await createMcpServer({
+    workspaceRoot: root,
+    tools: { standard: () => standardTools(root) },
+  });
+  const client = await connectInMemory(server);
+  const config = await loadConfig(root, { modelProviders: ["fake"] });
+  return {
+    ...rest,
+    root,
+    model,
+    open: (options: Partial<SessionOptions> = {}) =>
+      createSession(client, { model, config, ...options }),
+  };
+}
+
+/** Looks the rule up inside a work, then answers with whatever the model was told to say. */
+const looksUpThenSays = (reply: string): FakeStep[] => [
+  workCreate("c1", "領収書の要否を調べる"),
+  callTools({ id: "c2", name: "knowledge_search", input: { query: "領収書" } }),
+  workComplete("c3", "決まりを引いた"),
+  say(reply),
+];
+
+describe("a session that looked up the company's rules", () => {
+  test("names the rules in the reply when the model wrote the answer without them", async () => {
+    const { open } = await withKnowledge(looksUpThenSays("8,000 円なら領収書は要りません。"));
+
+    const { reply } = await (await open()).turn("8,000 円の会議費に領収書は要りますか。");
+
+    expect(reply).toContain("8,000 円なら領収書は要りません。");
+    expect(reply).toContain("参照した会社の決まり");
+    expect(reply).toContain("expenses.receipt-required(2026-04-01 から)");
+  });
+
+  test("adds nothing when the model named the rule itself", async () => {
+    const { open } = await withKnowledge(
+      looksUpThenSays("expenses.receipt-required(2026-04-01 から)により、要りません。"),
+    );
+
+    const { reply } = await (await open()).turn("8,000 円の会議費に領収書は要りますか。");
+
+    expect(reply).not.toContain("参照した会社の決まり");
+  });
+
+  test("adds nothing to an answer that says there is no rule", async () => {
+    const { open } = await withKnowledge(looksUpThenSays("該当する決まりが見つかりません。"));
+
+    const { reply } = await (await open()).turn("出張の日当はいくらですか。");
+
+    expect(reply).toBe("該当する決まりが見つかりません。");
+  });
+
+  test("adds nothing to a turn that read no rule", async () => {
+    const { open } = await setup([say("こんにちは。")]);
+
+    const { reply } = await (await open()).turn("やあ");
+
+    expect(reply).toBe("こんにちは。");
   });
 });
