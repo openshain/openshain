@@ -76,6 +76,9 @@ export const ConfigFileSchema = z.strictObject({
         }, "base_url must use https unless it points at this machine (localhost, 127.0.0.0/8, ::1)")
         .optional(),
       options: z.record(z.string(), z.unknown()).optional(),
+      // How much this model takes as input. Written by the person: openshain does not guess a
+      // length from a model's name, and an OpenAI-compatible endpoint may serve anything.
+      context_tokens: z.int().positive().optional(),
     })
     .optional(),
   tools: z.array(toolProviderRef).default([{ provider: "standard" }]),
@@ -84,6 +87,17 @@ export const ConfigFileSchema = z.strictObject({
       max_model_calls: z.int().positive().default(30),
       max_tool_calls: z.int().positive().default(100),
       max_output_tokens: z.int().positive().default(16000),
+      // What the conversation may reach before it is summarized. Written when the default does
+      // not suit the model; 0 turns compaction off. Below 50000 a conversation is summarized so
+      // often that it loses more than it saves.
+      compact_at_input_tokens: z
+        .int()
+        .nonnegative()
+        .refine(
+          (value) => value === 0 || value >= 50_000,
+          "write 0 to never compact, or at least 50000",
+        )
+        .optional(),
     })
     .prefault({}),
   debug: z.strictObject({ persist_raw: z.boolean().default(false) }).prefault({}),
@@ -103,6 +117,8 @@ export interface ModelConfig {
   apiKeyEnv: string;
   baseUrl: string | undefined;
   options: Record<string, unknown> | undefined;
+  /** How much this model takes as input, when the person wrote it. */
+  contextTokens: number | undefined;
 }
 
 export interface Config {
@@ -113,7 +129,13 @@ export interface Config {
   /** The model the interactive CLI runs on. Absent when the workspace is used from other agents only. */
   model?: ModelConfig;
   tools: ToolProviderRef[];
-  limits: { maxModelCalls: number; maxToolCalls: number; maxOutputTokens: number };
+  limits: {
+    maxModelCalls: number;
+    maxToolCalls: number;
+    maxOutputTokens: number;
+    /** Where the conversation is summarized, when the person wrote it. 0 never summarizes. */
+    compactAtInputTokens: number | undefined;
+  };
   debug: { persistRaw: boolean };
 }
 
@@ -134,6 +156,7 @@ export function toConfig(file: ConfigFile): Config {
         apiKeyEnv: file.model.api_key_env,
         baseUrl: file.model.base_url,
         options: file.model.options,
+        contextTokens: file.model.context_tokens,
       },
     }),
     tools: file.tools.map(toToolProviderRef),
@@ -141,6 +164,7 @@ export function toConfig(file: ConfigFile): Config {
       maxModelCalls: file.limits.max_model_calls,
       maxToolCalls: file.limits.max_tool_calls,
       maxOutputTokens: file.limits.max_output_tokens,
+      compactAtInputTokens: file.limits.compact_at_input_tokens,
     },
     debug: { persistRaw: file.debug.persist_raw },
   };

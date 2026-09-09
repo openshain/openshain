@@ -1,6 +1,7 @@
 import {
   type AssistantPart,
   type ErrorCode,
+  isTooLarge,
   type ModelDescription,
   type ModelMessage,
   type ModelProvider,
@@ -286,7 +287,9 @@ function toError(err: unknown): OpenshainError {
   if (err instanceof OpenAI.AuthenticationError) return wrap("auth", err);
   if (err instanceof OpenAI.PermissionDeniedError) return wrap("auth", err);
   if (err instanceof OpenAI.RateLimitError) return wrap("rate_limit", err);
-  if (err instanceof OpenAI.BadRequestError) return wrap("config", err);
+  if (err instanceof OpenAI.BadRequestError) {
+    return wrap(isTooLarge(err.message) ? "too_large" : "config", err);
+  }
   if (err instanceof OpenAI.NotFoundError) return wrap("config", err);
   if (err instanceof OpenAI.APIConnectionError) return wrap("network", err);
   if (err instanceof OpenAI.InternalServerError) return wrap("network", err);

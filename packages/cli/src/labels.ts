@@ -37,6 +37,7 @@ export const ERROR_LABELS: Record<ErrorCode, string> = {
   auth: "認証の失敗",
   network: "接続の失敗",
   rate_limit: "呼び出し上限",
+  too_large: "入力が大きすぎる",
   invalid_response: "解釈できない model の応答",
   config: "設定の問題",
   corrupt_log: "壊れた Work の記録",

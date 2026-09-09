@@ -2,6 +2,7 @@ import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
 import {
   type AssistantPart,
   type ErrorCode,
+  isTooLarge,
   type ModelDescription,
   type ModelMessage,
   type ModelProvider,
@@ -246,7 +247,9 @@ function toError(err: unknown): OpenshainError {
   if (err instanceof Anthropic.AuthenticationError) return wrap("auth", err);
   if (err instanceof Anthropic.PermissionDeniedError) return wrap("auth", err);
   if (err instanceof Anthropic.RateLimitError) return wrap("rate_limit", err);
-  if (err instanceof Anthropic.BadRequestError) return wrap("config", err);
+  if (err instanceof Anthropic.BadRequestError) {
+    return wrap(isTooLarge(err.message) ? "too_large" : "config", err);
+  }
   if (err instanceof Anthropic.NotFoundError) return wrap("config", err);
   if (err instanceof Anthropic.APIConnectionError) return wrap("network", err);
   if (err instanceof Anthropic.InternalServerError) return wrap("network", err);

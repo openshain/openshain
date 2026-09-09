@@ -407,6 +407,7 @@ describe("anthropicProvider from the config", () => {
     apiKeyEnv: "MY_KEY",
     baseUrl: undefined,
     options: undefined,
+    contextTokens: undefined,
   };
 
   test("reads the key from the named environment variable", () => {

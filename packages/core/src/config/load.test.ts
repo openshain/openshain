@@ -75,12 +75,18 @@ describe("parseConfig", () => {
       apiKeyEnv: "ANTHROPIC_API_KEY",
       baseUrl: undefined,
       options: undefined,
+      contextTokens: undefined,
     });
     expect(config.tools).toEqual([
       { provider: "standard", allow: ["fs_list", "fs_read"] },
       { module: "./tools/my-tool.ts", allow: undefined },
     ]);
-    expect(config.limits).toEqual({ maxModelCalls: 30, maxToolCalls: 100, maxOutputTokens: 16000 });
+    expect(config.limits).toEqual({
+      maxModelCalls: 30,
+      maxToolCalls: 100,
+      maxOutputTokens: 16000,
+      compactAtInputTokens: undefined,
+    });
     expect(config.debug).toEqual({ persistRaw: false });
   });
 
@@ -100,7 +106,12 @@ describe("parseConfig", () => {
     const config = parseConfig(minimal);
 
     expect(config.tools).toEqual([{ provider: "standard", allow: undefined }]);
-    expect(config.limits).toEqual({ maxModelCalls: 30, maxToolCalls: 100, maxOutputTokens: 16000 });
+    expect(config.limits).toEqual({
+      maxModelCalls: 30,
+      maxToolCalls: 100,
+      maxOutputTokens: 16000,
+      compactAtInputTokens: undefined,
+    });
     expect(config.debug).toEqual({ persistRaw: false });
     expect(config.model?.baseUrl).toBe("http://localhost:11434/v1");
   });

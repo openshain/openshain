@@ -1,1 +1,8 @@
-export { callTools, FakeModelProvider, type FakeStep, say } from "./fake-model.ts";
+export {
+  callTools,
+  costing,
+  FakeModelProvider,
+  type FakeStep,
+  fails,
+  say,
+} from "./fake-model.ts";

@@ -29,6 +29,7 @@ model:
   api_key_env: ANTHROPIC_API_KEY   # API キーを入れておく環境変数の名前。サーバーを替えるなら変数名も見直す
   # base_url: http://localhost:11434/v1   # openai-compatible のとき
   # options: { effort: high }             # provider にそのまま渡す
+  # context_tokens: 200000                # このモデルが受け取れる入力の大きさ。会話を要約する目安に使う
 tools:
   - provider: standard
     # allow: [fs_list, fs_search, fs_read, csv_read, csv_aggregate, markdown_read, fs_write, csv_write]   # 省略時は全部
@@ -37,6 +38,7 @@ limits:
   max_model_calls: 30      # 超えると Work は失敗(上限到達)で止まる
   max_tool_calls: 100
   max_output_tokens: 16000 # model の 1 回の出力の上限
+  # compact_at_input_tokens: 150000   # ここを超えたら次のターンの前に会話を要約する。0 で要約しない
 # debug:
 #   persist_raw: true      # provider の生の応答を記録に残す
 `;

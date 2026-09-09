@@ -11,6 +11,7 @@ import {
   type Event,
   hashKnowledgeInput,
   loadConfig,
+  OpenshainError,
   type WorkId,
   WorkStore,
   writeIndex,
@@ -20,7 +21,14 @@ import { standardTools } from "@openshain/tools";
 import { connectInMemory } from "./client.ts";
 import { AGENT_NAMES } from "./names.ts";
 import { createSession, type SessionOptions, TURN_LIMITS } from "./session.ts";
-import { callTools, FakeModelProvider, type FakeStep, say } from "./testing/fake-model.ts";
+import {
+  callTools,
+  costing,
+  FakeModelProvider,
+  type FakeStep,
+  fails,
+  say,
+} from "./testing/fake-model.ts";
 
 async function setup(steps: FakeStep[], options: { authority?: boolean } = {}) {
   const root = await mkdtemp(join(tmpdir(), "openshain-session-"));
@@ -827,5 +835,183 @@ describe("a session that looked up the company's rules", () => {
     const { reply } = await (await open()).turn("やあ");
 
     expect(reply).toBe("こんにちは。");
+  });
+});
+
+describe("a conversation that outgrew the model", () => {
+  /** A workspace whose conversation is summarized as soon as a call costs more than 50000. */
+  async function setupWithCompaction(
+    steps: FakeStep[],
+    limit = "\n  compact_at_input_tokens: 50000",
+  ) {
+    const root = await mkdtemp(join(tmpdir(), "openshain-compact-"));
+    await writeFile(
+      join(root, "openshain.yaml"),
+      `version: 1
+company:
+  name: サンプル株式会社
+principal:
+  id: alice
+  name: Alice
+profession:
+  id: generic
+  instructions: 事務担当として働く。
+model:
+  provider: fake
+  model: fake-1
+  api_key_env: FAKE_API_KEY
+tools:
+  - provider: standard
+limits:
+  max_model_calls: 30${limit}
+`,
+    );
+    const model = new FakeModelProvider(steps);
+    const server = await createMcpServer({
+      workspaceRoot: root,
+      tools: { standard: () => standardTools() },
+    });
+    const client = await connectInMemory(server);
+    const config = await loadConfig(root, { modelProviders: ["fake"] });
+    const store = new WorkStore(root);
+    return {
+      root,
+      model,
+      store,
+      open: (options: Partial<SessionOptions> = {}) =>
+        createSession(client, { model, config, ...options }),
+    };
+  }
+
+  /** Six exchanges: enough that the last five leave something for a summary to cover. */
+  const six = (last: FakeStep[] = []) => [
+    ...Array.from({ length: 5 }, (_, i) => say(`${i + 1} 件目を終えました。`)),
+    costing(say("6 件目を終えました。"), 60_000),
+    ...last,
+  ];
+
+  async function sixTurns(
+    session: Awaited<ReturnType<Awaited<ReturnType<typeof setupWithCompaction>>["open"]>>,
+  ) {
+    for (let i = 1; i <= 6; i++) await session.turn(`${i} 件目をお願い`);
+  }
+
+  test("summarizes before the next turn, and the record keeps every event", async () => {
+    const { open, store } = await setupWithCompaction(
+      six([say("要約: 依頼 6 件を終えた"), say("続けます。")]),
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.compacted).toMatchObject({ done: true });
+    const recorded = types(await store.events(session.id));
+    expect(recorded.filter((t) => t === "conversation.compacted")).toHaveLength(1);
+    expect(recorded.filter((t) => t === "human.message")).toHaveLength(7);
+  });
+
+  test("does not summarize again on its own when the summary saved nothing", async () => {
+    const long = "あ".repeat(20_000);
+    const { open } = await setupWithCompaction(
+      six([say(long), costing(say("続けます。"), 60_000), say("次も。")]),
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const first = await session.turn("7 件目をお願い");
+    const second = await session.turn("8 件目をお願い");
+
+    expect(first.compacted).toEqual({ done: false, reason: "no_smaller" });
+    expect(second.compacted).toBeUndefined();
+  });
+
+  test("an empty summary is not recorded, and the turn goes on", async () => {
+    const { open, store } = await setupWithCompaction(six([say("   "), say("続けます。")]));
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.compacted).toEqual({ done: false, reason: "empty" });
+    expect(result.reply).toBe("続けます。");
+    expect(types(await store.events(session.id))).not.toContain("conversation.compacted");
+  });
+
+  test("a summary the model could not write leaves the conversation as it was", async () => {
+    const { open } = await setupWithCompaction(
+      six([fails(new Error("summarizer down")), say("続けます。")]),
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.compacted).toMatchObject({ done: false, reason: "failed" });
+    expect(result.reply).toBe("続けます。");
+  });
+
+  test("a request too large for the model is summarized and sent again", async () => {
+    const { open } = await setupWithCompaction(
+      [
+        ...Array.from({ length: 6 }, (_, i) => say(`${i + 1} 件目を終えました。`)),
+        fails(new OpenshainError("too_large", "prompt is too long: 300000 tokens > 200000")),
+        say("要約: 依頼 6 件を終えた"),
+        say("縮めてから答えました。"),
+      ],
+      "",
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.reply).toBe("縮めてから答えました。");
+    expect(result.compacted).toMatchObject({ done: true });
+  });
+
+  test("the summary carries the calls that did not run, written by the loop and not the model", async () => {
+    const { open } = await setupWithCompaction(
+      [
+        workCreate("c1", "帳簿を読む"),
+        callTools({ id: "c2", name: "fs_read", input: { path: "ledger/2026.csv" } }),
+        workComplete("c3", "読めなかった"),
+        say("読めませんでした。"),
+        ...Array.from({ length: 5 }, (_, i) => say(`${i + 1} 件目を終えました。`)),
+        say("要約: 帳簿は読めなかった"),
+      ],
+      "",
+    );
+    const session = await open();
+    await session.turn("帳簿を読んで");
+    for (let i = 1; i <= 5; i++) await session.turn(`${i} 件目をお願い`);
+
+    const outcome = await session.compact();
+
+    expect(outcome.done).toBe(true);
+    if (!outcome.done) return;
+    expect(outcome.summary).toContain("## 実行できなかった呼び出し");
+    expect(outcome.summary).toContain("- fs_read:");
+  });
+
+  test("with nothing yet to cover, a summary is not written", async () => {
+    const { open } = await setupWithCompaction([say("はい。")], "");
+    const session = await open();
+    await session.turn("お願い");
+
+    expect(await session.compact()).toEqual({ done: false, reason: "nothing_to_compact" });
+  });
+
+  test("compact_at_input_tokens 0 never summarizes on its own", async () => {
+    const { open } = await setupWithCompaction(
+      [...six(), say("続けます。")],
+      "\n  compact_at_input_tokens: 0",
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.compacted).toBeUndefined();
   });
 });

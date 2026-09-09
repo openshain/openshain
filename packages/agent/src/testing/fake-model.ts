@@ -37,6 +37,18 @@ export function say(text: string): ModelResponse {
   };
 }
 
+/** The same answer, but reported as having cost this much input. */
+export function costing(response: ModelResponse, inputTokens: number): ModelResponse {
+  return { ...response, usage: { ...response.usage, inputTokens } };
+}
+
+/** A step that throws instead of answering, for the failures a turn has to survive. */
+export function fails(error: Error): FakeStep {
+  return () => {
+    throw error;
+  };
+}
+
 /** A response that asks for one or more tool calls. */
 export function callTools(...calls: { id: string; name: string; input: unknown }[]): ModelResponse {
   const content: AssistantPart[] = calls.map((c) => ({ type: "tool_call", ...c }));

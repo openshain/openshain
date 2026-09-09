@@ -31,7 +31,13 @@ export {
 } from "./config/load.ts";
 export type { Config, ModelConfig, ToolProviderRef } from "./config/schema.ts";
 export { LANGUAGES, type Language } from "./config/schema.ts";
-export { ERROR_CODES, type ErrorCode, isOpenshainError, OpenshainError } from "./errors.ts";
+export {
+  ERROR_CODES,
+  type ErrorCode,
+  isOpenshainError,
+  isTooLarge,
+  OpenshainError,
+} from "./errors.ts";
 export {
   type EventId,
   newEventId,
@@ -172,7 +178,12 @@ export {
   workHistory,
 } from "./work/history.ts";
 export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
-export { buildProjection, type Projection, type ProjectionInput } from "./work/projection.ts";
+export {
+  buildProjection,
+  type Projection,
+  type ProjectionInput,
+  RECENT_MESSAGES,
+} from "./work/projection.ts";
 export {
   type CreateWorkInput,
   type ListResult,

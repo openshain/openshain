@@ -372,6 +372,7 @@ describe("openaiCompatibleProvider from the config", () => {
     apiKeyEnv: "MY_KEY",
     baseUrl: "http://localhost:11434/v1",
     options: undefined,
+    contextTokens: undefined,
   };
 
   test("reads the key from the named environment variable and refuses to start without it", () => {
