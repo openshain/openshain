@@ -10,6 +10,14 @@ openshain は利用者の API キーを環境変数からだけ読み、設定�
 
 `authority/` の規則は、Tool に渡されたパスの文字列を正規化して照合します。workspace の中の symlink がその外の場所を指す場合(path guard は workspace の外を拒否します)や、大文字と小文字を区別しないファイルシステムでは、規則の照合と実際の書き込み先がずれることがあります。規則は実在するディレクトリに対して書き、symlink を混ぜないでください。
 
+会社の決まりと根拠の資料(Knowledge)について、いまの版の限界です。`rules/`、`sources/`、`build/` は Runtime の予約パスで、openshain の Tool からは読めません。知識は索引を通し、依頼する人の権限で絞ってから返します。**この絞り込みが効くのは openshain の Tool を通る経路だけです**。その機械のファイルを読める人は、同じ内容を直接読めます。MCP で接続した外部のエージェント(Claude Code など)は自分のファイル操作を持っていて、Runtime はそれを塞げません。また、依頼する人は設定に書いた principal であって、その人だと確かめる仕組みはありません。機密の境界としてではなく、社員エージェントに渡す情報を絞る仕組みとして使ってください。
+
+資料の本文は、会社の外から持ち込んだ文書を含みます。その中に社員エージェントへの指示が書かれていても、Runtime は取り除きません。資料として扱うよう Tool の結果に添えますが、取り扱いは接続したエージェント側の判断に委ねられます。
+
+索引は、人が書いた入力と一致するかを毎回確かめてから使います。確かめているのは「索引が入力の像であること」だけです。**入力そのものを書ける人は、会社の決まりを差し替えられます**。誰が書いたかは確かめません。
+
+社員エージェントが会話の中だけで、資格者の判断に当たる結論を述べることは、コードでは止まりません。止まるのは外へ効果を出す呼び出しです。
+
 ## Reporting (English)
 
 Please do not open a public issue for a vulnerability. Use "Report a vulnerability" under the Security tab of this repository. You will hear back within 7 days. The latest release is the supported version.
@@ -17,6 +25,8 @@ Please do not open a public issue for a vulnerability. Use "Report a vulnerabili
 openshain reads API keys from environment variables only and never writes them to configuration or records, and its tools cannot reach files outside the workspace. Reports that break either assumption are especially welcome.
 
 `tools[].module` in `openshain.yaml` loads and runs code from inside the workspace. Do not run openshain in a folder you would not trust, for the same reason Claude Code asks before trusting one.
+
+Knowledge (`rules/`, `sources/`, `build/`) is filtered by the requesting principal's scope before it reaches the model, and those three directories are reserved from the tools. That filter holds only on paths that go through openshain's tools: anyone who can read the machine's files can read the same content, and an outside agent connected over MCP brings its own file tools, which the runtime cannot block. The requesting principal is what the configuration says, not a verified identity. Treat it as a way to narrow what the employee agent is given, not as a confidentiality boundary. Source documents come from outside the company; if one contains instructions aimed at the agent, the runtime does not remove them. The index is checked against the files a person wrote before it is used, but that check only says the index is an image of those files: whoever can write them decides what the agent treats as company policy, and the runtime does not check who wrote them. Nothing in code stops the agent from stating a conclusion that belongs to a qualified professional when it does so only in conversation; what is stopped is a call that has an effect outside.
 
 Approval (`approval_required` in `authority/`) has a limit in this version. The approver is the principal the connection acts for, and the runtime cannot tell whether that person really acted. On the interactive screen a person chooses; an outside agent connected over MCP (Claude Code, for one) can approve the very call that was held from it. If approval is your gate for a person, do not leave rules that need it to an outside agent: decide them on the interactive screen. Terminal authentication comes in a later version. A qualified reviewer's decision (`review_decide`) works the same way: the name is what the company declares. On the interactive screen, the deciding tools are never offered to the model.
 

@@ -119,6 +119,14 @@ Runtime が書きます。手で消さないでください。`applies_to` に `
 
 同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が追加します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
 
+## 会社フォルダの置き場
+
+会社フォルダは、そのまま別の機械へ持ち運べます。Dropbox や Google Drive や git で同期しても構いません。ただし **同じ会社フォルダを同時に 2 か所で動かさないでください**。作業中の Work の lock はプロセスの番号で判定するため、別の機械のプロセスは判定できません。同時に書き込むと、記録(`work/<id>/events.jsonl`)が同期の競合として分かれ、一方の出来事が失われます。
+
+- 1 人が複数の機械で、順番に使う分には問題ありません
+- 会社が書いた決まりと資料(`knowledge/rules/` と `knowledge/sources/`)は git に向いています。変更の履歴と、誰がいつ変えたかが残ります
+- 複数の人が同時に 1 つの会社フォルダを使う形は、この版にはありません
+
 ## 記録
 
 Work ごとに `work/<id>/events.jsonl`(原本)と `work.json`(状態の投影)が残ります。`openshain` の画面での会話も `type: session` の Work として残り、そこから依頼した Work は `parent` で会話を指します。形式は [spec/schemas/events.v1.json](../spec/schemas/events.v1.json) と [spec/schemas/work.v1.json](../spec/schemas/work.v1.json) です。`openshain work list` と `openshain work show <id>` で参照します。

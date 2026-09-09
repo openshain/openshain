@@ -13,7 +13,7 @@ openshain で最初に作る部分です。Model、Tool、エージェントの�
 ### やらないこと
 
 - Authority engine(設定ファイルの許可リスト以外は全 Tool 呼び出しを許可します。判定の差し込み口だけ置きます)
-- Need-to-Know、Knowledge Compiler、Embedded Search
+- Need-to-Know、Knowledge Compiler、Embedded Search(knowledge.md で扱います)
 - ChangeSet(propose → diff → approve → apply)。書き込みは workspace 内に限って直接行い、イベントに記録します
 - Approval、ExpertReviewer、Profession Pack
 - Office 文書(xlsx、docx、pdf)、Email

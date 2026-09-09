@@ -10,7 +10,7 @@ openshain が判断に迷ったときに立ち返るものです。README には
 | Profession, not prompts | 専門職は職務、手順、権限、知識の束として定義します |
 | Existing SaaS remains the system of record | 会社の記録の原本は、いま使っている会計ソフトや SaaS、台帳のままです。openshain はそれを読み書きする側で、記録の置き場を新しく作りません。自分で持つのは作業の記録(`work/`)だけです |
 | Progressive automation | API がなくても業務を遂行します。API があれば自動化の範囲が広がります |
-| Need-to-Know before retrieval | 知らなくてよい情報は LLM に渡しません |
+| Need-to-Know before retrieval | 知らなくてよい情報は LLM に渡しません。openshain の Tool を通る経路で守ります。会社フォルダのファイルを直接読める人と、自分のファイル操作を持つ外部のエージェントは、この範囲の外です |
 | Agent acts on behalf of a principal | エージェントは誰かの代理として、委任された権限の範囲で動きます |
 | Know when not to act | 止まれることは能力です |
 | Apply decisions, do not make them as a professional | 社員エージェントは会社の決まりと、資格ある専門家の承認済みの判断を業務に適用します。資格者としての判断を自分で確定しません。境界は免責表示ではなく、権限、Review、記録の設計で持ちます(spec/professional-boundary.md) |
