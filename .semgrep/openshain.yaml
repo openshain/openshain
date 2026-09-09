@@ -26,6 +26,26 @@ rules:
   - pattern: console.log(<... process.env[$K] ...>)
   - pattern: console.error(<... process.env[$K] ...>)
   - pattern: console.log(<... $M.apiKey ...>)
+- id: openshain-workspace-file-read-outside-the-guard
+  languages:
+  - typescript
+  severity: ERROR
+  message: A file of the company folder is read and written through readWorkspaceText and writeWorkspaceText, which apply the path guard and the size limit. node:fs here goes around both, and hashing what the checks refuse to read is how the two stop agreeing on what is in the folder. Only the build output of knowledge/ is read directly, and only after its hashes are matched.
+  paths:
+    include:
+    - "packages/tools/src/*.ts"
+    - "packages/cli/src/preview.ts"
+    - "packages/core/src/knowledge/*.ts"
+    exclude:
+    - "*.test.ts"
+  patterns:
+  - pattern-either:
+    - pattern: readFile(...)
+    - pattern: writeFile(...)
+  - pattern-not-regex: (INDEX_FILE|MANIFEST_FILE|index\.json|manifest\.json)
+  # The one writer of the build output: a temporary file renamed into place, so a reader never
+  # sees half of it.
+  - pattern-not-inside: 'async function atomicWrite(path: string, text: string): Promise<void> { ... }'
 - id: openshain-screen-text-not-cleaned
   languages:
   - typescript
