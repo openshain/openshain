@@ -9,3 +9,6 @@ coverage/
 
 # Windows/WSL download marker streams
 *:Zone.Identifier
+
+# Build output of the example company folders. Anyone can rebuild it.
+examples/*/knowledge/build/

@@ -38,13 +38,13 @@
 
 ## 権限と承認(`authority/`)
 
-会社フォルダに `authority/` を置くと、Tool の呼び出しごとに判定が入ります。置かなければ、これまでどおりすべて許可です。`principals/` と `authority/` は Runtime の予約パスで、Tool からは読み書きできません。機械で読む形は [spec/schemas/authority-policy.v1.json](../spec/schemas/authority-policy.v1.json) と [authority-delegations.v1.json](../spec/schemas/authority-delegations.v1.json) にあります。
+会社フォルダに `authority/` を置くと、Tool の呼び出しごとに判定が入ります。置かなければ、これまでどおりすべて許可です。`principals/` と `authority/` はランタイムの予約パスで、Tool からは読み書きできません。機械で読む形は [spec/schemas/authority-policy.v1.json](../spec/schemas/authority-policy.v1.json) と [authority-delegations.v1.json](../spec/schemas/authority-delegations.v1.json) にあります。
 
 ```
 authority/
 ├── policy.yaml          どの呼び出しに何が要るか
 ├── delegations.yaml     誰の代理で、どの職種として働いてよいか
-└── decisions/           資格者の判断。Runtime が書きます
+└── decisions/           資格者の判断。ランタイムが書きます
 ```
 
 ### `delegations.yaml`
@@ -115,9 +115,89 @@ rules:
 
 ### `decisions/`
 
-Runtime が書きます。手で消さないでください。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
+ランタイムが書きます。手で消さないでください。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
 
 同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が追加します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
+
+## 会社の決まりと資料(`knowledge/`)
+
+会社が自分で決めたことを、出典と有効日を付けて置く場所です。ここに書いた決まりは、依頼のたびに社員エージェントが自分で引きます。`knowledge/` を置かない会社フォルダは、これまでどおり動きます。
+
+```
+knowledge/
+├── rules/       会社の決まり(YAML)
+├── sources/     根拠の資料(Markdown の front matter 付き)
+└── build/       openshain knowledge build の出力。手で編集しないでください
+```
+
+### `rules/<name>.yaml`
+
+```yaml
+version: 1
+rules:
+  - id: expenses.receipt-required                              # 引用に使う id です
+    statement: 1 万円以上の経費には領収書の原本が要ります。      # 1 文で書きます
+    aliases: [領収書, レシート, 証憑]                           # 別の言い方です
+    effective_from: 2026-04-01
+    effective_to: null                                         # 期限が無ければ null と書きます
+    expertise: none                                            # tax、legal など資格の領域です
+    source: { id: internal.expense-policy, section: "3.2 領収書" }
+```
+
+| 項目 | 内容 |
+|---|---|
+| `id` | 小文字、数字、`.` `-` `_` です。答えの中でこの id が引用されます |
+| `statement` | 決まりそのものです。10 文字から 240 文字で、1 文で書きます |
+| `aliases` | 同じことを指す別の言い方です。文字を共有しない表記(「インボイス」と「適格請求書」)は、ここに書かないと見つかりません |
+| `applies_to.profession` | その職種のときだけ引く決まりです。省くとすべての職種が引きます |
+| `scope` | 読める人です。`{ visibility: company }` か `{ principals: [alice] }` を書きます。省くと会社の全員が読めます。`{ roles: [...] }` はこの版では誰にも読めません(ランタイムが役の割り当てを読まないため、開くより閉じるほうを選んでいます) |
+| `effective_from` / `effective_to` | 有効期間です。`effective_to` は期限が無くても `null` と書きます |
+| `supersedes` | 置き換えた古い決まりの id です |
+| `expertise` | 資格の領域です。`none` か、職種が定める語(`tax`、`legal`)を書きます |
+| `source` | 根拠の資料の id と、その節です。出典の無い決まりは受け付けません |
+
+### `sources/<name>.md`
+
+根拠の資料は、front matter に出所を書いた Markdown です。本文は**出典を明記した引用**で、原本ではありません。原本は会社がいま使っている場所のままにします。
+
+```markdown
+---
+id: internal.expense-policy
+title: 経費規程
+publisher: サンプル株式会社
+path: policies/expenses.md   # 会社フォルダの中の原本です。外部の資料なら url を書きます
+retrieved_at: 2026-04-01     # その内容を確認した日です
+version: "2026-04"
+effective_from: 2026-04-01
+effective_to: null
+scope: { visibility: company }
+expertise: none
+---
+
+## 3.2 領収書
+
+1 万円以上の経費には領収書の原本が要ります。
+```
+
+`url` と `path` はどちらか一方が要ります。本文は見出しごとに 1 件として索引に載るので、決まりの `source.section` は見出しの文字列と合わせます。見出しの無い資料は、本文全体で 1 件になります。
+
+### 追加と検証
+
+```
+openshain knowledge add     # 質問に答えて決まりを 1 件追加します
+openshain knowledge build   # 検証して knowledge/build/ に索引を作ります
+openshain knowledge check   # 索引を書かずに検証だけ実行します
+```
+
+`add` は、書く前に検証します。落ちたときは何も書きません。`build` は誤りを 1 件目で止めず、すべて表示してから終了コード 1 で止まります。`check --stale` を付けると、`retrieved_at` が 1 年より古い資料を警告します(終了コードは変わりません)。
+
+決まりを変更したら `build` を実行します。索引が入力と食い違っている間、社員エージェントは知識を引けず、`openshain knowledge build` を実行するよう伝えます。古い内容で答えるより、答えられないほうが安全だからです。
+
+### 読める範囲
+
+- 検索も読み取りも、依頼した人の `scope` と、その日に有効な期間で絞ってから返します。読めない資料は結果にも件数にも現れません
+- `knowledge/` はランタイムの予約パスです。`fs_read` や `markdown_read` では読めません。索引を通さずに読めると、この絞り込みが素通りするからです
+- そのため、社員エージェントは `build` を通す前の決まりを読めません。書いた内容の確認は `knowledge check` の出力を人が読みます
 
 ## 会社フォルダの置き場
 

@@ -1,0 +1,14 @@
+version: 1
+company:
+  name: サンプル株式会社
+  language: ja
+  timezone: Asia/Tokyo
+principal:
+  id: alice
+  name: Alice
+profession:
+  id: generic
+  instructions: |
+    あなたはこの会社の一般事務の社員エージェントです。依頼された作業を、workspace 内のファイルだけを使って進めてください。
+tools:
+  - provider: standard

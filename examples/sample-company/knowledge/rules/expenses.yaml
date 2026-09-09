@@ -1,0 +1,17 @@
+version: 1
+rules:
+  - id: expenses.receipt-required
+    statement: 1 万円以上の経費には領収書の原本が要ります。
+    aliases: [領収書, レシート, 証憑]
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "3.2 領収書" }
+
+  - id: expenses.approval-required
+    statement: 3 万円以上の支出には、支出の前に承認が要ります。
+    aliases: [稟議, 事前承認]
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "4.1 事前の承認" }

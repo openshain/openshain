@@ -90,6 +90,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stopped is continued from the conversation with `/work resume <id>`
 - **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
+- **Company rules**: write the rules in `knowledge/` with the material behind them and build the index with `openshain knowledge build`. The employee agent looks them up without being told to, and the reply carries the id and the effective dates. A rule with no source and no effective date never reaches the index
 - **Permissions and approval**: rules in `authority/` decide, for every tool call, whether it runs, waits for a person's approval, waits for a qualified reviewer, or does not run at all. The judgment is code; the model's output never changes it
 - **Qualified review**: a judgment that takes a licence (tax, law) stops with a review package. Record the decision of the expert your company names and the call runs; later calls cite that decision
 - **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
@@ -190,6 +191,8 @@ openshain                       # starts the interactive CLI
 openshain init                  # initializes the company folder
 openshain work list             # lists Works
 openshain work show <id>        # reads the record of a Work
+openshain knowledge add         # adds one company rule
+openshain knowledge build       # checks the rules and material, and builds the index
 openshain tools list            # lists the tools available
 openshain mcp                   # runs as an MCP server (normally the agent starts it)
 ```
@@ -248,17 +251,24 @@ An employee agent needs two kinds of knowledge to work as a person of the compan
 
 ### The company's own policies and knowledge
 
-The company's rules (expense policies, approval thresholds, how each counterparty is handled, document formats) and the company's records (ledgers, contracts, past filings). In the current version they enter by three routes.
+The company's rules (expense policies, approval thresholds, how each counterparty is handled, document formats) and the company's records (ledgers, contracts, past filings). They enter by four routes.
 
 - `profession.instructions` in `openshain.yaml`. The instructions of the profession, placed at the top of the system prompt of every Work. Short rules go here
+- `knowledge/`. Rules go in `knowledge/rules/*.yaml` and the material behind them in `knowledge/sources/*.md`. Each carries its source and its effective dates, so the employee agent looks up only the version in effect and cites the id and the dates in its reply
 - Files in the company folder. Put policies, procedures, and ledgers there and the employee agent reads them with the standard tools. Point at them from the instructions ("the expense policy is in rules/expenses.md"). Only the files a Work asks for reach the model, and nothing leaves the folder
 - `AGENTS.md`. Instructions for Claude Code and Codex. Company rules written there make those agents follow the same rules
 
-Coming versions give company rules and their supporting material a source and an effective date, and make them reachable through an index. The model receives only what the Work needs (need-to-know), and material a person is not allowed to see does not appear in search results either.
+```
+openshain knowledge add     # adds one rule by answering questions
+openshain knowledge build   # checks the rules and material, and builds the index
+openshain knowledge check   # checks without writing the index (for CI)
+```
+
+A rule that does not pass `build` is not in the index and the employee agent never sees it. Search and read return only what the person who asked may read; material they are not allowed to see does not appear in the counts either (need-to-know). There is a template in [examples/sample-company](examples/sample-company/README.md), the format is in [docs/configuration.md](docs/configuration.md), and the specification in [spec/knowledge.md](spec/knowledge.md).
 
 ### Continuously maintained knowledge of the Japanese jurisdiction
 
-Laws, circulars, guidelines, forms, and deadlines are not something each company writes down, and they keep changing. openshain treats them as knowledge delivered together with a profession: each item carries its source and effective date, and can be looked up by version and by point in time. Accounting comes first.
+Laws, circulars, guidelines, forms, and deadlines are not something each company writes down, and they keep changing. openshain treats them as knowledge delivered together with a profession: each item carries its source and effective date, and can be looked up by version and by point in time. Accounting comes first. That route is in development. Placing your own citations of the law in `knowledge/sources/` works today.
 
 The OSS loads such knowledge from any provider (Bring Your Own Knowledge). Officially maintained knowledge of the Japanese jurisdiction is delivered as the operation of keeping up with the changes, in line with design principle 4. Without it, an employee agent carries out its work from the documents placed in the company folder.
 

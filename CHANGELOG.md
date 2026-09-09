@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- 会社の決まりと、その根拠の資料を索引から引きます。決まりを `knowledge/rules/*.yaml`、資料を `knowledge/sources/*.md` に書き、`openshain knowledge build` が検証して `knowledge/build/` に索引を作ります。出典と有効日の無い決まりは受け付けません。社員エージェントは名指しされなくても `knowledge_search` と `knowledge_read` で自分で引き、答えに決まりの id と有効日を添えます。検索も読み取りも、依頼する人が読んでよい範囲と、その日に有効な期間で絞ってから返し、読めない資料は件数にも現れません。索引が入力と食い違うときは内容を返さず、`openshain knowledge build` を実行するよう伝えます。`knowledge/` は予約パスで、ファイルの Tool からは読めません
+- 決まりを引いたターンの返答がどの id も含まないときは、「参照した会社の決まり」として id と有効日を返答の末尾に追加します。どの決まりを引いたかは記録に残っている事実なので、社員エージェントの書きぶりに任せません
+- `openshain knowledge add`。質問に答えると決まりを 1 件書きます。検証に落ちたときは何も書かず、それまでの決まりはそのままです
+- `openshain knowledge check`。索引を書かずに検証だけ実行します。CI 向けです。`--stale` を付けると、`retrieved_at` が 1 年より古い資料を警告します
+- 架空の会社の例に `knowledge/` のひな型を追加しました([examples/sample-company](examples/sample-company/README.md))
+
+### Changed
+
+- Tool の記録の `observation` を配列にしました。1 回の呼び出しが複数の資料を引くためです。これまでの記録はそのまま読めます
+
 ## [0.4.1] - 2026-09-09
 
 ### Fixed
