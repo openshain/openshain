@@ -386,6 +386,13 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const id = parseWorkId((input as { id: string }).id);
         const work = await works.get(id);
         if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
+        // Selecting is what lets a client record into a work. Another person's conversation is
+        // theirs: a client that could select it could write what they never said.
+        if (work.principal !== config.principal.id) {
+          return failure(
+            `work ${id} belongs to ${work.principal}; a client selects only the works of the person it acts for`,
+          );
+        }
         session.select(id);
         return json({ ...work, history: workHistory(await works.events(id)) });
       }

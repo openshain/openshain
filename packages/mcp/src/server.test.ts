@@ -820,6 +820,33 @@ rules:
     expect((await call("work_select", { id: second })).isError).toBe(false);
   });
 
+  test("selects only the works of the person the client acts for", async () => {
+    const alice = await connected();
+    const work = (await alice.call("work_create", { objective: "alice の作業" })).json()
+      .id as string;
+    // The same company folder, opened by somebody else. Work records are reserved from the
+    // tools, so this is the one way a client could write into another person's conversation.
+    const settings = await readFile(join(alice.root, "openshain.yaml"), "utf8");
+    await writeFile(
+      join(alice.root, "openshain.yaml"),
+      settings.replace("id: alice", "id: bob").replace("name: Alice", "name: Bob"),
+    );
+    const bob = await connected("", alice.root);
+
+    const selected = await bob.call("work_select", { id: work });
+    const recorded = await bob.call("work_record", {
+      work_id: work,
+      type: "human.message",
+      payload: { text: "bob が書いた" },
+    });
+
+    expect(selected.isError).toBe(true);
+    expect(selected.text).toContain("belongs to alice");
+    expect(recorded.isError).toBe(true);
+    // What bob may not select, bob may still read: this version keeps reading open.
+    expect((await bob.call("work_get", { id: work })).json().objective).toBe("alice の作業");
+  });
+
   test("rejects a bad work id and a tool the workspace does not have", async () => {
     const { call } = await connected();
     await call("work_create", { objective: "x" });

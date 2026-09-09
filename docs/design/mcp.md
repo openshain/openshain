@@ -21,6 +21,12 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 捨てた案。CLI だけがプロセス内で `WorkStore` に直接書く案。Tool の面が 2 つになり、Authority を置く場所も 2 つになります。
 
+## 選べるのは自分の Work だけ
+
+決めたこと。`work_select` は、その Work の principal が設定の principal と違うとき受け付けません。`work_record` は「その接続で作ったか選んだ Work」にしか書けないので、選ぶところを塞げば、client が別の人の会話にイベントを書く経路はなくなります。読み取り(`work_get`、`work_list`)は変えません。会社フォルダのどの Work も読めます。
+
+理由。会話の記録は、その人が何を頼み、何を了承したかの原本です。`work/` は予約パスなので Tool からは書けず、`work_record` が client にとって唯一の書き込み口です。ここに人の検査が無いと、同じ会社フォルダに接続した別の client が、他人の会話に発言や要約を書けます。会社フォルダに書ける人は記録を直接編集できるので、これは権限の壁ではなく、openshain を通る経路の筋を通すものです。読み取りを閉じないのは、この版の Work の一覧と記録が会社の共有物で、絞り込みは複数人を扱うときに入れると決めているからです(spec/knowledge.md)。
+
 ## 承認は Runtime が実行する
 
 決めたこと。規則が `approval_required` と判定した呼び出しは、Runtime が `approval.requested` を記録して Work を `waiting_approval` にし、呼び出し元には `pending: "approval"` を返します。`approval_decide` の `approve` で Runtime がその場で Tool を実行し、結果を返します。model にもう一度呼ばせません。`reject` は `tool.rejected`(`rejected_by_person`)です。承認する人は、この版では接続が代理する principal で、規則の `approvers` に居なければ決められません。
