@@ -41,6 +41,18 @@ export {
   type WorkId,
 } from "./ids.ts";
 export {
+  buildIndex,
+  hashKnowledgeInput,
+  INDEX_FORMAT_VERSION,
+  type IndexState,
+  type IndexUnit,
+  type KnowledgeIndex,
+  type Manifest,
+  readIndex,
+  serializeIndex,
+  writeIndex,
+} from "./knowledge/build.ts";
+export {
   type Checked,
   checkKnowledge,
   hasKnowledge,
@@ -57,6 +69,13 @@ export {
   type SourceFrontMatter,
   SourceFrontMatterSchema,
 } from "./knowledge/schema.ts";
+export {
+  type Hit,
+  inEffect,
+  MIN_QUERY_LENGTH,
+  type SearchOptions,
+  search,
+} from "./knowledge/search.ts";
 export type {
   ModelDescription,
   ModelMessage,
