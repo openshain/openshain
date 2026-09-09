@@ -87,6 +87,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 ## What it does
 
 - **Interactive CLI**: `openshain` starts a conversation with an employee agent. Give it a request and the agent turns it into a Work, carries it out, and reports back. Replies are drawn with their headings and lists as formatting
+- **Long conversations**: when a conversation grows long, what came before is summarized into one entry and the conversation goes on. The last few messages stay as they are, and the screen says what was summarized and what it carried over. The original exchange stays in the record. `/compact` does it on demand
 - **Recorded, resumable Work**: every request runs as a Work, and its course and result are kept in `work/<id>/events.jsonl`. A Work that stopped is continued from the conversation with `/work resume <id>`
 - **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
@@ -197,7 +198,7 @@ openshain tools list            # lists the tools available
 openshain mcp                   # runs as an MCP server (normally the agent starts it)
 ```
 
-Inside the conversation, `/approvals` lists what is waiting, `/approve <id>` and `/reject <id>` decide it, and `/review <id> approve` records what a qualified reviewer said. `/help` lists them all.
+Inside the conversation, `/approvals` lists what is waiting, `/approve <id>` and `/reject <id>` decide it, and `/review <id> approve` records what a qualified reviewer said. `/compact` summarizes the conversation to make it shorter. `/help` lists them all.
 
 An example of adding a tool is in [examples/](examples/README.md).
 

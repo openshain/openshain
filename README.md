@@ -87,6 +87,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 ## できること
 
 - **対話型 CLI**: `openshain` で社員エージェントとの会話セッションを開始します。依頼を投げると、社員エージェントが Work にして進め、結果を返します。返答は見出しや箇条書きの書式で表示します
+- **長い会話**: 会話が長くなると、それまでのやり取りを要約 1 件にまとめて続けます。直近の発言はそのまま残り、要約したことと引き継いだ前提を画面に表示します。元のやり取りは記録に残ります。`/compact` で自分でも実行します
 - **Work の記録と再開**: 依頼を Work として遂行し、過程と結果が `work/<id>/events.jsonl` に残ります。途中で止めた Work は会話の `/work resume <id>` で続けます
 - **モデル**: 対話型 CLI が使うモデルは `openshain init` が作る設定ファイルで指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています。Claude Code や Codex から使うときは、モデルの設定も API キーも要りません
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
@@ -197,7 +198,7 @@ openshain tools list            # 使える Tool を表示します
 openshain mcp                   # MCP サーバーとして起動します(通常はエージェントが起動します)
 ```
 
-会話の中では、`/approvals` で承認待ちを確認し、`/approve <id>` と `/reject <id>` で決めます。資格者の判断は `/review <id> approve` で記録します。`/help` で一覧が出ます。
+会話の中では、`/approvals` で承認待ちを確認し、`/approve <id>` と `/reject <id>` で決めます。資格者の判断は `/review <id> approve` で記録します。`/compact` で会話を要約して短くします。`/help` で一覧が出ます。
 
 Tool を追加する例は [examples/](examples/README.md) にあります。
 

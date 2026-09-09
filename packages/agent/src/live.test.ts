@@ -16,7 +16,7 @@ import { standardTools } from "@openshain/tools";
 import { connectInMemory } from "./client.ts";
 import { anthropicProvider } from "./providers/anthropic.ts";
 import { openaiCompatibleProvider } from "./providers/openai-compatible.ts";
-import { createSession } from "./session.ts";
+import { type CompactionOutcome, createSession, type TurnResult } from "./session.ts";
 
 /**
  * Real calls to the API. They run only with OPENSHAIN_LIVE_TESTS=1 and an ANTHROPIC_API_KEY;
@@ -196,6 +196,27 @@ async function report(modelSection: string) {
   return { reply: turn.reply, done };
 }
 
+/**
+ * Opens one conversation, says several things in it, and summarizes it where asked. The
+ * threshold is not what is being tested here: whether the conversation survives a summary is.
+ */
+async function conversation(root: string, said: string[], compactAfter: number) {
+  const config = await loadConfig(root, { modelProviders: Object.keys(providers.models) });
+  const modelConfig = config.model as NonNullable<typeof config.model>;
+  const model = (providers.models[modelConfig.provider] as (m: typeof modelConfig) => never)(
+    modelConfig,
+  );
+  const server = await createMcpServer({ workspaceRoot: root, tools: providers.tools });
+  const session = await createSession(await connectInMemory(server), { model, config });
+  const results: TurnResult[] = [];
+  let compacted: CompactionOutcome | undefined;
+  for (const [at, text] of said.entries()) {
+    results.push(await session.turn(text));
+    if (at === compactAfter - 1) compacted = await session.compact();
+  }
+  return { results, compacted, last: results.at(-1) as TurnResult };
+}
+
 describe("live smoke", () => {
   test.skipIf(!live)(
     "Anthropic: reads the CSV and writes the summary",
@@ -287,6 +308,39 @@ describe("live smoke", () => {
         expect(reply).toContain("見つかりません");
       },
       240_000,
+    );
+  }
+
+  // A conversation that outgrows the model must go on, and what the person said early in it has
+  // to survive the summary: that is the whole point of compacting rather than starting over.
+  for (const name of REPORTING_MODELS) {
+    test.skipIf(!live)(
+      `${name}: carries what the person said across a summary`,
+      async () => {
+        const root = await workspace(
+          `  provider: anthropic\n  model: ${name}\n  api_key_env: ANTHROPIC_API_KEY\n`,
+        );
+
+        const { compacted, last } = await conversation(
+          root,
+          [
+            "経費の精算をお願いします。前提として、receipts/ のファイルは絶対に変更しないでください。読むだけです。",
+            "ありがとう。よろしくお願いします。",
+            "receipts/2026-07.csv の amount を合計して、summary.md に書いてください。",
+            "助かりました。",
+            "ひとまずここまでにします。",
+            "やっぱりもう少し続けます。",
+            "ひとつ確認です。最初に私が伝えた前提と、さっき書いたファイルの場所を教えてください。",
+          ],
+          6,
+        );
+
+        expect(compacted?.done).toBe(true);
+        expect(last.reply).toContain("receipts");
+        expect(last.reply).toMatch(/変更しない|読むだけ/);
+        expect(last.reply).toContain("summary.md");
+      },
+      300_000,
     );
   }
 });

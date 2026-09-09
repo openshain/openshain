@@ -12,8 +12,13 @@
 - `openshain knowledge check`。索引を書かずに検証だけ実行します。CI 向けです。`--stale` を付けると、`retrieved_at` が 1 年より古い資料を警告します
 - 架空の会社の例に `knowledge/` のひな型を追加しました([examples/sample-company](examples/sample-company/README.md))
 
+- 長い会話を要約して続けます。1 回の呼び出しの入力が閾値を超えると、次のターンの前に、それまでの会話を要約 1 件(`conversation.compacted`)にまとめます。直近 5 件の発言はそのまま残り、元のやり取りは記録に残ります。短くなるのはモデルが読む分だけです。閾値は `limits.compact_at_input_tokens`、書かないときは `model.context_tokens` の 70%、それも無ければ 150000 です。`0` で要約しません。要約したことは画面に 1 行表示し、引き継いだ前提を載せます。`/compact` で自分でも実行します。「入力が大きすぎる」で呼び出しが失敗したときは、要約して 1 回やり直します
+- 古い Tool の結果を、モデルに渡す分だけ省略します。直近 5 件の発言より前が対象です。実行できなかった呼び出しは、どれだけ古くても理由を残します
+- `openshain.yaml` に `model.context_tokens` と `limits.compact_at_input_tokens` を追加しました
+
 ### Changed
 
+- `work_select` は、設定の principal と違う人の Work を受け付けません。`work_record` は選んだ Work にしか書けないので、client が別の人の会話に記録を書く経路が無くなります。読み取り(`work_get`、`work_list`)は変わりません
 - Tool の記録の `observation` を配列にしました。1 回の呼び出しが複数の資料を引くためです。これまでの記録はそのまま読めます
 
 ## [0.4.1] - 2026-09-09

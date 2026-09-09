@@ -24,10 +24,12 @@
 | `model.api_key_env` | model があれば必須 | API キーを入れる環境変数の名前です。大文字の英字で始まり、英数字と `_` で構成します。値はここに書きません |
 | `model.base_url` | 任意 | API の root です。openai-compatible では `/v1` まで含めます(例 `http://localhost:11434/v1`)。省略時は各 provider の既定です。`user:pass@` は受け付けません。https か、localhost のようにこの機械を指す http だけを受け付けます。遠隔のホストに http を書くとキーが平文で流れるので拒みます |
 | `model.options` | 任意 | provider にそのまま渡す指定です。Anthropic なら `effort` や `thinking`、OpenAI 互換なら `reasoning_effort` や `temperature` です。model、messages、tools、出力の上限は上書きできません |
+| `model.context_tokens` | 任意 | このモデルが受け取れる入力の大きさです。会話を要約する目安に使います。openshain はモデルの名前から長さを推し量りません。書かないときは 150000 を目安にします |
 | `tools` | 任意 | Tool provider の並びです。省略時は `[{ provider: standard }]` です。各項目は `provider`(組み込みの id)か `module`(ToolProvider を default export するファイルのパス)のどちらか 1 つです。`allow` を書くと、その名前の Tool だけを model に渡します。`module` はそのファイルを読み込んで実行するので、信用できないフォルダでは動かさないでください |
 | `limits.max_model_calls` | 任意 | 1 つの Work での model 呼び出しの上限です。既定 30。超えると Work は失敗(上限到達)で止まります |
 | `limits.max_tool_calls` | 任意 | Tool 呼び出しの上限です。拒否された呼び出しも数えます。既定 100 |
 | `limits.max_output_tokens` | 任意 | model の 1 回の出力の上限です。既定 16000 |
+| `limits.compact_at_input_tokens` | 任意 | 1 回の呼び出しの入力がこれを超えたら、次のターンの前に会話を要約します。既定は `model.context_tokens` の 70%、それも無ければ 150000。`0` で要約しません。書くなら 50000 以上です。これより小さいと、要約が保つものより失うもののほうが多くなります |
 | `debug.persist_raw` | 任意 | provider の生の応答を記録に残します。既定 false |
 
 設定の不備は起動時に行番号つきで報告します。`model` を書き換えるだけで provider が切り替わります。
@@ -118,6 +120,15 @@ rules:
 ランタイムが書きます。人は削除しません。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
 
 同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が追加します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
+
+## 長い会話
+
+会話が続くと、モデルへ送る入力は増え続けます。1 回の呼び出しの入力が `limits.compact_at_input_tokens` を超えると、次のターンを始める前に、それまでの会話を要約 1 件にまとめます。直近 5 件の発言はそのまま残ります。要約したことは画面に 1 行表示し、その行にあなたが伝えた前提を短く載せます。合っていなければ、その場で言い直してください。
+
+- `/compact` で、閾値に届いていなくても要約します
+- 要約はモデルが書いたものです。引いた会社の決まりと、実行できなかった呼び出しの 2 か所は、openshain が記録から書きます
+- 要約は記録(`work/<セッションの id>/events.jsonl`)に残ります。**元のやり取りは消えません**。短くなるのはモデルが読む分だけです
+- 要約しても入力が減らないときは、その旨を表示します。会話をいったん終えて、新しく始めてください
 
 ## 会社の決まりと資料(`knowledge/`)
 
