@@ -616,3 +616,40 @@ describe("the screen's controller", () => {
     expect(texts(controller, "assistant")).toEqual(["終わりました", "はい"]);
   });
 });
+
+describe("summarizing the conversation", () => {
+  test("/compact says what it kept, and says so when there is nothing to summarize", async () => {
+    const { controller } = await setup([
+      say("はい。"),
+      ...Array.from({ length: 5 }, (_, i) => say(`${i + 1} 件目を終えました。`)),
+      say(
+        [
+          "## 依頼",
+          "7 月の集計",
+          "## 人が伝えた前提",
+          "領収書のフォルダは変更しない",
+          "## 次にすること",
+          "なし",
+        ].join("\n"),
+      ),
+    ]);
+
+    await controller.submit("/compact");
+    expect(texts(controller, "notice").at(-1)).toContain("まだ要約するところがありません");
+
+    for (let i = 1; i <= 6; i++) await controller.submit(`${i} 件目をお願い`);
+    await controller.submit("/compact");
+
+    const line = texts(controller, "progress").at(-1) as string;
+    expect(line).toContain("会話を要約しました");
+    expect(line).toContain("領収書のフォルダは変更しない");
+  });
+
+  test("/help lists it", async () => {
+    const { controller } = await setup([]);
+
+    await controller.submit("/help");
+
+    expect(texts(controller, "line").join("\n")).toContain("/compact");
+  });
+});

@@ -1,6 +1,7 @@
 import {
   type ApprovalAnswer,
   type ApprovalChoice,
+  type CompactionOutcome,
   connectInMemory,
   createSession,
   type HeldApproval,
@@ -95,6 +96,46 @@ export interface ControllerOptions {
   providers: RuntimeProviders;
 }
 
+/**
+ * What the screen says when the conversation was summarized. The person cannot read the summary
+ * itself, so the line carries what they told the agent: that is the part they can check.
+ */
+export function compactionLine(outcome: CompactionOutcome): string {
+  if (!outcome.done) {
+    switch (outcome.reason) {
+      case "nothing_to_compact":
+        return "まだ要約するところがありません。";
+      case "no_smaller":
+        return "この会話はこれ以上要約できません。いったん終えて、新しく始めるほうが確かです。";
+      case "empty":
+        return "要約が空だったので、会話はそのままです。";
+      default:
+        return `要約に失敗したので、会話はそのままです。${outcome.detail ?? ""}`.trim();
+    }
+  }
+  const assumed = heading(outcome.summary, "人が伝えた前提");
+  const kept = assumed ? `。人が伝えた前提: ${assumed}` : "";
+  return `会話を要約しました(${outcome.covered} 件を 1 件に)${kept}`;
+}
+
+/** What one heading of a summary says, in one line and at most this long. */
+function heading(summary: string, name: string): string | undefined {
+  const lines = summary.split("\n");
+  const at = lines.findIndex((line) => line.includes(name));
+  if (at < 0) return undefined;
+  const said: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    const text = line.replace(/^[#\s*-]+/, "").trim();
+    if (text === "") continue;
+    if (/^#/.test(line) || /^\*\*/.test(line)) break;
+    said.push(text);
+    if (said.join("、").length > 120) break;
+  }
+  const all = said.join("、");
+  if (all === "" || all === "なし") return undefined;
+  return all.length > 120 ? `${all.slice(0, 120)}…` : all;
+}
+
 const HELP = [
   "/work list         Work の一覧",
   "/work show <id>    Work の詳細",
@@ -102,6 +143,7 @@ const HELP = [
   "/approvals         承認待ちの一覧",
   "/approve <id>      承認して実行する。/reject <id> [理由] で拒否する",
   "/review <id> approve|reject  資格者の判断を記録する。名前と本文を順に聞く",
+  "/compact           会話を要約して短くする。長い会話は自動でも要約される",
   "/tools             使える Tool",
   "/quit              終わる",
   "↑ ↓                前に送った行を入力欄に呼び戻す。いちばん下は新しい入力",
@@ -417,7 +459,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
     if (name === "help") for (const h of HELP) push("line", h);
     else if (name === "quit" || name === "exit") await close();
     else if (name === "tools") await capture((write) => toolsList({ ...options, write }));
-    else if (name === "work" && sub === "list")
+    else if (name === "compact") {
+      const outcome = await session.compact();
+      push(outcome.done ? "progress" : "notice", compactionLine(outcome));
+    } else if (name === "work" && sub === "list")
       await capture((write) => workList({ workspaceRoot: options.workspaceRoot, write }));
     else if (name === "work" && (sub === "show" || sub === "resume") && !args[1])
       push("notice", `/work ${sub} には Work の id が要ります。/work list で確かめてください。`);
@@ -559,6 +604,9 @@ export async function createController(options: ControllerOptions): Promise<Cont
       await stoppable(async (signal) => {
         try {
           const result = await session.turn(text, { signal });
+          if (result.compacted) {
+            push(result.compacted.done ? "progress" : "notice", compactionLine(result.compacted));
+          }
           // What the work recorded is the agent's own writing, so it stands in when the turn
           // ends with nothing said. Without this the person is left with a work that finished
           // and no answer, which is what a model that skips its summary leaves behind.

@@ -17,6 +17,7 @@ export {
 export {
   type ApprovalAnswer,
   type ApprovalChoice,
+  type CompactionOutcome,
   createSession,
   type HeldApproval,
   type Session,
