@@ -255,6 +255,7 @@ const WORK_TOOLS: Tool[] = [
             "model.completed",
             "model.failed",
             "usage.recorded",
+            "conversation.compacted",
           ],
         },
         payload: { type: "object" },
@@ -276,6 +277,8 @@ const RECORDABLE_TYPES: ReadonlySet<string> = new Set([
   "model.completed",
   "model.failed",
   "usage.recorded",
+  // The conversation is the client's to shorten: the runtime holds the events either way.
+  "conversation.compacted",
 ]);
 
 const SESSION_HAS_NO_TOOLS =

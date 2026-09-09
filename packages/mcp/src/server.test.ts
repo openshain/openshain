@@ -217,6 +217,13 @@ describe("openshain over MCP", () => {
     expect(said.isError).toBe(false);
     expect(said.json().seq).toBeGreaterThan(1);
 
+    const summarized = await call("work_record", {
+      work_id: id,
+      type: "conversation.compacted",
+      payload: { through: said.json().id, summary: "7 月の集計を終えた", model: "m" },
+    });
+    expect(summarized.isError).toBe(false);
+
     const usage = await call("work_record", {
       work_id: id,
       type: "usage.recorded",
@@ -253,6 +260,7 @@ describe("openshain over MCP", () => {
       "work.created",
       "work.status_changed",
       "human.message",
+      "conversation.compacted",
       "usage.recorded",
     ]);
   });

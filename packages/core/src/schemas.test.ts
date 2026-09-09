@@ -106,7 +106,14 @@ async function logWithEveryType() {
       payload: { callId: "c3", question: "どの月?" },
     });
     await handle.append({ type: "human.input_provided", payload: { callId: "c3", answer: "7月" } });
-    await handle.append({ type: "human.message", payload: { text: "続きもお願い" } });
+    const said = await handle.append({
+      type: "human.message",
+      payload: { text: "続きもお願い" },
+    });
+    await handle.append({
+      type: "conversation.compacted",
+      payload: { through: said.id, summary: "ここまでの要約", model: "claude-opus-5" },
+    });
     await handle.append({
       type: "prompt.expanded",
       payload: { name: "work resume", source: "builtin", text: "候補の Work" },

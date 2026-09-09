@@ -99,6 +99,12 @@ export interface EventPayloads {
   };
   /** What the person said in a session. Becomes a user message in the projection. */
   "human.message": { text: string };
+  /**
+   * A conversation summarized up to and including the event `through` names, so that later
+   * projections start from the summary instead of the events it covers. The events stay in the
+   * record: this shortens what the model reads, not what happened.
+   */
+  "conversation.compacted": { through: EventId; summary: string; model: string };
   /** A prompt command expanded for the model: its name, where it came from, and the text handed over. */
   "prompt.expanded": { name: string; source: string; text: string };
   "usage.recorded":
@@ -278,6 +284,11 @@ export const payloadFileSchemas = {
     modified_input: z.unknown().optional(),
   }),
   "human.message": z.looseObject({ text: z.string() }),
+  "conversation.compacted": z.looseObject({
+    through: z.string().min(1),
+    summary: z.string().min(1),
+    model: z.string().min(1),
+  }),
   "prompt.expanded": z.looseObject({ name: z.string(), source: z.string(), text: z.string() }),
   "usage.recorded": z.discriminatedUnion("kind", [
     z.looseObject({
