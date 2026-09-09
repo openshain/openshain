@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -266,6 +266,29 @@ describe("an index the runtime is asked to trust", () => {
     await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`);
 
     expect((await readIndex(root)).ok).toBe(false);
+  });
+
+  test("a build directory that leads out of the folder is not written to", async () => {
+    const { root, checked } = await built();
+    const outside = await mkdtemp(join(tmpdir(), "openshain-outside-"));
+    await rm(join(root, "knowledge", "build"), { recursive: true });
+    await symlink(outside, join(root, "knowledge", "build"));
+
+    const write = writeIndex(root, buildIndex(checked), { hash: "x", rules: 1, sources: 1 });
+
+    await expect(write).rejects.toThrow(/leads out of the company folder/);
+    expect(await readdir(outside)).toEqual([]);
+  });
+
+  test("a link left where the temporary file goes does not carry the write", async () => {
+    const { root, checked } = await built();
+    const outside = await mkdtemp(join(tmpdir(), "openshain-outside-"));
+    await symlink(join(outside, "taken.json"), join(root, "knowledge/build/index.json.writing"));
+
+    const write = writeIndex(root, buildIndex(checked), { hash: "x", rules: 1, sources: 1 });
+
+    await expect(write).rejects.toThrow();
+    expect(await readdir(outside)).toEqual([]);
   });
 
   test("is refused when there is none", async () => {

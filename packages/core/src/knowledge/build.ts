@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { mkdir, open, readdir, realpath, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { OpenshainError } from "../errors.ts";
 import { readWorkspaceTextIfAny } from "../tool/files.ts";
 import type { Checked } from "./check.ts";
 import { KNOWLEDGE_DIR_NAME } from "./check.ts";
@@ -270,8 +272,7 @@ export async function writeIndex(
   input: { hash: string; rules: number; sources: number },
   now: Date = new Date(),
 ): Promise<Manifest> {
-  const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME, BUILD_DIR);
-  await mkdir(dir, { recursive: true });
+  const dir = await buildDirectory(workspaceRoot);
   const serialized = serializeIndex(index);
   const manifest: Manifest = {
     format: INDEX_FORMAT_VERSION,
@@ -287,9 +288,38 @@ export async function writeIndex(
   return manifest;
 }
 
+/**
+ * The directory the build writes into, once it is known to be that directory. `knowledge/` is
+ * reserved from the tools, so the runtime writes here itself; a link left in the folder would
+ * otherwise send the index, and the text a rule chose, anywhere the person can write.
+ */
+async function buildDirectory(workspaceRoot: string): Promise<string> {
+  const root = await realpath(workspaceRoot);
+  const dir = join(root, KNOWLEDGE_DIR_NAME, BUILD_DIR);
+  await mkdir(dir, { recursive: true });
+  if ((await realpath(dir)) !== dir) {
+    throw new OpenshainError(
+      "invalid_path",
+      `${KNOWLEDGE_DIR_NAME}/${BUILD_DIR} leads out of the company folder; the index is not written`,
+    );
+  }
+  return dir;
+}
+
+/**
+ * Writes through a temporary file and renames it into place. The name of that file is easy to
+ * guess, so it is opened without following a link: a link left there must not carry the write.
+ */
 async function atomicWrite(path: string, text: string): Promise<void> {
   const temporary = `${path}.writing`;
-  await writeFile(temporary, text, "utf8");
+  const flags =
+    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
+  const handle = await open(temporary, flags, 0o644);
+  try {
+    await handle.writeFile(text, "utf8");
+  } finally {
+    await handle.close();
+  }
   await rename(temporary, path);
 }
 
@@ -303,6 +333,22 @@ export type IndexState =
  * files that are there now. An index rewritten on its own, a manifest rewritten on its own, and
  * an index built by another version of the runtime all come back as a reason not to serve it.
  */
+/**
+ * A file of the build output, read from one descriptor that does not follow a link, and only
+ * once its size is known. These two files are as writable as any other in the folder.
+ */
+async function readThere(dir: string, name: string): Promise<string> {
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+  const handle = await open(join(dir, name), flags);
+  try {
+    const { size } = await handle.stat();
+    if (size > MAX_INDEX_BYTES) throw new Error(`${name} is too large to be an index`);
+    return await handle.readFile("utf8");
+  } finally {
+    await handle.close();
+  }
+}
+
 export async function readIndex(workspaceRoot: string): Promise<IndexState> {
   const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME, BUILD_DIR);
   const stale = {
@@ -314,12 +360,8 @@ export async function readIndex(workspaceRoot: string): Promise<IndexState> {
   try {
     // Read nothing before knowing its size: these two files are as writable as any other in the
     // folder, and an index of a company's knowledge is far below this.
-    for (const file of [MANIFEST_FILE, INDEX_FILE]) {
-      const { size } = await stat(join(dir, file));
-      if (size > MAX_INDEX_BYTES) return stale;
-    }
-    manifest = JSON.parse(await readFile(join(dir, MANIFEST_FILE), "utf8")) as Manifest;
-    serialized = await readFile(join(dir, INDEX_FILE), "utf8");
+    manifest = JSON.parse(await readThere(dir, MANIFEST_FILE)) as Manifest;
+    serialized = await readThere(dir, INDEX_FILE);
   } catch {
     return { ok: false, reason: "there is no index; run `openshain knowledge build`" };
   }
