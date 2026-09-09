@@ -318,7 +318,7 @@ Runtime(`packages/core`、`packages/tools`、`packages/mcp`)はモデルを呼�
 client                                  Runtime(MCP Tool)
   work_create ────────────────────────▶ work.created、in_progress
   投影を組み立て、モデルを呼ぶ
-  (work_record: model.requested、model.completed、usage.recorded)
+  (work_record: model.requested、model.completed、usage.recorded、conversation.compacted)
   tool_call ごとに Tool を呼ぶ ────────▶ authorize → 実行(tool.called → tool.completed | tool.rejected)
   ask_user ───────────────────────────▶ human.input_requested、waiting_input(pending を返す)
   人に聞く → work_answer ─────────────▶ human.input_provided、in_progress
@@ -333,7 +333,7 @@ Runtime が持つ規則:
 - Tool の失敗は client に `isError` で返し、Work は続きます。
 - Tool の結果が JSON で 50,000 文字を超えたときは、JSON 文字列に変換してから切り、text として返します。
 - `ask_user` は Runtime の Tool です。質問を `human.input_requested` に記録して `waiting_input` にし、`pending: true` と call_id を返します。入力が schema に合わないときは `tool.rejected`(schema_mismatch)で、`waiting_input` にはなりません。`work_answer` が答えを `human.input_provided` と同じ call_id の `tool.completed` に記録し、`in_progress` に戻します。
-- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)だけです。書けるのはその接続で `work_create` か `work_select` した Work だけで、payload は schema で検証し(262,144 文字まで)、envelope は Runtime が付けます。終わった Work には書けません(判定は lock の中で行います)。`work_*` と `ask_user` の文字列の入力には長さの上限があります(objective 10,000、summary と answer と detail 20,000、question 10,000、agent_name 100)。
+- `work_record` は client のイベントを Work に書きます。受け付ける type は `human.message`、`prompt.expanded`、`model.requested`、`model.completed`、`model.failed`、`usage.recorded`(kind は `model_inference`)、`conversation.compacted` だけです。書けるのはその接続で `work_create` か `work_select` した Work だけで、payload は schema で検証し(262,144 文字まで)、envelope は Runtime が付けます。終わった Work には書けません(判定は lock の中で行います)。`work_*` と `ask_user` の文字列の入力には長さの上限があります(objective 10,000、summary と answer と detail 20,000、question 10,000、agent_name 100)。
 - 同じパスに複数回書き込んだときは、最後の書き込みだけが `outcome.artifacts` に残ります。
 - lock: `work/<id>/lock` に pid と開始時刻を書きます。すでにあり、その pid が生きていればエラーです。死んでいれば引き継ぎます。
 - 書き込みは `WorkStore.open(id)` が返す handle を通します。handle が lock を持ち、閉じるまで他の書き手は `lock_held` で止まります。読み取りに lock は要りません。
@@ -371,7 +371,7 @@ MCP tool:
 | name | 内容 |
 |---|---|
 | `work_create` | objective、type、任意の `parent` と `agent_name` を受けて Work を作り、その接続の現在の Work にします。`type: session` は会話の記録で、その Work の中では Tool を呼べず、`parent` も持てません。現在の Work が session なら、閉じずに次の Work を作れます |
-| `work_select` | 既存の Work を現在の Work にし、`history` 付きで返します。終わった Work は受け付けません |
+| `work_select` | 既存の Work を現在の Work にし、`history` 付きで返します。終わった Work と、設定の principal と違う人の Work は受け付けません |
 | `work_get`、`work_list` | 参照します。`work_get` は `history: true` で、これまでの Tool 呼び出し(name、path、isError)、結果のない呼び出し、未回答の質問を返します。client が中断した Work を続けるための情報です |
 | `ask_user` | 質問を記録して `waiting_input` にし、`pending: true` と call_id を返します。人に聞くのは client です |
 | `approval_list` | 承認待ちの呼び出しの一覧です。approval_id、work_id、呼び出し、規則、承認できる人を返します |
@@ -386,7 +386,7 @@ MCP tool:
 
 現在の Work がない状態で Tool を呼ぶと、Work を作るよう促すエラーを返します。client がモデルの使用量を `work_record` で書かないとき(Claude Code など)は、`usage.recorded` は Tool 実行の分だけになります。
 
-- `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work を受け付けません。`work_get` は id を省くと現在の Work です
+- `work_create` は Work を作って `in_progress` にします(理由は「an agent took the work over MCP」)。`work_select` は終わった Work と、その Work の principal が設定の principal と違うものを受け付けません。別の人の会話に client がイベントを書く経路を残さないためです(`work_record` は選んだ Work にしか書けません)。読み取り(`work_get`、`work_list`)はこの版では会社フォルダのどの Work も返します。`work_get` は id を省くと現在の Work です
 - `type: session` の Work は現在の Work にできますが、その中で Tool を呼ぶと「セッションでは Tool を呼べない。`work_create` で作業の Work を作る」と拒否します。例外は `context` で、`work_record` だけが書けます
 - `work_complete` の artifacts は任意です。Tool が書いたファイル(`after` 付きの `tool.completed`)にエージェントの申告を合わせ、パスごとに Runtime がハッシュを計算します。読めなければ `missing: true` で申告値を残し、Tool が書いていないパスには `claimed: true` を付けます。`refs` は `after` 付きの `tool.completed` の id です
 - `work_fail` の reason はエージェントの自由な短い語です。CLI の見出し表にない語はそのまま表示されます
