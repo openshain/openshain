@@ -1,2 +1,3 @@
 // @openshain/tools: Standard tool provider: filesystem, CSV, Markdown, documents, email
-export { csvText, MAX_READ_BYTES, standardTools } from "./standard.ts";
+export { MAX_READ_BYTES } from "@openshain/core";
+export { csvText, standardTools } from "./standard.ts";

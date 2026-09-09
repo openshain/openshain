@@ -1,22 +1,18 @@
-import { createHash } from "node:crypto";
-import { constants } from "node:fs";
-import { type FileHandle, mkdir, open, readdir, stat } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { open, readdir, stat } from "node:fs/promises";
+import { join, relative } from "node:path";
 import {
+  MAX_READ_BYTES,
   RESERVED_PATHS,
+  readWorkspaceText,
   resolveWorkspacePath,
   type ToolContext,
   type ToolDefinition,
   type ToolProvider,
   type ToolResult,
+  writeWorkspaceText,
 } from "@openshain/core";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
-
-/** Files larger than this are not opened at all. What a tool returns is a window, far smaller. */
-export const MAX_READ_BYTES = 1024 * 1024;
-/** The same limit on writes, so that nothing a tool writes is too large for a tool to open. */
-export const MAX_WRITE_BYTES = MAX_READ_BYTES;
 
 /** The window each observing tool returns when the model does not ask for another one. */
 export const DEFAULT_WINDOW = {
@@ -358,7 +354,7 @@ async function fsRead(
   offset: number,
   limit: number,
 ): Promise<ToolResult> {
-  const content = await readText(ctx, path);
+  const content = await readWorkspaceText(ctx.workspaceRoot, path);
   const lines = splitLines(content);
   const window = lines.slice(offset, offset + limit);
   return {
@@ -381,7 +377,7 @@ async function fsRead(
 }
 
 async function fsWrite(ctx: ToolContext, path: string, content: string): Promise<ToolResult> {
-  const after = await writeText(ctx, path, content);
+  const after = await writeWorkspaceText(ctx.workspaceRoot, path, content);
   return { content: [{ type: "text", text: `wrote ${after.path}` }], after: [after] };
 }
 
@@ -501,7 +497,7 @@ async function csvWrite(
     rows as Record<string, unknown>[],
     Array.isArray(columns) ? (columns as string[]) : undefined,
   );
-  const after = await writeText(ctx, path, content);
+  const after = await writeWorkspaceText(ctx.workspaceRoot, path, content);
   return {
     content: [{ type: "text", text: `wrote ${rows.length} rows to ${after.path}` }],
     after: [after],
@@ -514,7 +510,7 @@ async function markdownRead(
   section: string | undefined,
   limit: number,
 ): Promise<ToolResult> {
-  const lines = splitLines(await readText(ctx, path));
+  const lines = splitLines(await readWorkspaceText(ctx.workspaceRoot, path));
   const headings = outline(lines);
   let from = 0;
   let end = lines.length;
@@ -576,7 +572,7 @@ async function readCsv(
   ctx: ToolContext,
   path: string,
 ): Promise<{ columns: string[]; rows: Record<string, string>[] }> {
-  const content = await readText(ctx, path);
+  const content = await readWorkspaceText(ctx.workspaceRoot, path);
   const records = parse(content, { bom: true, skip_empty_lines: true }) as string[][];
   const [header, ...body] = records;
   const columns = header ?? [];
@@ -584,56 +580,6 @@ async function readCsv(
     Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? ""])),
   );
   return { columns, rows };
-}
-
-/**
- * Reads a text file through one descriptor: the size check and the read see the same file,
- * so a swap between the two cannot slip a larger file past the limit.
- */
-async function readText(ctx: ToolContext, path: string): Promise<string> {
-  const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
-  let handle: FileHandle;
-  try {
-    handle = await open(resolved, "r");
-  } catch (err) {
-    throw new Error(`cannot read "${path}": ${(err as NodeJS.ErrnoException).code ?? "error"}`);
-  }
-  try {
-    const { size } = await handle.stat();
-    if (size > MAX_READ_BYTES) {
-      throw new Error(`"${path}" is too large to read (${size} bytes, limit ${MAX_READ_BYTES})`);
-    }
-    return await handle.readFile("utf8");
-  } finally {
-    await handle.close();
-  }
-}
-
-/** Writes through a descriptor opened with O_NOFOLLOW, so the final component may not be a symlink. */
-async function writeText(
-  ctx: ToolContext,
-  path: string,
-  content: string,
-): Promise<{ path: string; sha256: string }> {
-  const bytes = Buffer.byteLength(content, "utf8");
-  if (bytes > MAX_WRITE_BYTES) {
-    throw new Error(`"${path}" is too large to write (${bytes} bytes, limit ${MAX_WRITE_BYTES})`);
-  }
-  const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
-  const root = await resolveWorkspacePath(ctx.workspaceRoot, ".");
-  await mkdir(dirname(resolved), { recursive: true });
-  const flags =
-    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0);
-  const handle = await open(resolved, flags, 0o644);
-  try {
-    await handle.writeFile(content, "utf8");
-  } finally {
-    await handle.close();
-  }
-  return {
-    path: relative(root, resolved),
-    sha256: createHash("sha256").update(content).digest("hex"),
-  };
 }
 
 /** Regular files below `dir`, in code point order, skipping hidden entries, symlinks and reserved paths. */

@@ -1,5 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { resolveWorkspacePath } from "@openshain/core";
+import { readWorkspaceTextIfAny, resolveWorkspacePath } from "@openshain/core";
 import { csvText } from "@openshain/tools";
 
 /** How much of a change the screen shows before it says the rest is cut. */
@@ -49,9 +48,8 @@ export async function previewCall(
   // The same guard the tools run under: a path outside the workspace, a reserved one or a
   // symlink that leads out is refused here too, so the screen never shows what the call cannot
   // touch. The model chooses this path; the person is about to read what it says.
-  let resolved: string;
   try {
-    resolved = await resolveWorkspacePath(workspaceRoot, path);
+    await resolveWorkspacePath(workspaceRoot, path);
   } catch (err) {
     return [
       {
@@ -60,7 +58,7 @@ export async function previewCall(
       },
     ];
   }
-  const before = await readFile(resolved, "utf8").catch(() => undefined);
+  const before = await readWorkspaceTextIfAny(workspaceRoot, path);
   if (before === undefined) {
     const lines = content.split("\n");
     return cap([
