@@ -18,6 +18,10 @@ import {
  */
 
 export const KNOWLEDGE_DIR_NAME = "knowledge";
+
+/** How much a build reads in total, and how many files it reads, whatever is in the folder. */
+export const MAX_KNOWLEDGE_FILES = 2000;
+export const MAX_KNOWLEDGE_BYTES = 64 * 1024 * 1024;
 const RULES_DIR = "rules";
 const SOURCES_DIR = "sources";
 
@@ -46,8 +50,9 @@ export async function hasKnowledge(workspaceRoot: string): Promise<boolean> {
 export async function checkKnowledge(workspaceRoot: string): Promise<Checked> {
   const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME);
   const problems: string[] = [];
-  const rules = await readRules(dir, problems);
-  const sources = await readSources(dir, problems);
+  const budget = { files: MAX_KNOWLEDGE_FILES, bytes: MAX_KNOWLEDGE_BYTES };
+  const rules = await readRules(dir, problems, budget);
+  const sources = await readSources(dir, problems, budget);
 
   await checkPaths(workspaceRoot, sources, problems);
   crossCheck(rules, sources, problems);
@@ -65,15 +70,40 @@ async function filesOf(dir: string, extension: string): Promise<string[]> {
   }
 }
 
-async function readRules(dir: string, problems: string[]): Promise<LoadedRule[]> {
+/** What a read may still take. A build reads a bounded amount, whatever the folder holds. */
+interface Budget {
+  files: number;
+  bytes: number;
+}
+
+/** The text of a file, or a reason it was not read. Spends the budget as it goes. */
+async function within(
+  dir: string,
+  relative: string,
+  file: string,
+  budget: Budget,
+  problems: string[],
+): Promise<string | undefined> {
+  if (budget.files <= 0 || budget.bytes <= 0) {
+    problems.push(`${file}: not read; a build reads at most ${MAX_KNOWLEDGE_FILES} files`);
+    return undefined;
+  }
+  budget.files -= 1;
+  const text = await readWorkspaceTextIfAny(dir, relative);
+  if (text === undefined) {
+    problems.push(`${file}: cannot read the file`);
+    return undefined;
+  }
+  budget.bytes -= Buffer.byteLength(text, "utf8");
+  return text;
+}
+
+async function readRules(dir: string, problems: string[], budget: Budget): Promise<LoadedRule[]> {
   const rules: LoadedRule[] = [];
   for (const name of await filesOf(join(dir, RULES_DIR), ".yaml")) {
     const file = `${KNOWLEDGE_DIR_NAME}/${RULES_DIR}/${name}`;
-    const text = await readWorkspaceTextIfAny(dir, join(RULES_DIR, name));
-    if (text === undefined) {
-      problems.push(`${file}: cannot read the file`);
-      continue;
-    }
+    const text = await within(dir, join(RULES_DIR, name), file, budget, problems);
+    if (text === undefined) continue;
     try {
       const { data } = parseYamlFile(text, RulesFileSchema, file);
       for (const rule of data.rules) rules.push({ ...rule, file });
@@ -84,15 +114,12 @@ async function readRules(dir: string, problems: string[]): Promise<LoadedRule[]>
   return rules;
 }
 
-async function readSources(dir: string, problems: string[]): Promise<Source[]> {
+async function readSources(dir: string, problems: string[], budget: Budget): Promise<Source[]> {
   const sources: Source[] = [];
   for (const name of await filesOf(join(dir, SOURCES_DIR), ".md")) {
     const file = `${KNOWLEDGE_DIR_NAME}/${SOURCES_DIR}/${name}`;
-    const text = await readWorkspaceTextIfAny(dir, join(SOURCES_DIR, name));
-    if (text === undefined) {
-      problems.push(`${file}: cannot read the file`);
-      continue;
-    }
+    const text = await within(dir, join(SOURCES_DIR, name), file, budget, problems);
+    if (text === undefined) continue;
     const split = frontMatter(text);
     if (!split) {
       problems.push(`${file}: the file must start with front matter between --- lines`);

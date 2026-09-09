@@ -15,8 +15,20 @@ const knowledgeId = z
     "use lowercase letters, digits, . - or _, starting with a letter or a digit",
   );
 
-/** A date as the company writes it. The runtime compares these as strings, so the form is fixed. */
-const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "write a date as YYYY-MM-DD");
+/**
+ * A date as the company writes it. The runtime compares these as strings, so the form is fixed,
+ * and it must be a day that exists: the index closes a superseded rule the day before the next
+ * one starts, and `2026-13-45` would end that arithmetic in an error rather than a refusal.
+ */
+const day = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "write a date as YYYY-MM-DD")
+  .refine(isDay, "that day does not exist");
+
+function isDay(text: string): boolean {
+  const at = new Date(`${text}T00:00:00Z`);
+  return !Number.isNaN(at.getTime()) && at.toISOString().startsWith(text);
+}
 
 /**
  * Who may read it. A company with one principal may leave it out; with two or more it is written,

@@ -193,6 +193,21 @@ rules:
     );
   });
 
+  test("a build reads a bounded number of files, whatever the folder holds", async () => {
+    const many: Record<string, string> = {};
+    for (let i = 0; i < 3; i++)
+      many[`knowledge/rules/many-${i}.yaml`] = RULE.replace(
+        "expenses.receipt-required",
+        `expenses.rule-${i}`,
+      );
+    const root = await workspace(many);
+
+    // The budget is the runtime's, not the test's; here it only has to be spent in order.
+    const { problems } = await checkKnowledge(root);
+
+    expect(problems.join("\n")).not.toContain("not read");
+  });
+
   test("the same id in two files is refused", async () => {
     const root = await workspace({ "knowledge/rules/again.yaml": RULE });
 

@@ -184,6 +184,27 @@ describe("the index", () => {
     expect(inEffect(old as never, "2027-01-01")).toBe(false);
   });
 
+  test("a heading that repeats in one source still names one unit each", async () => {
+    const { index } = await built({
+      "knowledge/sources/invoice.md": SOURCE.replace("## 経過措置", "## 保存の要件"),
+    });
+
+    const keys = index.units.filter((u) => u.ref === "invoice.2023").map((u) => u.key);
+    expect(keys).toEqual(["source:invoice.2023#保存の要件", "source:invoice.2023#保存の要件 (2)"]);
+    expect(new Set(index.units.map((u) => u.key)).size).toBe(index.units.length);
+  });
+
+  test("a day that does not exist is refused before anything is built from it", async () => {
+    const { checked } = await built({
+      "knowledge/rules/invoice.yaml": RULES.replace(
+        "effective_from: 2023-10-01",
+        "effective_from: 2026-02-30",
+      ),
+    });
+
+    expect(checked.problems.join("\n")).toContain("that day does not exist");
+  });
+
   test("the same input makes the same bytes", async () => {
     const { root, checked, index } = await built();
     const first = await readFile(join(root, "knowledge/build/index.json"), "utf8");

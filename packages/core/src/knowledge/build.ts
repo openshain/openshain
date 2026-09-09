@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { readWorkspaceTextIfAny } from "../tool/files.ts";
 import type { Checked } from "./check.ts";
 import { KNOWLEDGE_DIR_NAME } from "./check.ts";
 import type { LoadedRule, Scope, Source } from "./schema.ts";
@@ -13,6 +14,9 @@ import type { LoadedRule, Scope, Source } from "./schema.ts";
 
 /** Raised when the index is read by a runtime that indexes differently than the one that wrote it. */
 export const INDEX_FORMAT_VERSION = 1;
+
+/** An index this large was not built from a company's knowledge; it is not read. */
+const MAX_INDEX_BYTES = 64 * 1024 * 1024;
 
 const BUILD_DIR = "build";
 const INDEX_FILE = "index.json";
@@ -171,12 +175,19 @@ function sectionUnits(source: Source): IndexUnit[] {
   if (sections.length === 0) {
     return [{ ...common, key: `source:${source.id}#`, heading: source.title, text: source.body }];
   }
-  return sections.map((section) => ({
-    ...common,
-    key: `source:${source.id}#${section.heading}`,
-    heading: section.heading,
-    text: section.text,
-  }));
+  // Two sections of one document may carry the same heading. A key names one unit, so the
+  // second one of a name says which it is.
+  const seen = new Map<string, number>();
+  return sections.map((section) => {
+    const nth = (seen.get(section.heading) ?? 0) + 1;
+    seen.set(section.heading, nth);
+    return {
+      ...common,
+      key: `source:${source.id}#${section.heading}${nth === 1 ? "" : ` (${nth})`}`,
+      heading: section.heading,
+      text: section.text,
+    };
+  });
 }
 
 /** The body cut at its markdown headings. Text before the first heading joins the first section. */
@@ -239,8 +250,10 @@ export async function hashKnowledgeInput(workspaceRoot: string): Promise<string>
       continue;
     }
     for (const name of names) {
-      const text = await readFile(join(dir, sub, name), "utf8").catch(() => "");
-      parts.push(`${sub}/${name}\n${sha256(text)}`);
+      // The same guarded read the checks use, so hashing and checking see one set of files: a
+      // file too large to read, or a link that leads out, is refused here as it is there.
+      const text = await readWorkspaceTextIfAny(dir, join(sub, name));
+      parts.push(`${sub}/${name}\n${text === undefined ? "unreadable" : sha256(text)}`);
     }
   }
   return sha256(parts.join("\n"));
@@ -299,6 +312,12 @@ export async function readIndex(workspaceRoot: string): Promise<IndexState> {
   let manifest: Manifest;
   let serialized: string;
   try {
+    // Read nothing before knowing its size: these two files are as writable as any other in the
+    // folder, and an index of a company's knowledge is far below this.
+    for (const file of [MANIFEST_FILE, INDEX_FILE]) {
+      const { size } = await stat(join(dir, file));
+      if (size > MAX_INDEX_BYTES) return stale;
+    }
     manifest = JSON.parse(await readFile(join(dir, MANIFEST_FILE), "utf8")) as Manifest;
     serialized = await readFile(join(dir, INDEX_FILE), "utf8");
   } catch {
