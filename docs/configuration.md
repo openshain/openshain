@@ -115,7 +115,7 @@ rules:
 
 ### `decisions/`
 
-ランタイムが書きます。手で消さないでください。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
+ランタイムが書きます。人は削除しません。`applies_to` に `action` と `path` を書くと、その判断が効く範囲を狭められます。Reviewer の資格は会社の申告として記録するもので、openshain は検証しません。
 
 同じ Action を次から自動で通すには、書かれた判断の id を `decision_backed` の規則に人が追加します。id は `/review <id> approve` の結果に表示され、`authority/decisions/<id>.yaml` のファイル名でもあります。規則を書き足すまでは、同じ Action はもう一度 `review_required` として止まります。
 
@@ -127,7 +127,7 @@ rules:
 knowledge/
 ├── rules/       会社の決まり(YAML)
 ├── sources/     根拠の資料(Markdown の front matter 付き)
-└── build/       openshain knowledge build の出力。手で編集しないでください
+└── build/       openshain knowledge build の出力。人は編集しません
 ```
 
 ### `rules/<name>.yaml`
