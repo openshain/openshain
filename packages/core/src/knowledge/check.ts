@@ -180,47 +180,55 @@ async function checkPaths(
 /** The checks that need more than one file: references, scope, effective days. */
 function crossCheck(rules: LoadedRule[], sources: Source[], problems: string[]): void {
   const byId = new Map(sources.map((source) => [source.id, source]));
-  for (const source of duplicates(sources.map((s) => ({ id: s.id, file: s.file })))) {
+  for (const source of duplicates(sources)) {
     problems.push(`${source.file}: source ${source.id} is defined more than once`);
   }
-  for (const rule of duplicates(rules.map((r) => ({ id: r.id, file: r.file })))) {
+  for (const rule of duplicates(rules)) {
     problems.push(`${rule.file}: rule ${rule.id} is defined more than once`);
   }
-
-  for (const source of sources) {
-    if (source.effective_to !== null && source.effective_to < source.effective_from) {
-      problems.push(`${source.file}: ${source.id} ends before it starts`);
-    }
-  }
-
-  for (const rule of rules) {
-    if (rule.effective_to !== null && rule.effective_to < rule.effective_from) {
-      problems.push(`${rule.file}: ${rule.id} ends before it starts`);
-    }
-    const source = byId.get(rule.source.id);
-    if (!source) {
-      problems.push(`${rule.file}: ${rule.id} cites ${rule.source.id}, which no source declares`);
-      continue;
-    }
-    if (rule.effective_from < source.effective_from) {
-      problems.push(
-        `${rule.file}: ${rule.id} starts before ${source.id}, the source it cites, is in effect`,
-      );
-    }
-    if (source.effective_to !== null && (rule.effective_to ?? "9999-12-31") > source.effective_to) {
-      problems.push(
-        `${rule.file}: ${rule.id} outlives ${source.id}, the source it cites; close it on ${source.effective_to} or cite a newer source`,
-      );
-    }
-    if (!covers(source.scope, rule.scope)) {
-      problems.push(
-        `${rule.file}: ${rule.id} may be read by more people than ${source.id}, the source it cites; its citation would name a source they cannot read`,
-      );
-    }
-  }
-
+  for (const item of [...sources, ...rules]) endsAfterItStarts(item, problems);
+  for (const rule of rules) againstItsSource(rule, byId.get(rule.source.id), problems);
   overlaps(rules, problems);
 }
+
+/** A day of the calendar comes before another; a rule or a source that ends first says nothing. */
+function endsAfterItStarts(
+  item: { id: string; file: string; effective_from: string; effective_to: string | null },
+  problems: string[],
+): void {
+  if (item.effective_to !== null && item.effective_to < item.effective_from) {
+    problems.push(`${item.file}: ${item.id} ends before it starts`);
+  }
+}
+
+/**
+ * A rule stands on the source it cites, so it may not exist without it, outlive it, begin before
+ * it, or be read by people who may not read it.
+ */
+function againstItsSource(rule: LoadedRule, source: Source | undefined, problems: string[]): void {
+  if (!source) {
+    problems.push(`${rule.file}: ${rule.id} cites ${rule.source.id}, which no source declares`);
+    return;
+  }
+  if (rule.effective_from < source.effective_from) {
+    problems.push(
+      `${rule.file}: ${rule.id} starts before ${source.id}, the source it cites, is in effect`,
+    );
+  }
+  if (source.effective_to !== null && (rule.effective_to ?? FOREVER) > source.effective_to) {
+    problems.push(
+      `${rule.file}: ${rule.id} outlives ${source.id}, the source it cites; close it on ${source.effective_to} or cite a newer source`,
+    );
+  }
+  if (!covers(source.scope, rule.scope)) {
+    problems.push(
+      `${rule.file}: ${rule.id} may be read by more people than ${source.id}, the source it cites; its citation would name a source they cannot read`,
+    );
+  }
+}
+
+/** A day later than any a person would write, for a rule or a source with no end. */
+const FOREVER = "9999-12-31";
 
 /** The items whose id was already taken by an earlier item. */
 function duplicates<T extends { id: string }>(items: T[]): T[] {
@@ -275,7 +283,7 @@ function overlaps(rules: LoadedRule[], problems: string[]): void {
 }
 
 function inEffectTogether(a: LoadedRule, b: LoadedRule): boolean {
-  const end = (rule: LoadedRule) => rule.effective_to ?? "9999-12-31";
+  const end = (rule: LoadedRule) => rule.effective_to ?? FOREVER;
   return a.effective_from <= end(b) && b.effective_from <= end(a);
 }
 

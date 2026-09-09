@@ -34,6 +34,7 @@ export function search(index: KnowledgeIndex, query: string, options: SearchOpti
   const n = text.length < 3 ? 2 : 3;
   const wanted = grams(query, n);
   if (wanted.size === 0) return [];
+  const postings = n === 2 ? index.postings.pairs : index.postings.triples;
 
   const allowed = options.allowed ?? (() => true);
   // Narrow before scoring: what a person may not read costs nothing to rank, and the time a
@@ -43,7 +44,7 @@ export function search(index: KnowledgeIndex, query: string, options: SearchOpti
 
   const matched = new Map<number, number>();
   for (const gram of wanted) {
-    for (const at of index.postings[String(n) as "2" | "3"][gram] ?? []) {
+    for (const at of postings[gram] ?? []) {
       if (visible.has(at)) matched.set(at, (matched.get(at) ?? 0) + 1);
     }
   }

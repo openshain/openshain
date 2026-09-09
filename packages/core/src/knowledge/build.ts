@@ -47,8 +47,11 @@ export interface IndexUnit {
 export interface KnowledgeIndex {
   format: number;
   units: IndexUnit[];
-  /** Grams of two and three characters to the units that contain them. */
-  postings: { "2": Record<string, number[]>; "3": Record<string, number[]> };
+  /**
+   * The groups of characters to the units that contain them. Two-character groups answer a
+   * question too short to have three.
+   */
+  postings: { pairs: Record<string, number[]>; triples: Record<string, number[]> };
   /** How many distinct three-character grams each unit has, for the length correction. */
   sizes: number[];
 }
@@ -87,7 +90,7 @@ export function buildIndex(checked: Checked): KnowledgeIndex {
     ...checked.sources.flatMap((source) => sectionUnits(source)),
   ].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 
-  const postings: KnowledgeIndex["postings"] = { "2": {}, "3": {} };
+  const postings = { pairs: {}, triples: {} } satisfies KnowledgeIndex["postings"];
   const sizes: number[] = [];
   for (const [at, unit] of units.entries()) {
     // What a unit is matched on: its own words, and its heading when that is not the words
@@ -95,24 +98,34 @@ export function buildIndex(checked: Checked): KnowledgeIndex {
     // Aliases are already part of a rule's text, and nothing else bridges words that share no
     // characters with it.
     const matter = unit.heading === unit.text ? unit.text : `${unit.text} ${unit.heading}`;
-    for (const n of [2, 3] as const) {
-      const list = postings[String(n) as "2" | "3"];
-      for (const gram of grams(matter, n)) {
-        const units = list[gram];
-        if (units) units.push(at);
-        else list[gram] = [at];
-      }
-    }
+    add(postings.pairs, grams(matter, 2), at);
+    add(postings.triples, grams(matter, 3), at);
     sizes.push(grams(matter, 3).size);
   }
-  for (const n of ["2", "3"] as const) {
-    postings[n] = Object.fromEntries(
-      Object.entries(postings[n])
-        .sort(([a], [b]) => (a < b ? -1 : 1))
-        .map(([gram, list]) => [gram, [...list].sort((x, y) => x - y)]),
-    );
+  return {
+    format: INDEX_FORMAT_VERSION,
+    units,
+    postings: { pairs: settled(postings.pairs), triples: settled(postings.triples) },
+    sizes,
+  };
+}
+
+/** Notes that the unit at `at` holds each of these groups. */
+function add(postings: Record<string, number[]>, of: Set<string>, at: number): void {
+  for (const gram of of) {
+    const units = postings[gram];
+    if (units) units.push(at);
+    else postings[gram] = [at];
   }
-  return { format: INDEX_FORMAT_VERSION, units, postings, sizes };
+}
+
+/** The same postings in a fixed order, so that the same input writes the same bytes. */
+function settled(postings: Record<string, number[]>): Record<string, number[]> {
+  return Object.fromEntries(
+    Object.entries(postings)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([gram, units]) => [gram, [...units].sort((x, y) => x - y)]),
+  );
 }
 
 /** A rule replaced by another ends the day before that one begins. */
