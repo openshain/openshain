@@ -4,6 +4,7 @@ import { anthropicProvider, openaiCompatibleProvider } from "@openshain/agent";
 import { isOpenshainError, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
+import { knowledgeBuild, knowledgeCheck } from "./commands/knowledge.ts";
 import { mcp } from "./commands/mcp.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workShow } from "./commands/work.ts";
@@ -18,6 +19,8 @@ const USAGE = `使い方:
   openshain tools list           使える Tool の一覧
   openshain work list            Work の一覧
   openshain work show <id>       Work の詳細
+  openshain knowledge build      knowledge/ の決まりと資料を検証して索引を作る
+  openshain knowledge check      同じ検証を、索引を書かずに行う(--stale で古い資料も報告)
   openshain mcp                  MCP Server を stdio で起動する
 
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
@@ -34,12 +37,16 @@ const providers: RuntimeProviders = {
 
 async function main(argv: string[]): Promise<number> {
   const write = (line: string) => console.log(plain(line));
-  let values: { workspace?: string; help?: boolean };
+  let values: { workspace?: string; help?: boolean; stale?: boolean };
   let positionals: string[];
   try {
     ({ values, positionals } = parseArgs({
       args: argv,
-      options: { workspace: { type: "string" }, help: { type: "boolean", short: "h" } },
+      options: {
+        workspace: { type: "string" },
+        help: { type: "boolean", short: "h" },
+        stale: { type: "boolean" },
+      },
       allowPositionals: true,
     }));
   } catch (err) {
@@ -76,6 +83,16 @@ async function main(argv: string[]): Promise<number> {
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
       await toolsList({ workspaceRoot, providers, write });
       return 0;
+    }
+    case "knowledge": {
+      const sub = rest[0];
+      if (!(sub === "build" || sub === "check")) {
+        write(USAGE);
+        return 2;
+      }
+      const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      const run = sub === "build" ? knowledgeBuild : knowledgeCheck;
+      return await run({ workspaceRoot, write, ...(values.stale === true && { stale: true }) });
     }
     case "work": {
       const sub = rest[0];

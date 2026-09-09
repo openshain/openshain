@@ -109,7 +109,7 @@ expertise: none
 
 ## `openshain knowledge build`
 
-入力は `knowledge/rules/` と `knowledge/sources/`、出力は `knowledge/build/` です。次の順に検証します。1 つでも通らなければ `build/` には何も書かず、**すべての誤りをまとめて表示してから**終了コード 1 で止まります。1 件目で止めません。
+入力は `knowledge/rules/` と `knowledge/sources/`、出力は `knowledge/build/` です。次の順に検証します。1 つでも通らなければ `build/` には何も書かず、**すべての誤りをまとめて表示してから**終了コード 1 で止まります。1 件目で止めません。書式で落ちたファイルは、そのファイルの書式の誤りをすべて表示したうえで、以降の突き合わせから外します(読めないファイルの中身を突き合わせても意味がないため)。他のファイルはそのまま検証します。
 
 1. 書式。zod の定義を `packages/core` に置き、`bun run schemas` が `spec/schemas/knowledge-*.v1.json` を生成します。YAML は別名と自作 tag を許さない読み込みで、1 ファイル 1 MiB、入力全体 64 MiB、build 全体 60 秒を上限にします
 2. 参照の解決。`rule.source.id` が `sources/` に存在すること。`source.path` が path guard を通ること。id が 2 か所で定義されていないこと。`applies_to.profession` と `scope` の名前は形だけを見ます。Runtime はまだ `principals/` を読まないので、実在するかの照合は、複数人を扱うようになったときに入れます
