@@ -144,13 +144,13 @@ rules:
     }
   });
 
-  test("two rules on the same source, in effect at once, contradict each other", async () => {
+  test("two rules drawn from the same passage, in effect at once, contradict each other", async () => {
     const second = `  - id: expenses.receipt-required-2027
     statement: 3 万円以上の経費には領収書の原本が要ります。金額を変えました。
     effective_from: 2027-01-01
     effective_to: null
     expertise: none
-    source: { id: internal.expense-policy }
+    source: { id: internal.expense-policy, section: "3.2" }
 `;
     const root = await workspace({ "knowledge/rules/expenses.yaml": RULE + second });
 
@@ -166,7 +166,20 @@ rules:
     effective_to: null
     supersedes: expenses.receipt-required
     expertise: none
-    source: { id: internal.expense-policy }
+    source: { id: internal.expense-policy, section: "3.2" }
+`;
+    const root = await workspace({ "knowledge/rules/expenses.yaml": RULE + second });
+
+    expect((await checkKnowledge(root)).problems).toEqual([]);
+  });
+
+  test("one document backs many rules, which is how a company writes", async () => {
+    const second = `  - id: expenses.approval-required
+    statement: 3 万円以上の支出には稟議が要ります。金額の大きい支出の決まりです。
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    source: { id: internal.expense-policy, section: "4.1" }
 `;
     const root = await workspace({ "knowledge/rules/expenses.yaml": RULE + second });
 

@@ -5,6 +5,7 @@ import { isOpenshainError, type RuntimeProviders } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { init } from "./commands/init.ts";
 import { knowledgeBuild, knowledgeCheck } from "./commands/knowledge.ts";
+import { knowledgeAdd } from "./commands/knowledge-add.ts";
 import { mcp } from "./commands/mcp.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workShow } from "./commands/work.ts";
@@ -21,6 +22,7 @@ const USAGE = `使い方:
   openshain work show <id>       Work の詳細
   openshain knowledge build      knowledge/ の決まりと資料を検証して索引を作る
   openshain knowledge check      同じ検証を、索引を書かずに行う(--stale で古い資料も報告)
+  openshain knowledge add        決まりを 1 件、質問に答えて追加する
   openshain mcp                  MCP Server を stdio で起動する
 
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
@@ -86,11 +88,12 @@ async function main(argv: string[]): Promise<number> {
     }
     case "knowledge": {
       const sub = rest[0];
-      if (!(sub === "build" || sub === "check")) {
+      if (!(sub === "build" || sub === "check" || sub === "add")) {
         write(USAGE);
         return 2;
       }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      if (sub === "add") return await knowledgeAdd({ workspaceRoot, write });
       const run = sub === "build" ? knowledgeBuild : knowledgeCheck;
       return await run({ workspaceRoot, write, ...(values.stale === true && { stale: true }) });
     }

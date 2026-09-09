@@ -76,6 +76,11 @@ export {
   type SearchOptions,
   search,
 } from "./knowledge/search.ts";
+export {
+  knowledgePath,
+  readKnowledgeFile,
+  writeKnowledgeFile,
+} from "./knowledge/store.ts";
 export type {
   ModelDescription,
   ModelMessage,

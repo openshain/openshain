@@ -47,11 +47,21 @@ export async function hasKnowledge(workspaceRoot: string): Promise<boolean> {
  * The rules that come back are the ones a build would index; when `problems` is not empty, nothing
  * should be written.
  */
-export async function checkKnowledge(workspaceRoot: string): Promise<Checked> {
+export async function checkKnowledge(
+  workspaceRoot: string,
+  options: {
+    /**
+     * Rules to check as though they were already written, with the file they would go in. A
+     * command that adds one asks this first, so that a rule which does not hold up is never
+     * written at all.
+     */
+    adding?: LoadedRule[];
+  } = {},
+): Promise<Checked> {
   const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME);
   const problems: string[] = [];
   const budget = { files: MAX_KNOWLEDGE_FILES, bytes: MAX_KNOWLEDGE_BYTES };
-  const rules = await readRules(dir, problems, budget);
+  const rules = [...(await readRules(dir, problems, budget)), ...(options.adding ?? [])];
   const sources = await readSources(dir, problems, budget);
 
   await checkPaths(workspaceRoot, sources, problems);
@@ -264,19 +274,26 @@ function covers(outer: Scope | undefined, inner: Scope | undefined): boolean {
 }
 
 /**
- * Two rules that cite the same source and are in effect at once contradict each other unless one
- * says it replaces the other, or they are read by different people or professions.
+ * Two rules drawn from the very same passage, both in effect, are two answers to one question
+ * unless one says it replaces the other or they are for different people or professions.
+ *
+ * The passage, not the document: one policy document backs many rules — receipts over one
+ * amount, an approval over another — and that is how a company writes. Only rules that name the
+ * same section of the same source are compared, so ordinary writing is never refused.
  */
 function overlaps(rules: LoadedRule[], problems: string[]): void {
   const replaced = new Set(rules.map((rule) => rule.supersedes).filter(Boolean));
   for (const [i, rule] of rules.entries()) {
     for (const other of rules.slice(i + 1)) {
       if (rule.source.id !== other.source.id) continue;
+      if (rule.source.section === undefined || rule.source.section !== other.source.section) {
+        continue;
+      }
       if (replaced.has(rule.id) || replaced.has(other.id)) continue;
       if (!inEffectTogether(rule, other)) continue;
       if (disjoint(rule, other)) continue;
       problems.push(
-        `${other.file}: ${other.id} and ${rule.id} both cite ${rule.source.id} and are in effect at the same time; close one with effective_to, or say supersedes`,
+        `${other.file}: ${other.id} and ${rule.id} both cite ${rule.source.id} の ${rule.source.section} and are in effect at the same time; close one with effective_to, or say supersedes`,
       );
     }
   }
