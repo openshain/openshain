@@ -32,7 +32,7 @@ const providers: RuntimeProviders = {
     anthropic: (model) => anthropicProvider(model),
     "openai-compatible": (model) => openaiCompatibleProvider(model),
   },
-  tools: { standard: () => standardTools() },
+  tools: { standard: (workspaceRoot) => standardTools(workspaceRoot) },
 };
 
 async function main(argv: string[]): Promise<number> {

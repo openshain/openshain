@@ -14,6 +14,13 @@ import {
 } from "@openshain/core";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
+import {
+  hasIndex,
+  indexReader,
+  KNOWLEDGE_TOOLS,
+  knowledgeRead,
+  knowledgeSearch,
+} from "./knowledge.ts";
 
 /** The window each observing tool returns when the model does not ask for another one. */
 export const DEFAULT_WINDOW = {
@@ -226,14 +233,29 @@ const definitions: ToolDefinition[] = [
   },
 ];
 
-/** The tools every workspace gets: files, CSV and Markdown, all confined to the workspace. */
-export function standardTools(): ToolProvider {
+/**
+ * The tools every workspace gets: files, CSV and Markdown, all confined to the workspace. A
+ * workspace that has built its knowledge also gets the two tools that read it; one that has not
+ * does not list them, so the agent is never offered something with nothing behind it.
+ */
+export function standardTools(workspaceRoot?: string): ToolProvider {
+  const indexFor = indexReader();
   return {
     id: "standard",
-    listTools: async () => definitions,
+    listTools: async () =>
+      workspaceRoot !== undefined && (await hasIndex(workspaceRoot))
+        ? [...definitions, ...KNOWLEDGE_TOOLS]
+        : definitions,
     async call(call, ctx) {
       const input = (call.input ?? {}) as Record<string, unknown>;
       const path = typeof input.path === "string" ? input.path : ".";
+      if (call.name === "knowledge_search" || call.name === "knowledge_read") {
+        const index = await indexFor(ctx);
+        if (typeof index === "string") return failure(index);
+        return call.name === "knowledge_search"
+          ? knowledgeSearch(index, ctx, input)
+          : knowledgeRead(index, ctx, input);
+      }
       switch (call.name) {
         case "fs_list":
           return fsList(

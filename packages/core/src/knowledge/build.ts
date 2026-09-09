@@ -35,6 +35,8 @@ export interface IndexUnit {
   /** What the unit says: the statement of a rule, or the text of a section. */
   text: string;
   scope: Scope | null;
+  /** The professions a rule is for, or null for every profession. A source is for all of them. */
+  professions: string[] | null;
   expertise: string;
   from: string;
   to: string | null;
@@ -159,6 +161,7 @@ function ruleUnit(rule: LoadedRule): IndexUnit {
     heading: rule.statement,
     text: [rule.statement, ...(rule.aliases ?? [])].join(" "),
     scope: rule.scope ?? null,
+    professions: rule.applies_to?.profession ?? null,
     expertise: rule.expertise,
     from: rule.effective_from,
     to: rule.effective_to,
@@ -181,6 +184,7 @@ function sectionUnits(source: Source): IndexUnit[] {
     kind: "source" as const,
     ref: source.id,
     scope: source.scope ?? null,
+    professions: null,
     expertise: source.expertise,
     from: source.effective_from,
     to: source.effective_to,
