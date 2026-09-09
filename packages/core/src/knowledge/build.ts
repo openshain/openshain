@@ -16,9 +16,6 @@ import { readKnowledgeFile, writeKnowledgeFile } from "./store.ts";
 /** Raised when the index is read by a runtime that indexes differently than the one that wrote it. */
 export const INDEX_FORMAT_VERSION = 1;
 
-/** An index this large was not built from a company's knowledge; it is not read. */
-const MAX_INDEX_BYTES = 64 * 1024 * 1024;
-
 const BUILD_DIR = "build";
 const INDEX_FILE = "index.json";
 const MANIFEST_FILE = "manifest.json";
@@ -288,7 +285,6 @@ export async function writeIndex(
   input: { hash: string; rules: number; sources: number },
   now: Date = new Date(),
 ): Promise<Manifest> {
-  const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME, BUILD_DIR);
   const serialized = serializeIndex(index);
   const manifest: Manifest = {
     format: INDEX_FORMAT_VERSION,
@@ -319,7 +315,6 @@ export type IndexState =
  * an index built by another version of the runtime all come back as a reason not to serve it.
  */
 export async function readIndex(workspaceRoot: string): Promise<IndexState> {
-  const dir = join(workspaceRoot, KNOWLEDGE_DIR_NAME, BUILD_DIR);
   const stale = {
     ok: false as const,
     reason: "the index does not match the files it was built from; run `openshain knowledge build`",

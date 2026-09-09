@@ -28,7 +28,7 @@ export interface KnowledgeAddOptions {
 }
 
 export async function knowledgeAdd(options: KnowledgeAddOptions): Promise<number> {
-  const { workspaceRoot, write } = options;
+  const { write } = options;
   const interactive = options.interactive ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
   if (!interactive) {
     write("openshain knowledge add は端末で使います。決まりを直接書くなら knowledge/rules/ です。");
