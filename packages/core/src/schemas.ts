@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DelegationsFileSchema, PolicyFileSchema } from "./authority/policy.ts";
 import { ConfigFileSchema } from "./config/schema.ts";
+import { RulesFileSchema, SourceFrontMatterSchema } from "./knowledge/schema.ts";
 import type { JsonSchema } from "./tool/types.ts";
 import { EventFileSchema, payloadFileSchemas } from "./work/events.ts";
 import { WorkFileSchema } from "./work/work.ts";
@@ -10,7 +11,9 @@ export type SchemaName =
   | "events.v1"
   | "work.v1"
   | "authority-policy.v1"
-  | "authority-delegations.v1";
+  | "authority-delegations.v1"
+  | "knowledge-rules.v1"
+  | "knowledge-source.v1";
 
 /**
  * The JSON Schemas (draft 2020-12) of the files openshain reads and writes, derived from the zod
@@ -40,6 +43,16 @@ export function jsonSchemas(): Record<SchemaName, JsonSchema> {
       DelegationsFileSchema,
       "authority/delegations.yaml",
       "Who the agent may act for, as which profession, and when.",
+    ),
+    "knowledge-rules.v1": describe(
+      RulesFileSchema,
+      "knowledge/rules/*.yaml",
+      "The company's own rules, each with the source behind it and the days it is in effect.",
+    ),
+    "knowledge-source.v1": describe(
+      SourceFrontMatterSchema,
+      "knowledge/sources/*.md (front matter)",
+      "Where a cited document came from, when it applies, and who may read it.",
     ),
   };
 }

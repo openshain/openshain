@@ -82,16 +82,22 @@ describe("resolveWorkspacePath", () => {
     expect(err.code).toBe("invalid_path");
   });
 
-  test.each(["openshain.yaml", "work", "work/work_x/events.jsonl", "./work/../work/lock"])(
-    "rejects the reserved path %s",
-    async (input) => {
-      const root = await workspace();
+  test.each([
+    "openshain.yaml",
+    "work",
+    "work/work_x/events.jsonl",
+    "./work/../work/lock",
+    "knowledge",
+    "knowledge/rules/expenses.yaml",
+    "knowledge/sources/expenses.md",
+    "knowledge/build/index.json",
+  ])("rejects the reserved path %s", async (input) => {
+    const root = await workspace();
 
-      const err = await rejected(() => resolveWorkspacePath(root, input));
+    const err = await rejected(() => resolveWorkspacePath(root, input));
 
-      expect(err.code).toBe("reserved_path");
-    },
-  );
+    expect(err.code).toBe("reserved_path");
+  });
 
   test.each([".git/hooks/pre-commit", ".github/workflows/ci.yml", ".env", "receipts/.hidden/x"])(
     "rejects the hidden path %s",

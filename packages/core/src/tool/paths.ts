@@ -3,7 +3,15 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "no
 import { OpenshainError } from "../errors.ts";
 
 /** Paths the runtime keeps for itself. Tools may not read or write them. */
-export const RESERVED_PATHS = ["openshain.yaml", "work", "principals", "authority"] as const;
+export const RESERVED_PATHS = [
+  "openshain.yaml",
+  "work",
+  "principals",
+  "authority",
+  // The company's rules and their sources are read through the index, which filters by who is
+  // asking. Reading the files directly would go around that.
+  "knowledge",
+] as const;
 
 const MAX_SYMLINK_HOPS = 32;
 

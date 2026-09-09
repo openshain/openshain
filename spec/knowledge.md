@@ -112,7 +112,7 @@ expertise: none
 入力は `knowledge/rules/` と `knowledge/sources/`、出力は `knowledge/build/` です。次の順に検証します。1 つでも通らなければ `build/` には何も書かず、**すべての誤りをまとめて表示してから**終了コード 1 で止まります。1 件目で止めません。
 
 1. 書式。zod の定義を `packages/core` に置き、`bun run schemas` が `spec/schemas/knowledge-*.v1.json` を生成します。YAML は別名と自作 tag を許さない読み込みで、1 ファイル 1 MiB、入力全体 64 MiB、build 全体 60 秒を上限にします
-2. 参照の解決。`rule.source.id` が `sources/` に存在すること。`source.path` が path guard を通ること。`applies_to.profession` と `scope.roles` が職種と `principals/` に存在すること
+2. 参照の解決。`rule.source.id` が `sources/` に存在すること。`source.path` が path guard を通ること。id が 2 か所で定義されていないこと。`applies_to.profession` と `scope` の名前は形だけを見ます。Runtime はまだ `principals/` を読まないので、実在するかの照合は、複数人を扱うようになったときに入れます
 3. Scope の包含。決まりの `scope` が、引いている Source の `scope` より広くないこと。広いと、出典の欄から、読めないはずの資料の存在と場所が漏れます
 4. 有効日。`effective_from <= effective_to`。同じ id の決まりで期間が重ならないこと。決まりの期間が、引いている Source の期間の中に収まっていること。**同じ `source.id` を引く決まりどうしで期間が重なるときは拒否**します(`supersedes` があれば前の決まりを閉じ、`scope` か `applies_to` が交わらなければ通します)
 5. 出典。Source に `publisher` と場所と `retrieved_at` があること

@@ -40,6 +40,23 @@ export {
   parseWorkId,
   type WorkId,
 } from "./ids.ts";
+export {
+  type Checked,
+  checkKnowledge,
+  hasKnowledge,
+  KNOWLEDGE_DIR_NAME,
+} from "./knowledge/check.ts";
+export {
+  type LoadedRule as LoadedKnowledgeRule,
+  type Rule as KnowledgeRule,
+  RuleSchema as KnowledgeRuleSchema,
+  RulesFileSchema,
+  type Scope as KnowledgeScope,
+  ScopeSchema as KnowledgeScopeSchema,
+  type Source as KnowledgeSource,
+  type SourceFrontMatter,
+  SourceFrontMatterSchema,
+} from "./knowledge/schema.ts";
 export type {
   ModelDescription,
   ModelMessage,
