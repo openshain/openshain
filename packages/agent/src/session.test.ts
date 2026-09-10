@@ -994,6 +994,19 @@ limits:
     expect(outcome.summary).toContain("- fs_read:");
   });
 
+  test("a summary that carries a key is not recorded", async () => {
+    const { open, store } = await setupWithCompaction(
+      six([say("ここまでの鍵は sk-abcdefghijklmnopqrstuvwxyz012345 です。"), say("続けます。")]),
+    );
+    const session = await open();
+    await sixTurns(session);
+
+    const result = await session.turn("7 件目をお願い");
+
+    expect(result.compacted).toEqual({ done: false, reason: "secret" });
+    expect(types(await store.events(session.id))).not.toContain("conversation.compacted");
+  });
+
   test("with nothing yet to cover, a summary is not written", async () => {
     const { open } = await setupWithCompaction([say("はい。")], "");
     const session = await open();

@@ -109,6 +109,8 @@ export function compactionLine(outcome: CompactionOutcome): string {
         return "この会話はこれ以上要約できません。いったん終えて、新しく始めるほうが確かです。";
       case "empty":
         return "要約が空だったので、会話はそのままです。";
+      case "secret":
+        return "要約に鍵らしき文字列が入ったので、記録しませんでした。会話はそのままです。";
       default:
         return `要約に失敗したので、会話はそのままです。${outcome.detail ?? ""}`.trim();
     }

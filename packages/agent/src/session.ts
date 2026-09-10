@@ -95,6 +95,23 @@ const SUMMARY_TOKENS = 2000;
 /** At most this many lines in each of the sections the code writes into a summary. */
 const SECTION_AT_MOST = 10;
 
+/**
+ * The shapes of a credential that a summary must not carry. The tool result it came from stays
+ * in the record either way, but a summary would hold it in front of the model for the rest of
+ * the conversation, and from there it reaches replies and files. Such a summary is not written.
+ */
+const SECRET_SHAPES = [
+  /sk-[A-Za-z0-9_-]{16,}/,
+  /AKIA[0-9A-Z]{16}/,
+  /gh[pousr]_[A-Za-z0-9]{20,}/,
+  /xox[baprs]-[A-Za-z0-9-]{10,}/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+];
+
+function looksLikeSecret(text: string): boolean {
+  return SECRET_SHAPES.some((shape) => shape.test(text));
+}
+
 /** What the model is asked to do when the conversation is summarized. */
 const COMPACTION_SYSTEM = [
   "あなたは会話の記録係。これまでのやり取りを、続きの会話で使えるように要約する。",
@@ -207,7 +224,7 @@ export type CompactionOutcome =
   | { done: true; summary: string; covered: number }
   | {
       done: false;
-      reason: "nothing_to_compact" | "failed" | "empty" | "no_smaller";
+      reason: "nothing_to_compact" | "failed" | "empty" | "no_smaller" | "secret";
       detail?: string;
     };
 
@@ -433,7 +450,7 @@ export async function createSession(
         // and it is tried once: a second failure is the model's answer, not the length.
         if (isOpenshainError(err) && err.code === "too_large" && !shortened) {
           shortened = true;
-          const outcome = await compact();
+          const outcome = await compact(signal);
           if (outcome.done) {
             compacted = outcome;
             continue;
@@ -559,6 +576,7 @@ export async function createSession(
       for (const rule of citedRules(call.name, result)) {
         if (!cited.some((seen) => seen.id === rule.id)) cited.push(rule);
         if (!seenRules.some((seen) => seen.id === rule.id)) seenRules.push(rule);
+        if (seenRules.length > SECTION_AT_MOST) seenRules.shift();
       }
     }
     // A call that did not run is worth carrying into a summary: without it the model proposes
@@ -887,11 +905,9 @@ export async function createSession(
   /** The rules the conversation looked up, as lines a summary carries in place of their text. */
   function ruleLines(): string {
     if (seenRules.length === 0) return "";
-    const lines = seenRules
-      .slice(-SECTION_AT_MOST)
-      .map(
-        (rule) => `- ${rule.id}(${rule.from} から${rule.to === null ? "" : ` ${rule.to} まで`})`,
-      );
+    const lines = seenRules.map(
+      (rule) => `- ${rule.id}(${rule.from} から${rule.to === null ? "" : ` ${rule.to} まで`})`,
+    );
     return `\n\n## 引いた会社の決まり\n${lines.join("\n")}`;
   }
 
@@ -906,7 +922,7 @@ export async function createSession(
    * Summarizes everything before the last few messages of the person into one event. The events
    * stay in the record; what changes is how much of them the model reads next turn.
    */
-  async function compact(): Promise<CompactionOutcome> {
+  async function compact(signal?: AbortSignal): Promise<CompactionOutcome> {
     const from = keptFrom();
     const through = events[from - 1];
     if (from === 0 || !through) return { done: false, reason: "nothing_to_compact" };
@@ -933,11 +949,10 @@ export async function createSession(
     const description = model.describe();
     let response: ModelResponse;
     try {
-      response = await model.generate({
-        system: COMPACTION_SYSTEM,
-        messages,
-        maxOutputTokens: SUMMARY_TOKENS,
-      });
+      response = await model.generate(
+        { system: COMPACTION_SYSTEM, messages, maxOutputTokens: SUMMARY_TOKENS },
+        signal,
+      );
     } catch (err) {
       return { done: false, reason: "failed", detail: err instanceof Error ? err.message : "" };
     }
@@ -945,6 +960,7 @@ export async function createSession(
     // An empty summary would leave the conversation with nothing where its past used to be.
     if (written === "") return { done: false, reason: "empty" };
     const summary = `${written}${ruleLines()}${refusedLines()}`;
+    if (looksLikeSecret(summary)) return { done: false, reason: "secret" };
     if (summary.length >= JSON.stringify(asked.messages).length) {
       stalled = true;
       return { done: false, reason: "no_smaller" };
@@ -992,7 +1008,10 @@ export async function createSession(
       cited = [];
       // Before the turn, not inside it: a work is open through most of a turn, and its record is
       // not the conversation's to summarize.
-      compacted = compactAt > 0 && lastInput > compactAt && !stalled ? await compact() : undefined;
+      compacted =
+        compactAt > 0 && lastInput > compactAt && !stalled
+          ? await compact(turnOptions.signal)
+          : undefined;
       events.push(local("human.message", { text }));
       await record(id, "human.message", { text });
       if (candidate) {
