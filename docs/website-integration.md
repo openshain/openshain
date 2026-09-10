@@ -52,38 +52,31 @@
 
 ## release のときのサイトの更新
 
-Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub Release を作った後、サイトの repo へ `repository_dispatch` を送ります。その後、人が `npm` environment を承認すると 5 つの package を npm に publish します(trusted publishing。token は置きません)。サイトが読むのは GitHub Release で、npm の publish を待つ必要はありません。
+Release workflow(`.github/workflows/release.yml`)は、stable の tag で GitHub Release を作ります。その後、人が `npm` environment を承認すると 5 つの package を npm に publish します(trusted publishing。token は置きません)。サイトが読むのは GitHub Release で、npm の publish を待つ必要はありません。
 
-- event type: `openshain-release`
-- payload(`client_payload`): `tag`(`v0.1.0`)、`version`(`0.1.0`)、`sha`(tag が指す commit の 40 桁の SHA)、`release_url`(GitHub Release の URL)
-- 送る条件: tag が `vX.Y.Z` の形で、repository variable `WEBSITE_REPOSITORY` と secret `WEBSITE_DISPATCH_TOKEN` の両方があるときです。どちらかが無ければ送らず、その旨をログに出力して成功で終わります。dispatch が失敗しても Release は残ります
+**この repo からサイトへ合図は送りません。** サイト側が定期実行で `releases/latest` を読み、新しい stable Release があれば、その commit から build します。反映は最大 1 時間遅れます。すぐ反映したいときは、サイト側の workflow を手動で実行します。
 
-必要な設定(Settings > Secrets and variables > Actions):
-
-| 名前 | 種類 | 中身 |
-|---|---|---|
-| `WEBSITE_REPOSITORY` | variable | サイトの repo。`owner/name` の形です |
-| `WEBSITE_DISPATCH_TOKEN` | secret | サイトの repo に `repository_dispatch` を送れる token です。fine-grained personal access token で、対象をサイトの repo だけに絞り、Contents の Read and write を付けます。GitHub App の installation token でも構いません |
+必要な設定(Settings > Secrets and variables > Actions):この repo にはありません。
 
 サイト側の workflow の形:
 
 ```yaml
 on:
-  repository_dispatch:
-    types: [openshain-release]   # この repo の Release workflow が送ります
-  workflow_dispatch:             # 手動で build するときです
+  schedule:
+    - cron: "17 * * * *"   # 定期実行。releases/latest を読んで、新しければ build します
+  workflow_dispatch:       # 手動で build するときです
 jobs:
   build:
     steps:
       - uses: actions/checkout@v4
         with:
           repository: openshain/openshain
-          ref: ${{ github.event.client_payload.sha }}   # 手動で動かすときは releases/latest の tag を引きます
+          ref: <releases/latest が返した tag>
           path: openshain
       # build --docs ./openshain
 ```
 
-dispatch は早く更新するための合図で、何を公開するかの基準は GitHub Release です。dispatch が届かなかったとき(設定前、失敗)は、サイト側が `releases/latest` を読んで同じ結果になります。
+何を公開するかの基準は GitHub Release です。合図を送る仕組み(`repository_dispatch`)は、更新を 1 時間早めるためだけのもので、そのために token を 1 つ持ち続けることになるので、やめました。
 
 ## URL
 
@@ -100,6 +93,6 @@ dispatch は早く更新するための合図で、何を公開するかの基�
 - The website repository checks this repository out at one commit SHA (the commit of the latest stable GitHub Release; `main` HEAD only while no stable release exists) and reads only the paths in the table above. Nothing is copied into the website repository.
 - Version: `version` in `packages/cli/package.json`, equal to the tag without its `v`.
 - Stable release: a tag of the form `vX.Y.Z`. Tags with a suffix (`-rc.1`, `-beta.2`, `-experimental`) become prereleases. Draft and prerelease releases are never picked up; use `releases/latest`.
-- On a stable release the Release workflow sends `repository_dispatch` with event type `openshain-release` and `client_payload` `{tag, version, sha, release_url}` to the repository named by the `WEBSITE_REPOSITORY` variable, using the `WEBSITE_DISPATCH_TOKEN` secret. Without both, nothing is sent and the workflow still succeeds.
+- On a stable release the Release workflow publishes the GitHub Release and nothing else: this repository sends no signal to the website. The site reads `releases/latest` on a schedule and builds from that commit, so an update lands within the hour.
 - Moving, renaming or deleting a path in the table is a breaking change; update the table in the same commit. `test/website-contract.test.ts` checks that every path exists.
 - Canonical URL: `https://openshain.jp` (`homepage` of every package). Source, issues and releases stay on GitHub; `security.txt` keeps the same contact as SECURITY.md.
