@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-10
+
+会社の決まりを索引から引く仕組みと、長い会話の要約が入りました。`packages/core` のインターフェースに互換性のない変更があります。自作の Tool provider や SDK を書いている場合は、下の「変更」を確認してください。
+
 ### Added
 
 - 会社の決まりと、その根拠の資料を索引から引きます。決まりを `knowledge/rules/*.yaml`、資料を `knowledge/sources/*.md` に書き、`openshain knowledge build` が検証して `knowledge/build/` に索引を作ります。出典と有効日の無い決まりは受け付けません。社員エージェントは名指しされなくても `knowledge_search` と `knowledge_read` で自分で引き、答えに決まりの id と有効日を添えます。検索も読み取りも、依頼する人が読んでよい範囲と、その日に有効な期間で絞ってから返し、読めない資料は件数にも現れません。索引が入力と食い違うときは内容を返さず、`openshain knowledge build` を実行するよう伝えます。`knowledge/` は予約パスで、ファイルの Tool からは読めません
@@ -11,15 +15,17 @@
 - `openshain knowledge add`。質問に答えると決まりを 1 件書きます。検証に落ちたときは何も書かず、それまでの決まりはそのままです
 - `openshain knowledge check`。索引を書かずに検証だけ実行します。CI 向けです。`--stale` を付けると、`retrieved_at` が 1 年より古い資料を警告します
 - 架空の会社の例に `knowledge/` のひな型を追加しました([examples/sample-company](examples/sample-company/README.md))
-
 - 長い会話を要約して続けます。1 回の呼び出しの入力が閾値を超えると、次のターンの前に、それまでの会話を要約 1 件(`conversation.compacted`)にまとめます。直近 5 件の発言はそのまま残り、元のやり取りは記録に残ります。短くなるのはモデルが読む分だけです。閾値は `limits.compact_at_input_tokens`、書かないときは `model.context_tokens` の 70%、それも無ければ 150000 です。`0` で要約しません。要約したことは画面に 1 行表示し、引き継いだ前提を載せます。`/compact` で自分でも実行します。「入力が大きすぎる」で呼び出しが失敗したときは、要約して 1 回やり直します
 - 古い Tool の結果を、モデルに渡す分だけ省略します。直近 5 件の発言より前が対象です。実行できなかった呼び出しは、どれだけ古くても理由を残します
 - `openshain.yaml` に `model.context_tokens` と `limits.compact_at_input_tokens` を追加しました
 
 ### Changed
 
-- `work_select` は、設定の principal と違う人の Work を受け付けません。`work_record` は選んだ Work にしか書けないので、client が別の人の会話に記録を書く経路が無くなります。読み取り(`work_get`、`work_list`)は変わりません
-- Tool の記録の `observation` を配列にしました。1 回の呼び出しが複数の資料を引くためです。これまでの記録はそのまま読めます
+- **`ToolResult.observation` が配列になりました。** 1 回の呼び出しが複数の資料を引くためです。単数の `{ source, retrievedAt }` を返している Tool provider は配列に変更してください。記録に残っている単数の形はそのまま読めます
+- **`ModelConfig` に `contextTokens`、`Config.limits` に `compactAtInputTokens` が増えました。** これらの型を自分で組み立てているコードは、値(`undefined` でも)を書く必要があります
+- **`ErrorCode` に `too_large` が増えました。** モデルが入力の大きさを理由に受け付けなかったことを表します。`ErrorCode` を網羅している実装は追加してください
+- **`work_select` は、設定の principal と違う人の Work を受け付けません。** `work_record` は選んだ Work にしか書けないので、client が別の人の会話に記録を書く経路が無くなります。読み取り(`work_get`、`work_list`)は変わりません
+- 古い Tool の結果はモデルに渡りません(上記)。同じ会話でも、モデルが読む内容がこれまでと変わります
 
 ## [0.4.1] - 2026-09-09
 
