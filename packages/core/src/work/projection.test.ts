@@ -416,6 +416,28 @@ describe("a compacted conversation", () => {
     expect(JSON.stringify(messages)).not.toContain("一つ目の要約");
   });
 
+  test("a summary that covers a call but not its result leaves the result out", () => {
+    // A summary is written between a call and the result that answers it. The call is inside
+    // what the summary covers, so the result answers nothing the model can see.
+    const said = exchange("古い依頼", "c1");
+    const events: AnyEvent[] = [
+      ...said.slice(0, 2),
+      event("conversation.compacted", {
+        through: said[1]?.id as EventId,
+        summary: "古い依頼の途中まで",
+        model: "fake-1",
+      }),
+      ...said.slice(2),
+      event("human.message", { text: "続けてください" }),
+    ];
+
+    const { messages } = buildProjection(input(events));
+
+    expect(JSON.stringify(messages)).toContain("古い依頼の途中まで");
+    expect(JSON.stringify(messages)).not.toContain("tool_result");
+    expect(JSON.stringify(messages)).toContain("続けてください");
+  });
+
   test("a summary that names an event this log does not hold covers nothing", () => {
     const events: AnyEvent[] = [
       ...exchange("依頼", "c1"),

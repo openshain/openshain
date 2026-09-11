@@ -84,6 +84,16 @@ export function buildProjection(input: ProjectionInput): Projection {
   }
   const from = compacted ? indexAfter(input.events, compacted.payload.through) : 0;
   const keepResultsFrom = recentFrom(input.events, from);
+  /** The calls the model can still see. A result that answers none of them cannot be sent. */
+  const open = new Set<string>();
+
+  /**
+   * Whether the summary swallowed the call this result answers. A summary is written between two
+   * turns, but a call the conversation made can be answered after it: the person answers a
+   * question the agent asked before the summary. The result then answers nothing the model can
+   * see, and what happened is in the summary, so it stays out rather than going out unpaired.
+   */
+  const covered = (callId: string) => from > 0 && !open.has(callId);
 
   for (const [at, event] of input.events.entries()) {
     if (at < from) continue;
@@ -104,11 +114,13 @@ export function buildProjection(input: ProjectionInput): Projection {
         const content = (event as Event<"model.completed">).payload.content
           .filter((part) => part.type !== "opaque" || part.provider === input.providerId)
           .map((part) => canonical(part) as AssistantPart);
+        for (const part of content) if (part.type === "tool_call") open.add(part.id);
         if (content.length > 0) messages.push({ role: "assistant", content });
         break;
       }
       case "tool.completed": {
         const { payload } = event as Event<"tool.completed">;
+        if (covered(payload.callId)) break;
         pushUserPart({
           type: "tool_result",
           callId: payload.callId,
@@ -120,6 +132,7 @@ export function buildProjection(input: ProjectionInput): Projection {
       }
       case "tool.rejected": {
         const { payload } = event as Event<"tool.rejected">;
+        if (covered(payload.callId)) break;
         pushUserPart({
           type: "tool_result",
           callId: payload.callId,

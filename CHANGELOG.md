@@ -18,6 +18,7 @@
 ### Fixed
 
 - `openshain --principal <id>` と `OPENSHAIN_PRINCIPAL` が、対話型 CLI の中の Runtime に届いていませんでした。Work が `openshain.yaml` の principal の名前で記録され、指定した人の `reads` も効いていませんでした
+- 会話を要約した後に、そのターンが 「壊れた Work の記録」 で止まることがありました。要約が呼び出しを覆い、その結果だけが要約の後に残ったときです(社員エージェントが質問し、人が答えたのが要約をまたいだ場合)。要約が覆った呼び出しの結果は、要約の後には残しません
 
 ### Changed
 
