@@ -65,6 +65,13 @@ const backed = (rule: Partial<Rule>, decisions: DecisionRecord[]): Authority => 
 });
 
 describe("matchGlob", () => {
+  test("one spelling covers the other: case and the two ways of composing a name", () => {
+    expect(matchGlob("hr/**", "HR/salaries.csv")).toBe(true);
+    expect(matchGlob("HR/**", "hr/salaries.csv")).toBe(true);
+    // The same name, composed and decomposed, as a mac and a Windows machine write it.
+    expect(matchGlob("給与/**", "給与/2026.csv".normalize("NFD"))).toBe(true);
+  });
+
   test("* is part of one segment, ** any number of segments", () => {
     expect(matchGlob("ledger/**", "ledger/2026-07.csv")).toBe(true);
     expect(matchGlob("ledger/**", "ledger/a/b/c.csv")).toBe(true);

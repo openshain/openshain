@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
 import {
   type Authority,
   evaluate,
@@ -13,6 +13,7 @@ import { isOpenshainError, OpenshainError } from "./errors.ts";
 import type { ModelProvider } from "./model/types.ts";
 import { businessDate } from "./time.ts";
 import { loadToolModule } from "./tool/load-module.ts";
+import { resolveWorkspacePath } from "./tool/paths.ts";
 import type { HiddenTool } from "./tool/registry.ts";
 import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
 import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
@@ -210,7 +211,15 @@ async function callTool(input: {
   }
   // The policy judges after the allow list, unless a person already approved this very call.
   if (input.approvedBy === undefined) {
-    const path = pathOf(call.input);
+    let path: string | undefined;
+    try {
+      path = await judgedPath(workspaceRoot, call.input);
+    } catch (err) {
+      // A path the guard refuses is refused here, with the guard's own reason: the table cannot
+      // judge a place the tools may not reach, and the call must not run either.
+      const code = isOpenshainError(err) && isRejectionCode(err.code) ? err.code : "invalid_path";
+      return reject(code, err instanceof Error ? err.message : String(err));
+    }
     const judged = evaluate(authority, {
       tool: call.name,
       effect: tool.definition.effect,
@@ -329,7 +338,7 @@ async function reviewPackage(
   for (const event of events) {
     if (event.type === "tool.called") {
       const { name, input: called } = (event as Event<"tool.called">).payload;
-      const path = pathOf(called);
+      const path = namedPath(called);
       facts.push(path === undefined ? name : `${name} ${path}`);
     } else if (event.type === "model.completed") {
       const text = (event as Event<"model.completed">).payload.content
@@ -361,17 +370,27 @@ async function reviewPackage(
   };
 }
 
-/** The path a call names, normalized to a workspace-relative posix path, when its input has one. */
-function pathOf(input: unknown): string | undefined {
+/**
+ * The path a call names, as the table judges it: the guard's own answer, relative to the company
+ * folder. The guard follows a link inside the folder to what it points at, so a rule about
+ * `hr/**` holds for `notes/shortcut.csv` when that is what the link leads to. Judging the string
+ * the call carried would let a link, or a different spelling, walk past the rule.
+ */
+/**
+ * The path a call named, for a person to read. Taken from the record as it was written, so it
+ * says what the agent asked for; the guard's answer is what the table judged.
+ */
+function namedPath(input: unknown): string | undefined {
+  const path = (input as { path?: unknown } | null)?.path;
+  return typeof path === "string" && path !== "" ? path : undefined;
+}
+
+async function judgedPath(workspaceRoot: string, input: unknown): Promise<string | undefined> {
   const path = (input as { path?: unknown } | null)?.path;
   if (typeof path !== "string" || path === "") return undefined;
-  const segments: string[] = [];
-  for (const segment of path.replaceAll("\\", "/").split("/")) {
-    if (segment === "" || segment === ".") continue;
-    if (segment === "..") segments.pop();
-    else segments.push(segment);
-  }
-  return segments.join("/");
+  const resolved = await resolveWorkspacePath(workspaceRoot, path);
+  const root = await realpath(workspaceRoot);
+  return relative(root, resolved).split(sep).join("/");
 }
 
 /** Today's date on this machine's clock, YYYY-MM-DD. */

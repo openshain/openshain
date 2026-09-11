@@ -361,8 +361,19 @@ function oneOf(expected: string | string[], actual: string): boolean {
  */
 export function matchGlob(pattern: string, path: string): boolean {
   // Repeated `**` means the same as one, and collapsing them keeps the match linear.
-  const parts = pattern.split("/").filter((part, i, all) => part !== "**" || all[i - 1] !== "**");
-  return matchSegments(parts, path.split("/"));
+  const parts = folded(pattern)
+    .split("/")
+    .filter((part, i, all) => part !== "**" || all[i - 1] !== "**");
+  return matchSegments(parts, folded(path).split("/"));
+}
+
+/**
+ * One spelling for both sides of the comparison. macOS and Windows hold `HR/` and `hr/` as the
+ * same directory, and Japanese names can arrive composed either way, so a rule written in one
+ * spelling has to hold for the other. The reserved paths are compared this way already.
+ */
+function folded(path: string): string {
+  return path.normalize("NFC").toLowerCase();
 }
 
 function matchSegments(pattern: string[], path: string[]): boolean {

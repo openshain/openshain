@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -638,6 +638,40 @@ rules:
       "denied",
       "reserved_path",
     ]);
+  });
+
+  test("a rule holds however the path is spelled: through a link, or in another case", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: receipts-are-read-only
+    match: { effect: mutate, path: "receipts/**" }
+    decision: deny
+    reason: 領収書は変更しません
+`,
+    );
+    // A link inside the company folder, of the kind someone leaves for convenience.
+    await mkdir(join(root, "notes"));
+    await symlink(join(root, "receipts", "2026-07.csv"), join(root, "notes", "shortcut.csv"));
+    const { call: judged } = await connected(undefined, root);
+    await judged("work_create", { objective: "x" });
+
+    const throughLink = await judged("fs_write", { path: "notes/shortcut.csv", content: "x" });
+    const otherCase = await judged("fs_write", { path: "RECEIPTS/2026-07.csv", content: "x" });
+
+    expect(throughLink.isError).toBe(true);
+    expect(throughLink.text).toContain("領収書は変更しません");
+    expect(otherCase.isError).toBe(true);
+    expect(otherCase.text).toContain("領収書は変更しません");
+    expect(await readFile(join(root, "receipts", "2026-07.csv"), "utf8")).toContain("2026-07-01");
   });
 
   test("a call the policy holds waits for approval; approve runs it, reject refuses it, and the work goes on", async () => {
