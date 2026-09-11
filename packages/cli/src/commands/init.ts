@@ -45,9 +45,21 @@ limits:
 
 export const CONFIG_TEMPLATE = configTemplate("ja", "Asia/Tokyo");
 
-/** Registers the runtime as a project MCP server for Claude Code. `openshain` must be on PATH. */
+/**
+ * Registers the runtime as a project MCP server for Claude Code. `openshain` must be on PATH.
+ * With more than one person in the company, each person adds `env` naming themselves to their own
+ * copy: Claude Code starts the server itself, so a flag on the terminal does not reach it. JSON
+ * carries no comments, so init says that in what it prints instead.
+ */
 export const MCP_TEMPLATE = `${JSON.stringify(
-  { mcpServers: { openshain: { command: "openshain", args: ["mcp"] } } },
+  {
+    mcpServers: {
+      openshain: {
+        command: "openshain",
+        args: ["mcp"],
+      },
+    },
+  },
   null,
   2,
 )}\n`;
@@ -117,6 +129,9 @@ export async function init({ workspaceRoot, write }: InitOptions): Promise<void>
   }
   write(
     "company と principal を自分の会社に合わせ、api_key_env に書いた環境変数を設定してから openshain を実行してください。",
+  );
+  write(
+    '会社に人が複数いるときは principals/<id>.yaml に 1 人ずつ書き、各自の端末で openshain --principal <id> を実行します。Claude Code から使う人は、自分の .mcp.json の openshain に env: { OPENSHAIN_PRINCIPAL: "<id>" } を追加します。',
   );
 }
 

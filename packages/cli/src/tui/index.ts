@@ -7,6 +7,8 @@ import { createController } from "./controller.ts";
 export interface TuiOptions {
   workspaceRoot: string;
   providers: RuntimeProviders;
+  /** Who this terminal works for, when the person said so. */
+  as?: string | undefined;
 }
 
 /** The alternate screen, cleared, with the terminal reporting the mouse (SGR) so the wheel reaches the screen. */

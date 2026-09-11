@@ -94,6 +94,8 @@ export interface Controller {
 export interface ControllerOptions {
   workspaceRoot: string;
   providers: RuntimeProviders;
+  /** Who this terminal works for, when the person said so. */
+  as?: string | undefined;
 }
 
 /**
@@ -176,7 +178,10 @@ const APPROVAL_WITHDRAWN = "the person left the approval undecided";
  */
 export async function createController(options: ControllerOptions): Promise<Controller> {
   const { workspaceRoot, providers } = options;
-  const config = await loadConfig(workspaceRoot, { modelProviders: Object.keys(providers.models) });
+  const config = await loadConfig(workspaceRoot, {
+    modelProviders: Object.keys(providers.models),
+    as: options.as,
+  });
   if (!config.model) {
     throw new OpenshainError(
       "config",
@@ -386,6 +391,13 @@ export async function createController(options: ControllerOptions): Promise<Cont
   for (const row of LOGO_ROWS) push("logo", row);
   push("banner", `openshain ${VERSION}`);
   push("banner", workspaceRoot);
+  // Said where it is used, not only in the documentation: the name is a choice, not a check.
+  if (options.as) {
+    push(
+      "banner",
+      `${config.principal.name}(${config.principal.id})として実行します。本人確認はしていません`,
+    );
+  }
 
   const stopped = (workId: WorkId | undefined) =>
     workId

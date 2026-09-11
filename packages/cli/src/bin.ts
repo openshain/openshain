@@ -25,6 +25,8 @@ const USAGE = `使い方:
   openshain knowledge add        決まりを 1 件、質問に答えて追加する
   openshain mcp                  MCP Server を stdio で起動する
 
+  --principal <id>               この端末が誰として働くか。principals/ に書いた id
+                                 環境変数 OPENSHAIN_PRINCIPAL でも指定できる。本人確認はしない
   --workspace <dir>              起点のディレクトリ。省略時はカレントディレクトリ
                                  init はそこに書き、他のコマンドはそこから上に openshain.yaml を探す`;
 
@@ -37,15 +39,25 @@ const providers: RuntimeProviders = {
   tools: { standard: (workspaceRoot) => standardTools(workspaceRoot) },
 };
 
+/**
+ * Who this terminal works for. The flag wins over the variable; neither is written into the
+ * company folder, because the folder is shared and the choice belongs to the machine.
+ */
+function actingFor(flag: string | undefined): string | undefined {
+  const named = flag ?? process.env.OPENSHAIN_PRINCIPAL;
+  return named === undefined || named === "" ? undefined : named;
+}
+
 async function main(argv: string[]): Promise<number> {
   const write = (line: string) => console.log(plain(line));
-  let values: { workspace?: string; help?: boolean; stale?: boolean };
+  let values: { workspace?: string; principal?: string; help?: boolean; stale?: boolean };
   let positionals: string[];
   try {
     ({ values, positionals } = parseArgs({
       args: argv,
       options: {
         workspace: { type: "string" },
+        principal: { type: "string" },
         help: { type: "boolean", short: "h" },
         stale: { type: "boolean" },
       },
@@ -62,7 +74,7 @@ async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = positionals;
   if (!command && !values.help && process.stdin.isTTY === true && process.stdout.isTTY === true) {
     const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
-    return startTui({ workspaceRoot, providers });
+    return startTui({ workspaceRoot, providers, as: actingFor(values.principal) });
   }
   if (values.help || !command) {
     write(USAGE);
@@ -74,7 +86,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     case "mcp": {
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
-      await mcp({ workspaceRoot, providers });
+      await mcp({ workspaceRoot, providers, as: actingFor(values.principal) });
       return 0;
     }
     case "tools": {

@@ -54,6 +54,8 @@ export interface McpServerOptions {
   workspaceRoot: string;
   /** Tool providers by the id used in openshain.yaml. */
   tools: RuntimeProviders["tools"];
+  /** Who this server works for. From the client's own settings, never from the company folder. */
+  as?: string | undefined;
 }
 
 /** The tools every session has, before the workspace's own. Their names are reserved in the runtime. */
@@ -299,7 +301,7 @@ const validators = new Map(
  */
 export async function createMcpServer(options: McpServerOptions): Promise<Server> {
   const { workspaceRoot } = options;
-  const config = await loadConfig(workspaceRoot);
+  const config = await loadConfig(workspaceRoot, { as: options.as });
   const registry = await createToolRegistry(workspaceRoot, config, options.tools);
   // Read again whenever the files change, so a rule written now holds for the next call.
   const authority = liveAuthority(workspaceRoot);

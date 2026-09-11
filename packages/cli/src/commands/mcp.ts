@@ -5,14 +5,16 @@ import { createMcpServer } from "@openshain/mcp";
 export interface McpOptions {
   workspaceRoot: string;
   providers: RuntimeProviders;
+  /** Who this server works for, when the person said so. */
+  as?: string | undefined;
 }
 
 /**
  * Serves the workspace over MCP on stdin and stdout until the client hangs up. Nothing else may
  * be written to stdout while it runs; the protocol owns it.
  */
-export async function mcp({ workspaceRoot, providers }: McpOptions): Promise<void> {
-  const server = await createMcpServer({ workspaceRoot, tools: providers.tools });
+export async function mcp({ workspaceRoot, providers, as }: McpOptions): Promise<void> {
+  const server = await createMcpServer({ workspaceRoot, tools: providers.tools, as });
   const transport = new StdioServerTransport();
   await new Promise<void>((resolve) => {
     server.onclose = () => resolve();

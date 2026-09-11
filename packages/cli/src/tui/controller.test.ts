@@ -617,6 +617,29 @@ describe("the screen's controller", () => {
   });
 });
 
+describe("who the terminal works for", () => {
+  test("says whose name it is running under, and that nobody checked it", async () => {
+    const { root } = await setup([]);
+    await mkdir(join(root, "principals"));
+    await writeFile(join(root, "principals", "bob.yaml"), "id: bob\nname: Bob\n");
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    const providers: RuntimeProviders = {
+      models: { fake: () => new FakeModelProvider([]) },
+      tools: { standard: () => standardTools() },
+    };
+
+    const asBob = await createController({ workspaceRoot: root, providers, as: "bob" });
+
+    const banner = asBob
+      .state()
+      .entries.filter((e) => e.kind === "banner")
+      .map((e) => e.text)
+      .join("\n");
+    expect(banner).toContain("Bob(bob)として実行します");
+    expect(banner).toContain("本人確認はしていません");
+  });
+});
+
 describe("summarizing the conversation", () => {
   test("/compact says what it kept, and says so when there is nothing to summarize", async () => {
     const { controller } = await setup([

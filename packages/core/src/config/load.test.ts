@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Principal } from "../authority/principals.ts";
 import { OpenshainError } from "../errors.ts";
 import { hostTimezone } from "../time.ts";
-import { loadConfig, parseConfig } from "./load.ts";
+import { actingAs, loadConfig, parseConfig } from "./load.ts";
 
 const example = `version: 1
 company:
@@ -289,5 +290,53 @@ profession:
 
     expect(config.model).toBeUndefined();
     expect(config.tools).toEqual([{ provider: "standard", allow: undefined }]);
+  });
+});
+
+describe("who the session works for", () => {
+  const people = (...entries: [string, Partial<Principal> & { id: string }][]) =>
+    new Map(
+      entries.map(([id, p]) => [
+        id,
+        { name: id, roles: [], status: "active" as const, ...p, id } as Principal,
+      ]),
+    );
+  const base = parseConfig(minimal);
+
+  test("with nobody written, the settings name the person, as before", () => {
+    expect(actingAs(base, new Map()).principal.id).toBe("bob");
+  });
+
+  test("the name given on the machine wins over the settings in the shared folder", () => {
+    const company = people(["alice", { id: "alice", name: "Alice" }], ["bob", { id: "bob" }]);
+
+    expect(actingAs(base, company, "alice").principal).toEqual({ id: "alice", name: "Alice" });
+  });
+
+  test("a name nobody wrote, or somebody who has left, does not start", () => {
+    const company = people(["alice", { id: "alice" }], ["bob", { id: "bob", status: "inactive" }]);
+
+    expect(() => actingAs(base, company, "carol")).toThrow(/carol is not written/);
+    expect(() => actingAs(base, company, "bob")).toThrow(/no longer with the company/);
+  });
+
+  test("with more than one range in the folder, the session says whose it is", () => {
+    const shared = people(
+      ["alice", { id: "alice", reads: ["**"] }],
+      ["bob", { id: "bob", reads: ["ledger/**"] }],
+    );
+
+    // Starting as whoever the shared file happens to name is the mistake worth refusing for.
+    expect(() => actingAs(base, shared)).toThrow(/Say who is working/);
+    expect(actingAs(base, shared, "bob").principal.id).toBe("bob");
+  });
+
+  test("one range in the folder is no reason to ask", () => {
+    const company = people(
+      ["alice", { id: "alice" }],
+      ["bob", { id: "bob", reads: ["ledger/**"] }],
+    );
+
+    expect(actingAs(base, company).principal.id).toBe("bob");
   });
 });
