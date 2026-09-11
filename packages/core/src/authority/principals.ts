@@ -20,8 +20,11 @@ export const PrincipalSchema = z.strictObject({
   /** What this person handles, in the company's own words. Not a qualification. */
   roles: z.array(identifier).max(20).default([]),
   status: z.enum(["active", "inactive"]).default("active"),
-  /** The paths their work covers. Absent: the whole company folder, as before. */
-  reads: z.array(z.string().min(1).max(1000)).max(100).optional(),
+  /**
+   * The paths their work covers. Absent: the whole company folder, as before. An empty list is
+   * refused: it reads as a mistake, and somebody who is to see nothing is inactive instead.
+   */
+  reads: z.array(z.string().min(1).max(1000)).min(1).max(100).optional(),
   /** Whose records they read. Absent: own when reads is written, all otherwise. */
   records: z.enum(["own", "all"]).optional(),
 });

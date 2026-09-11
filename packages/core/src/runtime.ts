@@ -228,45 +228,42 @@ async function callTool(input: {
       `input does not match the schema of ${call.name}: ${validation.reason}`,
     );
   }
+  const person = authority.principals.get(config.principal.id);
+  // Before the guard touches anything: a path outside the range is answered the same whether it
+  // is there or not, and the guard's own errors (a missing directory, a link that loops) would
+  // say more about what is outside than this person may know.
+  const named = namedPath(call.input);
+  if (named !== undefined && !within(person, workspaceRelative(named))) {
+    return reject("out_of_range", OUT_OF_RANGE);
+  }
+  let path: string | undefined;
+  try {
+    path = await judgedPath(workspaceRoot, call.input);
+  } catch (err) {
+    // A path the guard refuses is refused here, with the guard's own reason: the table cannot
+    // judge a place the tools may not reach, and the call must not run either.
+    const code = isOpenshainError(err) && isRejectionCode(err.code) ? err.code : "invalid_path";
+    return reject(code, err instanceof Error ? err.message : String(err));
+  }
+  // Again on what the guard resolved: a link inside the range that leads out of it is out. This
+  // holds for an approved call too, so narrowing what somebody covers stops a call still waiting.
+  if (path !== undefined && !within(person, path)) {
+    return reject("out_of_range", OUT_OF_RANGE);
+  }
   // What a person approved is a call to one place. Between the decision and the run, a link or a
   // folder can be swapped so the same input leads elsewhere; the call does not run then.
-  if (input.approvedBy !== undefined && input.judgedPath !== undefined) {
-    let now: string | undefined;
-    try {
-      now = await judgedPath(workspaceRoot, call.input);
-    } catch (err) {
-      return reject("invalid_path", err instanceof Error ? err.message : String(err));
-    }
-    if (now !== input.judgedPath) {
-      return reject(
-        "path_changed",
-        `${call.name} was approved for ${input.judgedPath}; the same input now leads to ${now ?? "nowhere"}`,
-      );
-    }
+  if (
+    input.approvedBy !== undefined &&
+    input.judgedPath !== undefined &&
+    path !== input.judgedPath
+  ) {
+    return reject(
+      "path_changed",
+      `${call.name} was approved for ${input.judgedPath}; the same input now leads to ${path ?? "nowhere"}`,
+    );
   }
   // The policy judges after the allow list, unless a person already approved this very call.
   if (input.approvedBy === undefined) {
-    const person = authority.principals.get(config.principal.id);
-    // Before the guard touches anything: a path outside the range is answered the same whether
-    // it is there or not, and the guard's own errors (a missing directory, a link that loops)
-    // would say more about what is outside than the person may know.
-    const named = namedPath(call.input);
-    if (named !== undefined && !within(person, workspaceRelative(named))) {
-      return reject("out_of_range", OUT_OF_RANGE);
-    }
-    let path: string | undefined;
-    try {
-      path = await judgedPath(workspaceRoot, call.input);
-    } catch (err) {
-      // A path the guard refuses is refused here, with the guard's own reason: the table cannot
-      // judge a place the tools may not reach, and the call must not run either.
-      const code = isOpenshainError(err) && isRejectionCode(err.code) ? err.code : "invalid_path";
-      return reject(code, err instanceof Error ? err.message : String(err));
-    }
-    // Again on what the guard resolved: a link inside the range that leads out of it is out.
-    if (path !== undefined && !within(person, path)) {
-      return reject("out_of_range", OUT_OF_RANGE);
-    }
     const judged = evaluate(authority, {
       tool: call.name,
       effect: tool.definition.effect,

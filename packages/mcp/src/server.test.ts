@@ -812,6 +812,51 @@ rules:
     ]);
   });
 
+  test("narrowing what somebody covers stops a call that was already approved", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "principals"));
+    await mkdir(join(root, "ledger"));
+    await mkdir(join(root, "authority"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n");
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [ledger/**]\n",
+    );
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n  - principal: bob\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [bob]
+`,
+    );
+    const { call: asBob } = await connected(undefined, root, "bob");
+    await asBob("work_create", { objective: "帳簿を更新" });
+    const held = await asBob("fs_write", { path: "ledger/2026-07.csv", content: "x" });
+    const approvalId = held.json().approval_id as string;
+
+    // The founder narrows what bob covers while the call waits.
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [receipts/**]\n",
+    );
+    const decided = await asBob("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.json().result.isError).toBe(true);
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("date,amount\n");
+  });
+
   test("a link out of the range does not carry a read past it", async () => {
     const { root } = await connected();
     await mkdir(join(root, "principals"));

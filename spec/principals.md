@@ -65,6 +65,10 @@ OPENSHAIN_PRINCIPAL=bob openshain
 - 判定は、ファイルを開く前に行います。大きさや `ENOTDIR` のエラーが先に返ると、範囲の外のことが伝わってしまいます
 - 記録には、どの範囲の外だったかという本当の理由が残ります。モデルに返す言葉と、記録に残すことは別です
 
+`reads` に空の並びは書けません。書き忘れと見分けがつかないためです。何も渡さない人は `status: inactive` です。
+
+**入力に `path` を持たない Tool は、範囲では絞れません。** 判定の表が `path` で一致しないのと同じ理由です(`spec/authority.md`)。第三者の Tool が別の名前でファイルを指す場合、その Tool 自身が `ToolContext` の述語を使う必要があります。標準の Tool はすべて `path` を使います。
+
 `reads` と `authority/policy.yaml` は別の質問に答えます。`reads` が「見えるか」、表が「実行してよいか」です。`reads` は上限です。範囲の外を表が `allow` しても届きません。その組み合わせは設定の誤りなので、`openshain principal check` が報告します。
 
 ## 記録(`records`)
