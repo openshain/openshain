@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { parseYamlFile } from "../config/yaml.ts";
 import { OpenshainError } from "../errors.ts";
+import { matchGlob, reaches } from "./glob.ts";
 
 /**
  * The people of the company, one file each. A file is where a person starts and stops being one:
@@ -64,4 +65,21 @@ export async function readPrincipals(dir: string): Promise<Map<string, Principal
 export function isActive(people: Map<string, Principal>, id: string): boolean {
   if (people.size === 0) return true;
   return people.get(id)?.status === "active";
+}
+
+/**
+ * Whether this path is inside the person's range. Somebody with no range written reads the whole
+ * company folder, as everyone did before there was more than one person.
+ */
+export function mayRead(person: Principal | undefined, path: string): boolean {
+  const reads = person?.reads;
+  if (reads === undefined) return true;
+  return reads.some((pattern) => matchGlob(pattern, path));
+}
+
+/** Whether anything inside this directory could be in the range: false means do not go in. */
+export function mayReachInto(person: Principal | undefined, dir: string): boolean {
+  const reads = person?.reads;
+  if (reads === undefined) return true;
+  return reads.some((pattern) => reaches(pattern, dir));
 }

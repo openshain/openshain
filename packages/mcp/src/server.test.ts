@@ -10,7 +10,7 @@ import { businessDate, WorkStore } from "@openshain/core";
 import { standardTools } from "@openshain/tools";
 import { createMcpServer } from "./server.ts";
 
-async function connected(extraYaml = "", existingRoot?: string) {
+async function connected(extraYaml = "", existingRoot?: string, as?: string) {
   const root = existingRoot ?? (await mkdtemp(join(tmpdir(), "openshain-mcp-")));
   if (!existingRoot)
     await writeFile(
@@ -42,6 +42,7 @@ ${extraYaml}`,
   const server = await createMcpServer({
     workspaceRoot: root,
     tools: { standard: () => standardTools() },
+    ...(as !== undefined && { as }),
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
@@ -757,6 +758,79 @@ rules:
 
     expect(decided.isError).toBe(true);
     expect(decided.text).toContain("no longer with the company");
+  });
+
+  test("what a person's work does not cover is not listed, not searched, not read, not written", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "principals"));
+    await mkdir(join(root, "ledger"));
+    await mkdir(join(root, "hr"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
+    await writeFile(join(root, "hr", "salaries.csv"), "name,amount\nbob,500000\n");
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [ledger/**, receipts/**]\n",
+    );
+    const { root: same, call: asBob, store } = await connected(undefined, root, "bob");
+    void same;
+    const workId = (await asBob("work_create", { objective: "台帳を見る" })).json().id as string;
+
+    const listed = await asBob("fs_list", { path: "." });
+    const found = await asBob("fs_search", { pattern: "500000" });
+    const read = await asBob("fs_read", { path: "hr/salaries.csv" });
+    const missing = await asBob("fs_read", { path: "hr/nothing-here.csv" });
+    const written = await asBob("fs_write", { path: "hr/salaries.csv", content: "x" });
+    const own = await asBob("csv_read", { path: "ledger/2026-07.csv" });
+
+    const names = (listed.json().entries as { name: string }[]).map((e) => e.name);
+    expect(names).toContain("ledger");
+    expect(names).not.toContain("hr");
+    expect(listed.json().total).toBe(names.length);
+    // His own files are searched; the one outside his range is not opened and not counted.
+    expect(found.json().matches).toEqual([]);
+    expect(found.json().filesSearched).toBe(2);
+    const mine = await asBob("fs_search", { pattern: "2026-07-01" });
+    expect((mine.json().matches as { path: string }[]).map((m) => m.path)).toEqual([
+      "ledger/2026-07.csv",
+      "receipts/2026-07.csv",
+    ]);
+    // The same answer whether the file is there or not: a name that is guessed right learns nothing.
+    expect(read.isError).toBe(true);
+    expect(read.text).toBe(missing.text);
+    expect(written.isError).toBe(true);
+    expect(await readFile(join(root, "hr", "salaries.csv"), "utf8")).toContain("500000");
+    expect(own.isError).toBe(false);
+    // The record says what the model was not told.
+    const rejected = (await store.events(workId as never)).filter(
+      (e) => e.type === "tool.rejected",
+    );
+    expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "out_of_range",
+      "out_of_range",
+      "out_of_range",
+    ]);
+  });
+
+  test("a link out of the range does not carry a read past it", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "principals"));
+    await mkdir(join(root, "ledger"));
+    await mkdir(join(root, "hr"));
+    await writeFile(join(root, "hr", "salaries.csv"), "name,amount\nbob,500000\n");
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [ledger/**]\n",
+    );
+    await symlink(join(root, "hr", "salaries.csv"), join(root, "ledger", "shortcut.csv"));
+    const { call: asBob } = await connected(undefined, root, "bob");
+    await asBob("work_create", { objective: "台帳を見る" });
+
+    const read = await asBob("fs_read", { path: "ledger/shortcut.csv" });
+
+    expect(read.isError).toBe(true);
+    expect(read.text).toContain("担当の範囲の外");
   });
 
   test("a rule written while the conversation is open holds from the next call", async () => {

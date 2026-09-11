@@ -46,6 +46,8 @@ export const TOOL_REJECTION_CODES = [
   "rejected_by_person",
   // Approved for one place, and by the time it ran the same input led to another.
   "path_changed",
+  // Outside the range of the person this call acts for.
+  "out_of_range",
 ] as const;
 
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];

@@ -4,13 +4,13 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
+import { matchGlob } from "./glob.ts";
 import {
   type Authority,
   type AuthorityRequest,
   type DecisionRecord,
   evaluate,
   loadAuthority,
-  matchGlob,
   OPEN_AUTHORITY,
   type Rule,
   writeDecision,

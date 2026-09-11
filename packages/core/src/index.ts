@@ -1,5 +1,6 @@
 // @openshain/core: Contracts (provider interfaces), fundamental objects, and the work runtime
 
+export { matchGlob, reaches } from "./authority/glob.ts";
 export {
   AUTHORITY_DIR_NAME,
   type Authority,
@@ -16,7 +17,6 @@ export {
   evaluate,
   liveAuthority,
   loadAuthority,
-  matchGlob,
   OPEN_AUTHORITY,
   POLICY_FILE_NAME,
   type PolicyFile,

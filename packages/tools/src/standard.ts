@@ -309,9 +309,13 @@ async function fsList(
   const resolved = await resolveWorkspacePath(ctx.workspaceRoot, path);
   const root = await resolveWorkspacePath(ctx.workspaceRoot, ".");
   const matches = pattern === undefined ? () => true : wildcardMatcher(pattern);
+  const here = relative(root, resolved);
   const entries = (await readdir(resolved, { withFileTypes: true }))
     .filter((entry) => visible(entry.name, resolved === root))
     .filter((entry) => matches(entry.name))
+    // What the person's work does not cover is not listed, and not counted either: a count is
+    // a way of saying that something is there.
+    .filter((entry) => covered(ctx, here, entry.name, entry.isDirectory()))
     .sort(byName);
   const window = await Promise.all(
     entries.slice(0, limit).map(async (entry) => {
@@ -345,7 +349,7 @@ async function fsSearch(
   let filesSearched = 0;
   let filesSkipped = 0;
   let truncated = false;
-  const files = (await stat(resolved)).isFile() ? [resolved] : walk(resolved, root);
+  const files = (await stat(resolved)).isFile() ? [resolved] : walk(resolved, root, ctx);
   search: for await (const file of files) {
     if (filesSearched + filesSkipped >= MAX_SEARCH_FILES) {
       truncated = true;
@@ -606,15 +610,26 @@ async function readCsv(
 }
 
 /** Regular files below `dir`, in code point order, skipping hidden entries, symlinks and reserved paths. */
-async function* walk(dir: string, root: string): AsyncGenerator<string> {
+async function* walk(dir: string, root: string, ctx: ToolContext): AsyncGenerator<string> {
+  const here = relative(root, dir);
   const entries = (await readdir(dir, { withFileTypes: true }))
     .filter((entry) => visible(entry.name, dir === root))
     .sort(byName);
   for (const entry of entries) {
     const full = join(dir, entry.name);
-    if (entry.isDirectory()) yield* walk(full, root);
-    else if (entry.isFile()) yield full;
+    if (entry.isDirectory()) {
+      // Not entered at all when nothing under it can be covered: reading a folder only to drop
+      // everything in it costs time, and the time itself says something is there.
+      if (covered(ctx, here, entry.name, true)) yield* walk(full, root, ctx);
+    } else if (entry.isFile() && covered(ctx, here, entry.name, false)) yield full;
   }
+}
+
+/** Whether this entry is the person's to see. Without a range, everything is. */
+function covered(ctx: ToolContext, here: string, name: string, directory: boolean): boolean {
+  if (!ctx.covers) return true;
+  const path = here === "" ? name : `${here}/${name}`;
+  return directory ? ctx.covers.into(path) || ctx.covers.path(path) : ctx.covers.path(path);
 }
 
 function visible(name: string, atRoot: boolean): boolean {

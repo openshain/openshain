@@ -7,6 +7,7 @@ import {
   OPEN_AUTHORITY,
   type Rule,
 } from "./authority/policy.ts";
+import { mayReachInto, mayRead, type Principal } from "./authority/principals.ts";
 import { loadConfig } from "./config/load.ts";
 import type { Config, ModelConfig } from "./config/schema.ts";
 import { isOpenshainError, OpenshainError } from "./errors.ts";
@@ -245,6 +246,14 @@ async function callTool(input: {
   }
   // The policy judges after the allow list, unless a person already approved this very call.
   if (input.approvedBy === undefined) {
+    const person = authority.principals.get(config.principal.id);
+    // Before the guard touches anything: a path outside the range is answered the same whether
+    // it is there or not, and the guard's own errors (a missing directory, a link that loops)
+    // would say more about what is outside than the person may know.
+    const named = namedPath(call.input);
+    if (named !== undefined && !within(person, workspaceRelative(named))) {
+      return reject("out_of_range", OUT_OF_RANGE);
+    }
     let path: string | undefined;
     try {
       path = await judgedPath(workspaceRoot, call.input);
@@ -253,6 +262,10 @@ async function callTool(input: {
       // judge a place the tools may not reach, and the call must not run either.
       const code = isOpenshainError(err) && isRejectionCode(err.code) ? err.code : "invalid_path";
       return reject(code, err instanceof Error ? err.message : String(err));
+    }
+    // Again on what the guard resolved: a link inside the range that leads out of it is out.
+    if (path !== undefined && !within(person, path)) {
+      return reject("out_of_range", OUT_OF_RANGE);
     }
     const judged = evaluate(authority, {
       tool: call.name,
@@ -326,12 +339,17 @@ async function callTool(input: {
   const started = performance.now();
   let result: ToolResult;
   try {
+    const person = authority.principals.get(config.principal.id);
     result = await tool.provider.call(call, {
       workId: work.id,
       principalId: config.principal.id,
       profession: config.profession.id,
       businessDate: businessDate(config.company.timezone),
       workspaceRoot,
+      covers: {
+        path: (path: string) => mayRead(person, path),
+        into: (dir: string) => mayReachInto(person, dir),
+      },
     });
   } catch (err) {
     if (isOpenshainError(err) && isRejectionCode(err.code)) return reject(err.code, err.message);
@@ -411,6 +429,29 @@ async function reviewPackage(
  * `hr/**` holds for `notes/shortcut.csv` when that is what the link leads to. Judging the string
  * the call carried would let a link, or a different spelling, walk past the rule.
  */
+/**
+ * Whether a call may name this path at all: the range covers it, or it is a folder the range
+ * lies under. Listing the company folder is how a person finds their own folders, so the way
+ * there is not the same question as what is in it.
+ */
+function within(person: Principal | undefined, path: string): boolean {
+  return mayRead(person, path) || mayReachInto(person, path);
+}
+
+/** Said for anything outside the range, whether it is there or not: the same answer either way. */
+const OUT_OF_RANGE = "その場所は担当の範囲の外です";
+
+/** The path as the person wrote it, folded to a workspace-relative posix path without touching disk. */
+function workspaceRelative(path: string): string {
+  const segments: string[] = [];
+  for (const segment of path.replaceAll("\\", "/").split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+  return segments.join("/");
+}
+
 /**
  * The path a call named, for a person to read. Taken from the record as it was written, so it
  * says what the agent asked for; the guard's answer is what the table judged.

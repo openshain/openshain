@@ -81,6 +81,24 @@
                   }
                 ]
               },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  }
+                ]
+              },
               "work_type": {
                 "anyOf": [
                   {

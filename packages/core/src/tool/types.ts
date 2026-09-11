@@ -52,6 +52,15 @@ export interface ToolContext {
   /** The day the company is on, from its own timezone. Effective days are judged against it. */
   businessDate: string;
   workspaceRoot: string;
+  /**
+   * Whether this person's work covers that path, and whether anything under that directory could
+   * be covered. Given by the runtime, which is where the company's people are. Absent: everything
+   * is covered, as it is for a company of one.
+   */
+  covers?: {
+    path: (path: string) => boolean;
+    into: (dir: string) => boolean;
+  };
   signal?: AbortSignal;
 }
 

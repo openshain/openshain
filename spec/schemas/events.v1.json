@@ -704,7 +704,8 @@
                 "limit_reached",
                 "denied",
                 "rejected_by_person",
-                "path_changed"
+                "path_changed",
+                "out_of_range"
               ]
             },
             "reason": {
