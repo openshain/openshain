@@ -40,3 +40,39 @@ docs/design/core.md(判定の置き場と glob の理由)、docs/design/mcp.md(�
 
 - 受け入れ: 文書に未実装の記述が残らないこと。README の「権限、承認はこれから」が消えること
 - サイズ: M
+
+## 規則が書いたとおりに効くようにする(0.6.0)
+
+判定の表は 0.4.0 から動いていますが、書いたとおりに効かない場合が 3 つあります。どれも 1 人の会社で起きます。spec は [authority.md](authority.md) の該当節に反映済みです。
+
+#### Task A1: 判定するパスと、読み書きするパスを一致させる
+
+判定は `pathOf()` が作る文字列だけのパス、実際の読み書きは `resolveWorkspacePath()` が解決したパスで、2 つは別物です。会社フォルダの中の symlink と、大文字小文字の違う綴りで、`deny` の規則を素通りできます。判定に渡すパスを解決済みのものにし、照合を大文字小文字を区別せず NFC で行います。`reviewPackage` の facts が使うパスも同じにします。
+
+- 受け入れ: `ledger/shortcut -> ../hr/salaries.csv` と `HR/salaries.csv` のどちらでも `hr/**` の `deny` が効くこと。解決できないパス(予約パス、workspace の外)は判定の前に拒否として記録されること
+- 検証: `bun test packages/core`
+- サイズ: M
+
+#### Task A2: 承認したものと、実行されるものを一致させる
+
+承認は会話をまたぎます。保留から実行までの間に path が別の場所を指すようになっても、いまは気づきません。`approval.requested` に解決済みのパスを残し、実行の直前に解決し直して一致を確かめます。違えば実行せず `tool.rejected`(`path_changed`)を残します。
+
+- 受け入れ: 保留中に対象を別の場所への symlink に差し替えると、承認しても実行されず、理由が記録に残ること
+- 検証: `bun test packages/core packages/mcp`
+- サイズ: S
+
+#### Task A3: 表を書き換えたら、その場で効くようにする
+
+`authority/` は起動時に 1 回だけ読み、再読み込みは `review_decide` の後だけです。規則を厳しくしても、開いたままのセッションには効きません。判定の直前に読み直す経路を 1 本にします(ファイルの更新時刻で読み直しを決めます)。
+
+- 受け入れ: 動いているセッションの外で `policy.yaml` に `deny` を足すと、次の呼び出しから効くこと。`authority/` が壊れているときは、その判定を拒否として扱うこと
+- 検証: `bun test packages/core packages/mcp`
+- サイズ: M
+
+#### Task A4: 文書
+
+`docs/design/core.md`(判定するパス、読み直し)、`SECURITY.md`(承認する人の確認の限界に、パスの差し替えの扱いを追記)、CHANGELOG。3 観点のレビュー。
+
+- 受け入れ: 文書に未実装の記述が残らないこと
+- 検証: `bun test`
+- サイズ: S

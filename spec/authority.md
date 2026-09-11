@@ -70,7 +70,8 @@ rules:
 
 - 規則は上から順に読み、最初に一致したものを採ります。一致しなければ `default` です
 - `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`work_type`、`action`
-- `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。判定は path guard を通した後の正規化したパスに対して行います
+- `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。**判定は path guard を通した後のパスに対して行います**。path guard は会社フォルダの中の symlink を実体に解決するので、`ledger/shortcut -> ../hr/salaries.csv` を渡しても `hr/**` の規則が効きます
+- **照合は大文字小文字を区別せず、Unicode を NFC に揃えてから行います。** 大文字小文字を区別しないファイルシステムでは `HR/salaries.csv` と `hr/salaries.csv` が同じファイルなので、綴りの違いで規則が外れてはいけません。予約パスの判定は前からこの形です。規則を書く人は、ディスク上の綴りと違う大文字小文字で書いても同じに効きます
 - `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあり、`applies_to`(action と path)がその呼び出しを覆うときだけ `allow` と同じに動き、`decision.applied` を記録します。どれかを満たさなければ `review_required` として扱い、理由を呼び出し元に返します。無ければ `review_required` として扱います
 - Decision が書かれても Policy は変わりません。その Decision を根拠に同じ Action を通すには、人が `decision_backed` の規則を書き、`decision_id` に書かれた Decision の id を入れます
 - 資格名や法域の規則は core に置きません。`action` の名前と `reviewer.role` は Pack や会社の Policy が決める文字列で、core はそれを比べるだけです
@@ -100,8 +101,10 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 | `review_required` | Review Package を作って `review.requested` を記録し、`waiting_approval` にする。呼び出し元には `pending: "review"` と reviewer の条件を返す | `waiting_approval` |
 | `decision_backed` | Decision を確かめ、`decision.applied`(decision_id)を記録して実行する | `in_progress` |
 
-- 承認は `approval_decide`(approval_id、`approve` か `reject`、by、comment)で記録します。`approve` なら Runtime がそのときに Tool を実行し、`tool.called` と `tool.completed` を残して `in_progress` に戻します。`reject` なら `tool.rejected`(code `rejected_by_person`)を残して `in_progress` に戻します。client は結果を model に渡します
+- 承認は `approval_decide`(approval_id、`approve` か `reject`、by、comment)で記録します。`approve` なら Runtime が、**保留したときに解決したパスを解決し直し、同じ場所を指すことを確かめてから** Tool を実行し、`tool.called` と `tool.completed` を残して `in_progress` に戻します。`reject` なら `tool.rejected`(code `rejected_by_person`)を残して `in_progress` に戻します。client は結果を model に渡します
 - Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、interpretation、任意で applies_to と有効日)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Runtime が Action を実行します。`modify` は Reviewer が書き換えた入力で実行しますが、触る先(`path`)は保留した呼び出しと同じでなければ受け付けません。規則が `reviewer.role` を指定していれば、その役の名で決めなければ受け付けません。Decision の id は 1 つのパスの要素で、`/` や `..` を含みません。`reject` は Decision を書かず、`tool.rejected`(`rejected_by_person`)を残します。承認の Tool(`approval_decide`)では Review を決められず、その逆もできません
+- 承認は会話をまたぎます。保留してから決まるまでの間に、その path が別の場所を指すようになることがあります(symlink の差し替え、途中のフォルダの入れ替え)。`approval.requested` に**保留したときの解決済みパス**を残し、実行の直前に解決し直して一致しなければ実行せず、`tool.rejected`(`path_changed`)を残します。人が見て承認したものと、実際に書かれる場所を一致させるためです
+- **判定に使う表は、呼び出しのたびに読み直します。** `authority/` を書き換えたら、開いたままの会話にもその場で効きます。起動時に 1 回だけ読むと、規則を厳しくしても、その日動いているセッションには効きません
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
 - 承認する人の確認は、この版では接続を通して行います。対話型 CLI と MCP の接続は `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます。端末の認証と複数人は後の版です
 - 「この会話では常に承認する」は client の中だけの決定です。`authority/` には書かず、会話を閉じれば消えます。承認の記録は毎回残ります。`review_required` にはこの選択肢を出しません。資格者の承認を人が肩代わりできないためです
@@ -175,7 +178,6 @@ applies_to: { action: tax-treatment, path: "ledger/**" }
 ## 未確定
 
 - 承認する人の確認。この版は接続の principal で代えます。MCP で接続した外部のエージェントは、自分が止められた呼び出しを自分で承認できます(SECURITY.md に明記)。端末の認証(device authorization)は後の版
-- 規則の照合は、Tool に渡されたパスの文字列を正規化して行います。symlink と、大文字小文字を区別しないファイルシステムでは、照合と実際の書き込み先がずれます。実行時の path guard は別に働きます。解決済みのパスで照合するかは、ChangeSet の版で決めます
 - Delegation の形。この版は principal と profession と期間だけです。範囲(どの Resource か)を委任に持たせるかは、Policy との重複を確認してから決めます
 - `action` の名前の付け方。この版は Tool の名前と同じ扱いで、Pack が Action の名前を Tool 呼び出しに付ける形は Pack の版で決めます
 - Decision の有効期限と、法令の改正で古くなった Decision の扱い
