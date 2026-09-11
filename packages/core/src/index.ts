@@ -14,6 +14,7 @@ export {
   type Delegation,
   DelegationsFileSchema,
   evaluate,
+  liveAuthority,
   loadAuthority,
   matchGlob,
   OPEN_AUTHORITY,

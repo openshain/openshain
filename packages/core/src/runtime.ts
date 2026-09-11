@@ -3,7 +3,7 @@ import { join, relative, sep } from "node:path";
 import {
   type Authority,
   evaluate,
-  loadAuthority,
+  liveAuthority,
   OPEN_AUTHORITY,
   type Rule,
 } from "./authority/policy.ts";
@@ -89,7 +89,7 @@ export async function createRuntime(options: CreateRuntimeOptions): Promise<Runt
   }
 
   const registry = await createToolRegistry(workspaceRoot, config, providers.tools);
-  const authority = await loadAuthority(workspaceRoot);
+  const authority = liveAuthority(workspaceRoot);
   const works = new WorkStore(workspaceRoot);
   return {
     workspaceRoot,
@@ -110,15 +110,29 @@ export function createToolCaller(input: {
   config: Config;
   workspaceRoot: string;
   /**
-   * Who may do what. Pass a function when it can change while the server runs, as it does when
-   * a reviewer writes a decision. Omitted: the workspace is open, as one without authority/ is.
+   * Who may do what. Pass a function when it can change while the server runs: liveAuthority
+   * reads the files again when they change. Omitted: the workspace is open, as one without
+   * authority/ is.
    */
-  authority?: Authority | (() => Authority);
+  authority?: Authority | (() => Authority | Promise<Authority>);
 }): (work: WorkHandle, call: ToolCall, options?: CallOptions) => Promise<ToolResult> {
   const given = input.authority;
   const current = typeof given === "function" ? given : () => given ?? OPEN_AUTHORITY;
-  return (work, call, options) =>
-    callTool({ ...input, authority: current(), work, call, ...options });
+  return async (work, call, options) => {
+    let authority: Authority;
+    try {
+      authority = await current();
+    } catch (err) {
+      // The table cannot be read, so nothing is allowed by it. Refusing is the closed side.
+      const reason = err instanceof Error ? err.message : String(err);
+      await work.append({
+        type: "tool.rejected",
+        payload: { callId: call.id, name: call.name, code: "denied", reason },
+      });
+      return { content: [{ type: "text", text: reason }], isError: true };
+    }
+    return callTool({ ...input, authority, work, call, ...options });
+  };
 }
 
 export interface CallOptions {

@@ -24,7 +24,7 @@ import {
   isKnownEventType,
   isOpenshainError,
   isTerminal,
-  loadAuthority,
+  liveAuthority,
   loadConfig,
   type PendingApproval,
   parsePayloadFile,
@@ -300,14 +300,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
   const { workspaceRoot } = options;
   const config = await loadConfig(workspaceRoot);
   const registry = await createToolRegistry(workspaceRoot, config, options.tools);
-  // Reloaded when a reviewer writes a decision, so the next call can cite it.
-  let authority = await loadAuthority(workspaceRoot);
-  const callTool = createToolCaller({
-    registry,
-    config,
-    workspaceRoot,
-    authority: () => authority,
-  });
+  // Read again whenever the files change, so a rule written now holds for the next call.
+  const authority = liveAuthority(workspaceRoot);
+  const callTool = createToolCaller({ registry, config, workspaceRoot, authority });
   const works = new WorkStore(workspaceRoot);
 
   /**
@@ -698,9 +693,6 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
               ...(approval.judgedPath !== undefined && { judgedPath: approval.judgedPath }),
             },
           );
-          // The decision is on disk; a rule that cites its id can use it from here on. Reloaded
-          // so that a rule already written for it takes effect without a restart.
-          authority = await loadAuthority(workspaceRoot);
           return json({
             approval_id: approvalId,
             decision,

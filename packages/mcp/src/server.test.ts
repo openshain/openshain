@@ -719,6 +719,65 @@ rules:
     ]);
   });
 
+  test("a rule written while the conversation is open holds from the next call", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      "version: 1\ndefault: allow\nrules: []\n",
+    );
+    const { call: judged } = await connected(undefined, root);
+    await judged("work_create", { objective: "x" });
+    expect((await judged("fs_write", { path: "note.md", content: "a" })).isError).toBe(false);
+
+    // The founder tightens the table without closing anything.
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: notes-are-read-only
+    match: { effect: mutate, path: "note.md" }
+    decision: deny
+    reason: メモは変更しません
+`,
+    );
+
+    const after = await judged("fs_write", { path: "note.md", content: "b" });
+
+    expect(after.isError).toBe(true);
+    expect(after.text).toContain("メモは変更しません");
+    expect(await readFile(join(root, "note.md"), "utf8")).toBe("a");
+  });
+
+  test("a table that cannot be read refuses the call and says why", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      "version: 1\ndefault: allow\nrules: []\n",
+    );
+    const { call: judged, store } = await connected(undefined, root);
+    const workId = (await judged("work_create", { objective: "x" })).json().id as string;
+
+    await writeFile(join(root, "authority", "policy.yaml"), "version: 1\ndefault: nope\n");
+    const refused = await judged("fs_write", { path: "note.md", content: "b" });
+
+    expect(refused.isError).toBe(true);
+    const rejected = (await store.events(workId as never)).filter(
+      (e) => e.type === "tool.rejected",
+    );
+    expect(rejected).toHaveLength(1);
+  });
+
   test("a call the policy holds waits for approval; approve runs it, reject refuses it, and the work goes on", async () => {
     const { root, call } = await connected();
     await mkdir(join(root, "authority"));

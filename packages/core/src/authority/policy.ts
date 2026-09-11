@@ -168,6 +168,51 @@ export async function loadAuthority(workspaceRoot: string): Promise<Authority> {
   };
 }
 
+/**
+ * The table as it is on disk right now. A conversation stays open for hours, and a rule written
+ * to stop something has to stop it from the next call, not from the next restart. Reading the
+ * files on every call would be wasteful, so the answer is kept until one of them changes.
+ */
+export function liveAuthority(workspaceRoot: string): () => Promise<Authority> {
+  let mark = "";
+  let held: Authority | undefined;
+  return async () => {
+    const now = await stamp(workspaceRoot);
+    if (held !== undefined && now === mark) return held;
+    const read = await loadAuthority(workspaceRoot);
+    mark = now;
+    held = read;
+    return read;
+  };
+}
+
+/** What the files of authority/ look like from outside: enough to notice any change. */
+async function stamp(workspaceRoot: string): Promise<string> {
+  const dir = join(workspaceRoot, AUTHORITY_DIR_NAME);
+  const parts: string[] = [];
+  for (const name of [POLICY_FILE_NAME, DELEGATIONS_FILE_NAME]) {
+    parts.push(await mtime(join(dir, name)));
+  }
+  const decisions = join(dir, DECISIONS_DIR_NAME);
+  try {
+    for (const name of (await readdir(decisions)).sort()) {
+      parts.push(name, await mtime(join(decisions, name)));
+    }
+  } catch {
+    parts.push("-");
+  }
+  return parts.join("|");
+}
+
+async function mtime(path: string): Promise<string> {
+  try {
+    const { mtimeMs, size } = await stat(path);
+    return `${mtimeMs}:${size}`;
+  } catch {
+    return "-";
+  }
+}
+
 /** Every decision under authority/decisions/, by id. A file that cannot be read is a config error. */
 async function readDecisions(dir: string): Promise<Map<string, DecisionRecord>> {
   let names: string[];
