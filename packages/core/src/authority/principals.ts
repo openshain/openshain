@@ -21,12 +21,12 @@ export const PrincipalSchema = z.strictObject({
   roles: z.array(identifier).max(20).default([]),
   status: z.enum(["active", "inactive"]).default("active"),
   /**
-   * The paths their work covers. Absent: the whole company folder, as before. An empty list is
-   * refused: it reads as a mistake, and somebody who is to see nothing is inactive instead.
+   * The paths this person's agent works in. Absent: the whole company folder, as before. An
+   * empty list is refused: it reads as a mistake, and somebody whose agent is to do nothing is
+   * inactive instead. This is a fence for the agent, not confidentiality between people: anyone
+   * who can open the folder can read every file in it.
    */
   reads: z.array(z.string().min(1).max(1000)).min(1).max(100).optional(),
-  /** Whose records they read. Absent: own when reads is written, all otherwise. */
-  records: z.enum(["own", "all"]).optional(),
 });
 
 export type Principal = z.infer<typeof PrincipalSchema>;

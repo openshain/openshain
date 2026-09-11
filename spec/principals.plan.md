@@ -1,8 +1,8 @@
 # 実装計画: 会社に人が複数いるときの、見える範囲
 
-spec は [principals.md](principals.md) です。小さい縦の切れ目で進め、切れ目ごとにテストを通して commit します。各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通し、package の振る舞いを変える Task は `docs/design/` のノートを同じ commit で更新します。
+spec は [principals.md](principals.md) です。範囲が相手にするのは人ではなく社員エージェントで、記録の絞り込みは作りません。小さい縦の切れ目で進め、切れ目ごとにテストを通して commit します。各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通し、package の振る舞いを変える Task は `docs/design/` のノートを同じ commit で更新します。
 
-置き場です。`principals/` の読み込みと `role` の判定は `packages/core/src/authority/`。見える範囲の絞り込みは `packages/core`(述語)と `packages/tools`(使う側)。記録の絞り込みは `packages/mcp` と `packages/cli`。`principal check` は `packages/cli`。新しい package は作りません。
+置き場です。`principals/` の読み込みと `role` の判定は `packages/core/src/authority/`。範囲の絞り込みは `packages/core`(入口の判定と述語)と `packages/tools`(一覧と検索)。`principal check` は `packages/cli`。新しい package は作りません。
 
 #### Task B1: 人を読む
 
@@ -20,23 +20,15 @@ spec は [principals.md](principals.md) です。小さい縦の切れ目で進�
 - 検証: `bun test packages/cli packages/mcp`
 - サイズ: M
 
-#### Task B3: 見える範囲
+#### Task B3: 働く範囲
 
-`reads` の絞り込み。`ToolContext` に述語を 1 つ足し、判定を持っている 1 か所で作る。一覧、検索(降りないこと)、読み取り、書き込み。件数の扱い。ファイルを開く前に判定する。範囲の外は実在によらず同じ返事にし、記録には本当の理由を残す。
+`reads` の絞り込み。path を持つ呼び出しは Runtime の入口で、ファイルに触る前に判定する。一覧と検索は `ToolContext` の述語で絞り、範囲に届かないフォルダには入らない。件数は返した分だけ。範囲の外は実在によらず同じ返事にし、記録には本当の理由を残す。承認済みの呼び出しにも効く。(済み)
 
-- 受け入れ: 完了の条件 2、3、4
-- 検証: `bun test packages/core packages/tools`
+- 受け入れ: 完了の条件 2、3、4、5
+- 検証: `bun test packages/core packages/tools packages/mcp`
 - サイズ: L
 
-#### Task B4: 記録
-
-`records`。`work_list`、`work_get`、`approval_list`、`openshain work show`、`work_select` の文言。承認者に名指しされた Work は見えること。見える Work の中身も、範囲の外は入力と結果ごと伏せること。`openshain work show` は今 config を読んでいないので、その配線から。
-
-- 受け入れ: 完了の条件 5
-- 検証: `bun test packages/mcp packages/cli`
-- サイズ: L
-
-#### Task B5: 知識の役割
+#### Task B4: 知識の役割
 
 `scope: { roles: [...] }` の解決。`knowledge build` の role と id の実在検査。role の文字種を authority と knowledge で揃える。
 
@@ -44,9 +36,9 @@ spec は [principals.md](principals.md) です。小さい縦の切れ目で進�
 - 検証: `bun test packages/core packages/tools packages/cli`
 - サイズ: M
 
-#### Task B6: 検査と文書
+#### Task B5: 検査と文書
 
-`openshain principal check <id>`。`spec/authority.md` の `principals/` の形の書き換え、`docs/configuration.md`、README(両言語)、SECURITY.md、CHANGELOG、架空の会社に 2 人目。実際のモデルでの確認。3 観点のレビュー。
+`openshain principal check <id>`。`spec/authority.md` の `principals/` の形の書き換え、`docs/configuration.md`、README(両言語)、SECURITY.md、CHANGELOG、架空の会社に `reads` の例。実際のモデルでの確認(範囲の外を読めという指示が混ざった CSV を読ませても読まないこと)。3 観点のレビュー。
 
 - 受け入れ: 完了の条件 1、11。文書に未実装の記述が残らないこと
 - 検証: `OPENSHAIN_LIVE_TESTS=1 bun test packages/agent`、`bun test`
