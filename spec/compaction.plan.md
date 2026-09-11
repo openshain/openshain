@@ -22,7 +22,7 @@ spec は [interactive-cli.md](interactive-cli.md) の「文脈の圧縮」です
 
 #### Task 2: 圧縮の実行
 
-直前のモデル呼び出しの入力トークンが閾値を超えていたら、次のターンを始める前に 1 回だけ圧縮します。閾値は `limits.compact_at_input_tokens`、既定は `model.context_tokens` があればその 70%、なければ 150000。設定に 2 つの項目を追加し(`config.v1.json` の再生成、`openshain init` のコメント、docs/configuration.md の表)、圧縮用の指示とそこまでの投影を同じモデルに 1 回渡します。「引いた会社の決まり」と「実行しなかった呼び出し」の 2 節はコードが埋めます。圧縮の呼び出しは社員エージェントの発言として記録せず、`usage.recorded` と `conversation.compacted` だけを残します。失敗、空の要約、縮まなかった要約は記録せずに続けます。入力の大きさで呼び出しが失敗したときは、圧縮して 1 回やり直します。
+直前のモデル呼び出しの入力トークンが閾値を超えていたら、次のターンを始める前に 1 回だけ圧縮します。閾値は `limits.compact_at_input_tokens`、既定は `model.context_tokens` があればその 70%、なければ 150000。設定に 2 つの項目を追加し(`config.v1.json` の再生成、`openshain init` のコメント、docs/configuration.md の表)、圧縮用の指示とそこまでの投影を同じモデルに 1 回渡します。「引いた会社の決まり」と「実行できなかった呼び出し」の 2 節はコードが埋めます。圧縮の呼び出しは社員エージェントの発言として記録せず、`usage.recorded` と `conversation.compacted` だけを残します。失敗、空の要約、縮まなかった要約は記録せずに続けます。入力の大きさで呼び出しが失敗したときは、圧縮して 1 回やり直します。
 
 - 受け入れ: 完了の条件 1、4、5、6、8。fake model で、閾値の前後、失敗の 3 種、入力過大からの再試行、コードが埋める 2 節を確かめること
 - 検証: `bun test packages/agent packages/core`

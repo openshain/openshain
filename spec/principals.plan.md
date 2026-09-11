@@ -1,6 +1,6 @@
-# 実装計画: 会社に人が複数いるときの、見える範囲
+# 実装計画: 会社の人と、社員エージェントが働く範囲
 
-spec は [principals.md](principals.md) です。範囲が相手にするのは人ではなく社員エージェントで、記録の絞り込みは作りません。小さい縦の切れ目で進め、切れ目ごとにテストを通して commit します。各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通し、package の振る舞いを変える Task は `docs/design/` のノートを同じ commit で更新します。
+spec は [principals.md](principals.md) です。小さい縦の切れ目で進め、切れ目ごとにテストを通して commit します。各 Task で `bun run typecheck`、`bun run lint`、`bun test` を通し、package の振る舞いを変える Task は `docs/design/` のノートを同じ commit で更新します。
 
 置き場です。`principals/` の読み込みと `role` の判定は `packages/core/src/authority/`。範囲の絞り込みは `packages/core`(入口の判定と述語)と `packages/tools`(一覧と検索)。`principal check` は `packages/cli`。新しい package は作りません。
 
@@ -12,7 +12,7 @@ spec は [principals.md](principals.md) です。範囲が相手にするのは�
 - 検証: `bun test packages/core packages/mcp`
 - サイズ: L
 
-#### Task B2: 誰として働くか
+#### Task B2: 名乗り
 
 `--principal <id>` と `OPENSHAIN_PRINCIPAL`。`openshain.yaml` は書き換えない。`reads` を書いた人が 2 人以上いて指定が無ければ起動しない。起動時の 1 行。`.mcp.json` の `env` を `openshain init` の案内に書く。`--help`。
 
@@ -22,7 +22,7 @@ spec は [principals.md](principals.md) です。範囲が相手にするのは�
 
 #### Task B3: 働く範囲
 
-`reads` の絞り込み。path を持つ呼び出しは Runtime の入口で、ファイルに触る前に判定する。一覧と検索は `ToolContext` の述語で絞り、範囲に届かないフォルダには入らない。件数は返した分だけ。範囲の外は実在によらず同じ返事にし、記録には本当の理由を残す。承認済みの呼び出しにも効く。(済み)
+`reads` の絞り込み。path を持つ呼び出しは Runtime の入口で、ファイルに触る前に判定する。一覧と検索は `ToolContext` の述語で絞り、範囲に届かないフォルダには入らない。件数は返した分だけ。範囲の外は実在によらず同じ返事にし、記録には本当の理由を残す。承認済みの呼び出しにも効く。
 
 - 受け入れ: 完了の条件 2、3、4、5
 - 検証: `bun test packages/core packages/tools packages/mcp`
