@@ -51,6 +51,8 @@ export interface ToolContext {
   profession: string;
   /** The day the company is on, from its own timezone. Effective days are judged against it. */
   businessDate: string;
+  /** What the person this call acts for handles, as written under `principals/`. */
+  roles?: readonly string[];
   workspaceRoot: string;
   /**
    * Whether this person's work covers that path, and whether anything under that directory could

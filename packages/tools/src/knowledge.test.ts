@@ -91,6 +91,13 @@ rules:
     expertise: tax
     scope: { visibility: company }
     source: { id: internal.accounting-policy }
+  - id: hr.role-scoped
+    statement: 役ごとの決まりです。経理の役を持つ人だけが引けます。
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    scope: { roles: [accounting] }
+    source: { id: internal.accounting-policy }
   - id: hr.salary-band
     statement: 給与の幅は bob だけが読める資料に基づきます。他の人には見えません。
     effective_from: 2026-04-01
@@ -221,6 +228,25 @@ describe("the knowledge tools", () => {
     const read = await call("knowledge_read", { id: "hr.salaries" });
     expect(read.isError).toBe(true);
     expect((read.content[0] as { text: string }).text).toBe("hr.salaries は見つかりません。");
+  });
+
+  test("a resource for a role is read by the people who have it", async () => {
+    const root = await built();
+    await mkdir(join(root, "principals"), { recursive: true });
+    await writeFile(
+      join(root, "principals", "carol.yaml"),
+      "id: carol\nname: Carol\nroles: [accounting]\n",
+    );
+    const carol = asking(root, { principalId: "carol", roles: ["accounting"] });
+    const dave = asking(root, { principalId: "dave", roles: ["sales"] });
+
+    expect(ids(await carol.call("knowledge_search", { query: "役ごとの決まり" }))).toContain(
+      "rule:hr.role-scoped",
+    );
+    expect(ids(await dave.call("knowledge_search", { query: "役ごとの決まり" }))).not.toContain(
+      "rule:hr.role-scoped",
+    );
+    expect((await dave.call("knowledge_read", { id: "hr.role-scoped" })).isError).toBe(true);
   });
 
   test("the person it belongs to reads it", async () => {

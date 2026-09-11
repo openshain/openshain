@@ -102,18 +102,22 @@ export async function hasIndex(workspaceRoot: string): Promise<boolean> {
 function readable(unit: IndexUnit, ctx: ToolContext, asOf: string): boolean {
   if (!inEffect(unit, asOf)) return false;
   if (unit.professions !== null && !unit.professions.includes(ctx.profession)) return false;
-  return visibleTo(unit.scope, ctx.principalId);
+  return visibleTo(unit.scope, ctx.principalId, ctx.roles ?? []);
 }
 
 /**
- * A scope naming roles cannot be resolved yet: the runtime does not read `principals/`, so it
- * does not know who holds a role. Such a unit is read by nobody until it can, which is the way
- * round that does not show what it should not.
+ * Whether this person reads it. A scope naming roles is answered from what the company wrote
+ * under `principals/`; where nobody is written, nobody holds a role, and such a unit is read by
+ * nobody. Closed is the way round that does not show what it should not.
  */
-function visibleTo(scope: KnowledgeScope | null, principalId: string): boolean {
+function visibleTo(
+  scope: KnowledgeScope | null,
+  principalId: string,
+  roles: readonly string[],
+): boolean {
   if (scope === null || "visibility" in scope) return true;
   if ("principals" in scope) return scope.principals.includes(principalId);
-  return false;
+  return scope.roles.some((role) => roles.includes(role));
 }
 
 /**

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PRINCIPAL_ID } from "../authority/principals.ts";
 
 /**
  * What a person writes under `knowledge/`: the company's own rules, and the sources behind them.
@@ -30,14 +31,17 @@ function isDay(text: string): boolean {
   return !Number.isNaN(at.getTime()) && at.toISOString().startsWith(text);
 }
 
+/** A person or a role, written as they are written under `principals/`. */
+const personId = z.string().regex(PRINCIPAL_ID, "use lowercase letters, digits, - or _");
+
 /**
  * Who may read it. A company with one principal may leave it out; with two or more it is written,
  * because from then on leaving it out would mean deciding by accident.
  */
 export const ScopeSchema = z.union([
   z.strictObject({ visibility: z.literal("company") }),
-  z.strictObject({ principals: z.array(knowledgeId).min(1) }),
-  z.strictObject({ roles: z.array(knowledgeId).min(1) }),
+  z.strictObject({ principals: z.array(personId).min(1) }),
+  z.strictObject({ roles: z.array(personId).min(1) }),
 ]);
 export type Scope = z.infer<typeof ScopeSchema>;
 

@@ -50,6 +50,71 @@ async function workspace(files: Record<string, string> = {}) {
   return root;
 }
 
+describe("a scope that names somebody", () => {
+  /** The same folder, with people written and a rule scoped to a role. */
+  async function withPeople(scope: string) {
+    const root = await workspace({
+      "knowledge/rules/scoped.yaml": `version: 1
+rules:
+  - id: expenses.scoped
+    statement: 範囲を持つ決まりです。書いた人にだけ見えます。
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    scope: ${scope}
+    source: { id: internal.expense-policy }
+`,
+    });
+    await mkdir(join(root, "principals"), { recursive: true });
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nroles: [accounting]\n",
+    );
+    return root;
+  }
+
+  test("passes when the person and the role are written", async () => {
+    const byRole = await withPeople("{ roles: [accounting] }");
+    const byName = await withPeople("{ principals: [bob] }");
+
+    expect((await checkKnowledge(byRole)).problems).toEqual([]);
+    expect((await checkKnowledge(byName)).problems).toEqual([]);
+  });
+
+  test("a role nobody has is refused: it would build a rule nobody can read", async () => {
+    const root = await withPeople("{ roles: [accountnig] }");
+
+    const { problems } = await checkKnowledge(root);
+
+    expect(problems.join("\n")).toContain("the role accountnig, which nobody has");
+  });
+
+  test("a person nobody wrote is refused", async () => {
+    const root = await withPeople("{ principals: [carol] }");
+
+    const { problems } = await checkKnowledge(root);
+
+    expect(problems.join("\n")).toContain("carol, who is not in principals/");
+  });
+
+  test("with nobody written there is nothing to check against, and the names pass", async () => {
+    const root = await workspace({
+      "knowledge/rules/scoped.yaml": `version: 1
+rules:
+  - id: expenses.scoped
+    statement: 範囲を持つ決まりです。書いた人にだけ見えます。
+    effective_from: 2026-04-01
+    effective_to: null
+    expertise: none
+    scope: { roles: [accounting] }
+    source: { id: internal.expense-policy }
+`,
+    });
+
+    expect((await checkKnowledge(root)).problems).toEqual([]);
+  });
+});
+
 describe("what a person wrote under knowledge/", () => {
   test("a workspace without the folder has nothing to check", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-knowledge-"));

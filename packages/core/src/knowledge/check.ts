@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { PRINCIPALS_DIR_NAME, readPrincipals } from "../authority/principals.ts";
 import { parseYamlFile } from "../config/yaml.ts";
 import { isOpenshainError } from "../errors.ts";
 import { readWorkspaceTextIfAny } from "../tool/files.ts";
@@ -66,7 +67,41 @@ export async function checkKnowledge(
 
   await checkPaths(workspaceRoot, sources, problems);
   crossCheck(rules, sources, problems);
+  await checkScopeNames(workspaceRoot, rules, sources, problems);
   return { rules, sources, problems: problems.sort() };
+}
+
+/**
+ * Every person and every role a scope names has to be written under `principals/`. A role spelled
+ * wrong is worse than an error: the rule is built, and then nobody can read it, with nothing said.
+ * Where nobody is written, there is nothing to check against and the names pass.
+ */
+async function checkScopeNames(
+  workspaceRoot: string,
+  rules: LoadedRule[],
+  sources: Source[],
+  problems: string[],
+): Promise<void> {
+  const people = await readPrincipals(join(workspaceRoot, PRINCIPALS_DIR_NAME));
+  if (people.size === 0) return;
+  const roles = new Set([...people.values()].flatMap((person) => person.roles));
+  for (const item of [...sources, ...rules]) {
+    const scope = item.scope;
+    if (scope === undefined) continue;
+    if ("principals" in scope) {
+      for (const id of scope.principals) {
+        if (!people.has(id)) {
+          problems.push(`${item.file}: ${item.id} is scoped to ${id}, who is not in principals/`);
+        }
+      }
+    } else if ("roles" in scope) {
+      for (const role of scope.roles) {
+        if (!roles.has(role)) {
+          problems.push(`${item.file}: ${item.id} is scoped to the role ${role}, which nobody has`);
+        }
+      }
+    }
+  }
 }
 
 /** Files of a directory in code point order; an unreadable directory is simply empty. */

@@ -342,6 +342,7 @@ async function callTool(input: {
       principalId: config.principal.id,
       profession: config.profession.id,
       businessDate: businessDate(config.company.timezone),
+      ...(person && { roles: person.roles }),
       workspaceRoot,
       covers: {
         path: (path: string) => mayRead(person, path),

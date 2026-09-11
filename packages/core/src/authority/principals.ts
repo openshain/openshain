@@ -12,7 +12,14 @@ import { matchGlob, reaches } from "./glob.ts";
 
 export const PRINCIPALS_DIR_NAME = "principals";
 
-const identifier = z.string().regex(/^[a-z][a-z0-9_-]*$/);
+/**
+ * The shape of a person's id and of a role. The same one everywhere it is written: principals/,
+ * the rules in authority/, and the scope of a source under knowledge/. A name that is valid in
+ * one file and not in another is a name that matches nobody, silently.
+ */
+export const PRINCIPAL_ID = /^[a-z][a-z0-9_-]*$/;
+
+const identifier = z.string().regex(PRINCIPAL_ID);
 
 export const PrincipalSchema = z.strictObject({
   id: identifier,
