@@ -47,6 +47,8 @@ export function pendingQuestions(events: readonly AnyEvent[]): PendingQuestion[]
 export interface PendingApproval {
   approvalId: string;
   call: { callId: string; name: string; input: unknown };
+  /** Where the call led when the rule judged it, for the run to check against. */
+  judgedPath?: string;
   ruleId: string;
   kind: "approval" | "review";
   approvers?: string[];

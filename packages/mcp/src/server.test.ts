@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -672,6 +672,51 @@ rules:
     expect(otherCase.isError).toBe(true);
     expect(otherCase.text).toContain("領収書は変更しません");
     expect(await readFile(join(root, "receipts", "2026-07.csv"), "utf8")).toContain("2026-07-01");
+  });
+
+  test("what was approved is where it is written, or it is not written at all", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n");
+    await writeFile(join(root, "secret.csv"), "date,amount\n");
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged, store } = await connected(undefined, root);
+    const workId = (await judged("work_create", { objective: "帳簿を更新" })).json().id as string;
+    const held = await judged("fs_write", { path: "ledger/2026-07.csv", content: "x" });
+    expect(held.json().pending).toBe("approval");
+    const approvalId = held.json().approval_id as string;
+
+    // While the person is deciding, the same name comes to mean another file.
+    await rm(join(root, "ledger", "2026-07.csv"));
+    await symlink(join(root, "secret.csv"), join(root, "ledger", "2026-07.csv"));
+    const decided = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.json().result.isError).toBe(true);
+    expect(await readFile(join(root, "secret.csv"), "utf8")).toBe("date,amount\n");
+    const rejected = (await store.events(workId as never)).filter(
+      (e) => e.type === "tool.rejected",
+    );
+    expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "path_changed",
+    ]);
   });
 
   test("a call the policy holds waits for approval; approve runs it, reject refuses it, and the work goes on", async () => {

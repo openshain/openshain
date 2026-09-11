@@ -44,6 +44,8 @@ export const TOOL_REJECTION_CODES = [
   "limit_reached",
   "denied",
   "rejected_by_person",
+  // Approved for one place, and by the time it ran the same input led to another.
+  "path_changed",
 ] as const;
 
 export type ToolRejectionCode = (typeof TOOL_REJECTION_CODES)[number];
@@ -78,6 +80,8 @@ export interface EventPayloads {
   "approval.requested": {
     approvalId: string;
     call: { callId: string; name: string; input: unknown };
+    /** Where the call leads, as the guard answered when the rule judged it. */
+    judgedPath?: string;
     ruleId: string;
     kind: "approval" | "review";
     approvers?: string[];
@@ -245,6 +249,7 @@ export const payloadFileSchemas = {
   "approval.requested": z.looseObject({
     approval_id: z.string(),
     call: z.looseObject({ call_id: z.string(), name: z.string(), input: z.unknown() }),
+    judged_path: z.string().optional(),
     rule_id: z.string(),
     kind: z.enum(["approval", "review"]),
     approvers: z.array(z.string()).optional(),
@@ -577,6 +582,7 @@ const codecs: { [T in EventType]?: Codec<T> } = {
     toFile: (p) => ({
       approval_id: p.approvalId,
       call: { call_id: p.call.callId, name: p.call.name, input: p.call.input },
+      ...(p.judgedPath !== undefined && { judged_path: p.judgedPath }),
       rule_id: p.ruleId,
       kind: p.kind,
       ...(p.approvers && { approvers: p.approvers }),
@@ -585,6 +591,7 @@ const codecs: { [T in EventType]?: Codec<T> } = {
     fromFile: (p) => ({
       approvalId: p.approval_id,
       call: { callId: p.call.call_id, name: p.call.name, input: p.call.input },
+      ...(p.judged_path !== undefined && { judgedPath: p.judged_path }),
       ruleId: p.rule_id,
       kind: p.kind,
       ...(p.approvers && { approvers: p.approvers }),

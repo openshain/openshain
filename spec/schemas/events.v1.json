@@ -703,7 +703,8 @@
                 "invalid_path",
                 "limit_reached",
                 "denied",
-                "rejected_by_person"
+                "rejected_by_person",
+                "path_changed"
               ]
             },
             "reason": {
@@ -908,6 +909,9 @@
                 "input"
               ],
               "additionalProperties": {}
+            },
+            "judged_path": {
+              "type": "string"
             },
             "rule_id": {
               "type": "string"

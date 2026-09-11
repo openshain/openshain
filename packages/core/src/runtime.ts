@@ -124,6 +124,8 @@ export function createToolCaller(input: {
 export interface CallOptions {
   /** The approval that lets this call run: the policy is not consulted again. */
   approvedBy?: string;
+  /** Where the call led when it was approved. The run stops if it leads elsewhere now. */
+  judgedPath?: string;
 }
 
 /** What a held call answers with: the client shows it to the person and the turn stops there. */
@@ -189,6 +191,8 @@ async function callTool(input: {
   work: WorkHandle;
   call: ToolCall;
   approvedBy?: string;
+  /** Where the call led when it was approved, so the run can check it still does. */
+  judgedPath?: string;
 }): Promise<ToolResult> {
   const { registry, config, workspaceRoot, authority, work, call } = input;
   const reject = async (code: ToolRejectionCode, reason: string): Promise<ToolResult> => {
@@ -208,6 +212,22 @@ async function callTool(input: {
       "schema_mismatch",
       `input does not match the schema of ${call.name}: ${validation.reason}`,
     );
+  }
+  // What a person approved is a call to one place. Between the decision and the run, a link or a
+  // folder can be swapped so the same input leads elsewhere; the call does not run then.
+  if (input.approvedBy !== undefined && input.judgedPath !== undefined) {
+    let now: string | undefined;
+    try {
+      now = await judgedPath(workspaceRoot, call.input);
+    } catch (err) {
+      return reject("invalid_path", err instanceof Error ? err.message : String(err));
+    }
+    if (now !== input.judgedPath) {
+      return reject(
+        "path_changed",
+        `${call.name} was approved for ${input.judgedPath}; the same input now leads to ${now ?? "nowhere"}`,
+      );
+    }
   }
   // The policy judges after the allow list, unless a person already approved this very call.
   if (input.approvedBy === undefined) {
@@ -243,6 +263,7 @@ async function callTool(input: {
         payload: {
           approvalId,
           call: { callId: call.id, name: call.name, input: call.input },
+          ...(path !== undefined && { judgedPath: path }),
           ruleId: judged.rule.id,
           kind: review ? "review" : "approval",
           ...(review ? reviewer && { reviewer } : { approvers }),

@@ -570,7 +570,10 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           const result = await callTool(
             opened,
             { id: approval.call.callId, name: approval.call.name, input: approval.call.input },
-            { approvedBy: approvalId },
+            {
+              approvedBy: approvalId,
+              ...(approval.judgedPath !== undefined && { judgedPath: approval.judgedPath }),
+            },
           );
           return json({
             approval_id: approvalId,
@@ -689,7 +692,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           const ran = await callTool(
             opened,
             { id: approval.call.callId, name: approval.call.name, input: ranWith },
-            { approvedBy: approvalId },
+            {
+              approvedBy: approvalId,
+              // A reviewer may change the input, but not where it lands: the same check holds.
+              ...(approval.judgedPath !== undefined && { judgedPath: approval.judgedPath }),
+            },
           );
           // The decision is on disk; a rule that cites its id can use it from here on. Reloaded
           // so that a rule already written for it takes effect without a restart.
