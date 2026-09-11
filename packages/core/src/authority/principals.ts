@@ -87,6 +87,17 @@ export function mayRead(person: Principal | undefined, path: string): boolean {
   return reads.some((pattern) => matchGlob(pattern, path));
 }
 
+/**
+ * Whether this person's agent may read the record of a work. `work/` is reserved, so no range
+ * covers it and `work_list` and `work_get` are the agent's only way in. A range narrows the record
+ * the same way it narrows the company folder: to the works this person started. Somebody with no
+ * range reads every work, as everyone did before there was more than one person.
+ */
+export function mayReadWork(person: Principal | undefined, workPrincipal: string): boolean {
+  if (person?.reads === undefined) return true;
+  return workPrincipal === person.id;
+}
+
 /** Whether anything inside this directory could be in the range: false means do not go in. */
 export function mayReachInto(person: Principal | undefined, dir: string): boolean {
   const reads = person?.reads;

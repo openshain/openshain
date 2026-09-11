@@ -43,3 +43,11 @@ spec は [principals.md](principals.md) です。小さい縦の切れ目で進�
 - 受け入れ: 完了の条件 1、11。文書に未実装の記述が残らないこと
 - 検証: `OPENSHAIN_LIVE_TESTS=1 bun test packages/agent`、`bun test`
 - サイズ: M
+
+#### Task B6: 記録の読み取り
+
+`work/` は予約パスで、社員エージェントにとって `work_list` と `work_get` が記録への唯一の経路です。`reads` を書いた人は、自分が principal の Work だけを読みます。`approval_list` は絞りません。`openshain work show` と `work list` は設定を読んでいないので、その配線から始めます。
+
+- 受け入れ: 完了の条件 5b。`reads` を書いていない人は今までどおり全部読めること
+- 検証: `bun test packages/mcp packages/cli`
+- サイズ: M

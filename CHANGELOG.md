@@ -13,12 +13,18 @@
 - `knowledge` の `scope: { roles: [...] }` が解決できるようになりました。これまでは誰にも見えませんでした。`knowledge build` は、`scope` に書いた人と役割が `principals/` に実在するかを確かめます
 - `openshain principal check <id>`。`reads` に実際に一致するファイルとフォルダ、委任の有無、役割で一致する規則、範囲の外を `allow` している規則を表示します
 - `inactive` にした人は、代理も承認もできません。判定のたびに読み直すので、開いたままの会話にも効きます
+- `reads` を書いた人の社員エージェントは、自分の Work だけを読みます(`work_list`、`work_get`、`openshain work list`、`openshain work show`)。ほかの人の Work は、id を名指ししても、無いときと同じ返事になります。`work/` は予約パスで、この 2 つが記録への唯一の経路だからです。`approval_list` は絞りません。承認は他の人の Work に対して行うものです
+
+### Fixed
+
+- `openshain --principal <id>` と `OPENSHAIN_PRINCIPAL` が、対話型 CLI の中の Runtime に届いていませんでした。Work が `openshain.yaml` の principal の名前で記録され、指定した人の `reads` も効いていませんでした
 
 ### Changed
 
 - **`ToolRejectionCode` に `out_of_range` が増えました。** 担当の範囲の外だったために実行しなかった呼び出しを表します
 - **`ToolContext` に `roles` と `covers` が増えました。** 一覧や検索を返す第三者の Tool は、`covers` で絞ってください。`path` を持つ呼び出しは Runtime が入口で判定します
 - `knowledge` の `scope` に書く人と役割の文字種を、`principals/` と `authority/` に揃えました
+- `openshain work list` と `openshain work show` が `openshain.yaml` と `principals/` を読みます。誰として表示するかが決まらないと、表示する記録も決まらないためです
 
 ## [0.6.0] - 2026-09-11
 

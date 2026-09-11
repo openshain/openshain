@@ -812,6 +812,46 @@ rules:
     ]);
   });
 
+  test("the record of another person's work is not listed and does not answer", async () => {
+    const { root, call: asAlice } = await connected();
+    await mkdir(join(root, "principals"));
+    await mkdir(join(root, "ledger"));
+    await mkdir(join(root, "hr"));
+    await writeFile(join(root, "hr", "salaries.csv"), "name,amount\nbob,500000\n");
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [ledger/**]\n",
+    );
+    // Alice works where Bob's agent does not: on the pay of the company, in her own words.
+    const hers = (await asAlice("work_create", { objective: "6月の給与を確定する" })).json()
+      .id as string;
+    await asAlice("fs_read", { path: "hr/salaries.csv" });
+
+    const { call: asBob } = await connected(undefined, root, "bob");
+    const his = (await asBob("work_create", { objective: "台帳を見る" })).json().id as string;
+    const listed = await asBob("work_list");
+    const got = await asBob("work_get", { id: hers, history: true });
+    const selected = await asBob("work_select", { id: hers });
+    const nobodys = "work_0199c0de-0000-7000-8000-000000000000";
+    const unknown = await asBob("work_get", { id: nobodys });
+
+    expect((listed.json().works as { id: string }[]).map((w) => w.id)).toEqual([his]);
+    expect(listed.text).not.toContain("給与");
+    // Named right, the answer is the one a work that is not there gives.
+    expect(got.isError).toBe(true);
+    expect(got.text).toBe(unknown.text.replace(nobodys, hers));
+    expect(got.text).not.toContain("給与");
+    expect(got.text).not.toContain("salaries");
+    expect(selected.isError).toBe(true);
+    expect(selected.text).not.toContain("alice");
+    // Alice reads every work of the company folder, as she did before Bob was written.
+    const all = await asAlice("work_list");
+    expect((all.json().works as { id: string }[]).map((w) => w.id).sort()).toEqual(
+      [hers, his].sort(),
+    );
+  });
+
   test("narrowing what somebody covers stops a call that was already approved", async () => {
     const { root } = await connected();
     await mkdir(join(root, "principals"));

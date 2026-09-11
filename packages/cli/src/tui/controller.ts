@@ -201,7 +201,13 @@ export async function createController(options: ControllerOptions): Promise<Cont
       `model ${config.model.provider}/${config.model.model} cannot call tools; openshain needs a model with tool support`,
     );
   }
-  const server = await createMcpServer({ workspaceRoot, tools: providers.tools });
+  // The name the person gave on the command line reaches the runtime too: it is what the work is
+  // recorded under, and what the range is read from.
+  const server = await createMcpServer({
+    workspaceRoot,
+    tools: providers.tools,
+    ...(options.as !== undefined && { as: options.as }),
+  });
   const client = await connectInMemory(server);
   const store = new WorkStore(workspaceRoot);
   const listeners = new Set<() => void>();

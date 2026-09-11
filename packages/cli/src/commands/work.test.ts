@@ -12,10 +12,30 @@ function io() {
   return { lines, write: (line: string) => void lines.push(line), text: () => lines.join("\n") };
 }
 
+const CONFIG = `version: 1
+company:
+  name: サンプル株式会社
+principal:
+  id: alice
+  name: Alice
+profession:
+  id: generic
+  instructions: 事務担当として働く。
+`;
+
 async function workspace() {
   const root = await mkdtemp(join(tmpdir(), "openshain-cli-work-"));
-  await writeFile(join(root, "openshain.yaml"), "version: 1\n");
+  await writeFile(join(root, "openshain.yaml"), CONFIG);
   return { root, store: new WorkStore(root) };
+}
+
+/** A company folder with two people written, one of whom works in a range of their own. */
+async function shared() {
+  const { root, store } = await workspace();
+  await mkdir(join(root, "principals"), { recursive: true });
+  await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+  await writeFile(join(root, "principals", "bob.yaml"), "id: bob\nname: Bob\nreads: [ledger/**]\n");
+  return { root, store };
 }
 
 const request = { principal: "alice", profession: "generic" };
@@ -86,6 +106,23 @@ describe("work list", () => {
 
     expect(out.text()).toContain(healthy.id);
     expect(out.text()).toMatch(/読めない\(壊れた Work の記録\)/);
+  });
+
+  test("somebody who works in a range of their own sees their own works", async () => {
+    const { root, store } = await shared();
+    await store.create({ ...request, objective: "6月の給与を確定する" });
+    const his = await store.create({
+      objective: "台帳を見る",
+      principal: "bob",
+      profession: "generic",
+    });
+    const out = io();
+
+    await workList({ workspaceRoot: root, as: "bob", write: out.write });
+
+    expect(out.lines).toHaveLength(1);
+    expect(out.lines[0]).toContain(his.id);
+    expect(out.text()).not.toContain("給与");
   });
 });
 
@@ -176,6 +213,18 @@ describe("work show", () => {
     await expect(
       workShow({ workspaceRoot: root, id: "../etc", write: () => {} }),
     ).rejects.toBeInstanceOf(OpenshainError);
+  });
+
+  test("another person's work answers as a work that is not there", async () => {
+    const { root, store } = await shared();
+    const hers = await store.create({ ...request, objective: "6月の給与を確定する" });
+
+    await expect(
+      workShow({ workspaceRoot: root, id: hers.id, as: "bob", write: () => {} }),
+    ).rejects.toThrow(/does not exist/);
+    const out = io();
+    await workShow({ workspaceRoot: root, id: hers.id, as: "alice", write: out.write });
+    expect(out.text()).toContain("6月の給与を確定する");
   });
 });
 

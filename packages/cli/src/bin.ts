@@ -128,11 +128,12 @@ async function main(argv: string[]): Promise<number> {
         return 2;
       }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      const as = actingFor(values.principal);
       if (sub === "list") {
-        await workList({ workspaceRoot, write });
+        await workList({ workspaceRoot, as, write });
         return 0;
       }
-      await workShow({ workspaceRoot, id, write });
+      await workShow({ workspaceRoot, id, as, write });
       return 0;
     }
     default:

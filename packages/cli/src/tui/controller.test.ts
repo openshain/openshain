@@ -638,6 +638,38 @@ describe("who the terminal works for", () => {
     expect(banner).toContain("Bob(bob)として実行します");
     expect(banner).toContain("本人確認はしていません");
   });
+
+  test("the range of the person named on the command line holds inside the conversation", async () => {
+    const { root } = await setup([]);
+    await mkdir(join(root, "principals"));
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "principals", "bob.yaml"),
+      "id: bob\nname: Bob\nreads: [ledger/**]\n",
+    );
+    const model = new FakeModelProvider([
+      workCreate("c1", "7月の証憑を集計して"),
+      csvRead("c2"),
+      say("その場所は読めませんでした。"),
+    ]);
+    const providers: RuntimeProviders = {
+      models: { fake: () => model },
+      tools: { standard: () => standardTools() },
+    };
+    const asBob = await createController({ workspaceRoot: root, providers, as: "bob" });
+
+    await asBob.submit("7月の証憑を集計して");
+
+    // receipts/ is Alice's, not Bob's: the name on the command line reaches the tools.
+    const work = await requestWork(new WorkStore(root));
+    expect(work?.principal).toBe("bob");
+    const rejected = (await new WorkStore(root).events(work?.id as never)).filter(
+      (e) => e.type === "tool.rejected",
+    );
+    expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "out_of_range",
+    ]);
+  });
 });
 
 describe("summarizing the conversation", () => {

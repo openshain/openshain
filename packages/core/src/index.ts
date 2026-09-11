@@ -28,6 +28,7 @@ export {
   isActive,
   mayReachInto,
   mayRead,
+  mayReadWork,
   PRINCIPALS_DIR_NAME,
   type Principal,
   readPrincipals,
@@ -196,6 +197,7 @@ export {
 export {
   type CreateWorkInput,
   type ListResult,
+  noSuchWork,
   WORK_DIR_NAME,
   WORK_FILE_NAME,
   type WorkHandle,

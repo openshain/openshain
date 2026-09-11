@@ -27,6 +27,8 @@ import {
   isTerminal,
   liveAuthority,
   loadConfig,
+  mayReadWork,
+  noSuchWork,
   type PendingApproval,
   parsePayloadFile,
   parseWorkId,
@@ -339,6 +341,15 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
     return { id };
   }
 
+  /**
+   * Whether the record of this work is the asking person's to read. `work/` is reserved, so
+   * work_list and work_get are the only way in, and a range narrows them the way it narrows the
+   * company folder. Read now, not at startup: a range written this morning holds this afternoon.
+   */
+  async function readsRecord(work: Work): Promise<boolean> {
+    return mayReadWork((await authority()).principals.get(config.principal.id), work.principal);
+  }
+
   async function handle(name: string, input: Record<string, unknown>): Promise<CallToolResult> {
     const validate = validators.get(name);
     if (validate) {
@@ -386,6 +397,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
       case "work_select": {
         const id = parseWorkId((input as { id: string }).id);
         const work = await works.get(id);
+        if (!(await readsRecord(work))) throw noSuchWork(workspaceRoot, id);
         if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
         // Selecting is what lets a client record into a work. Another person's conversation is
         // theirs: a client that could select it could write what they never said.
@@ -402,6 +414,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const id = given ? parseWorkId(given) : session.current;
         if (!id) return failure(NO_WORK);
         const work = await works.get(id);
+        if (!(await readsRecord(work))) throw noSuchWork(workspaceRoot, id);
         if (!history) return json(work);
         return json({ ...work, history: workHistory(await works.events(id)) });
       }
@@ -713,8 +726,13 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
       }
       case "work_list": {
         const { works: all, problems } = await works.list();
+        const me = (await authority()).principals.get(config.principal.id);
+        const readable = all.filter((w) => mayReadWork(me, w.principal));
+        // A work that cannot be read does not say whose it is. Somebody who reads every work sees
+        // that it is there; a range leaves it out rather than name a work it cannot place.
+        const unreadable = me?.reads === undefined ? problems : [];
         return json({
-          works: all.map((w) => ({
+          works: readable.map((w) => ({
             id: w.id,
             status: w.status,
             type: w.type,
@@ -723,7 +741,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             ...(w.parent !== undefined && { parent: w.parent }),
             ...(w.agentName !== undefined && { agentName: w.agentName }),
           })),
-          problems: problems.map((p) => ({
+          problems: unreadable.map((p) => ({
             id: p.id,
             code: p.error.code,
             message: p.error.message,

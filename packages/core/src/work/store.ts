@@ -22,6 +22,14 @@ export interface CreateWorkInput {
   agentName?: string;
 }
 
+/**
+ * The one answer for a work that is not there to read. A work outside the asking person's range
+ * gets this too: a refusal of its own would say that another person's work is here.
+ */
+export function noSuchWork(root: string, id: string): OpenshainError {
+  return new OpenshainError("not_found", `work ${id} does not exist in ${root}`);
+}
+
 export interface ListResult {
   works: Work[];
   /** Work directories that could not be read. Reported, never hidden. */
@@ -197,7 +205,7 @@ export class WorkStore {
       await stat(dir);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        throw new OpenshainError("not_found", `work ${id} does not exist in ${this.root}`);
+        throw noSuchWork(this.root, id);
       }
       throw err;
     }

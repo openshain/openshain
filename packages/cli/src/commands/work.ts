@@ -1,9 +1,16 @@
+import { join } from "node:path";
 import {
   type AnyEvent,
   type Event,
+  loadConfig,
+  mayReadWork,
+  noSuchWork,
+  PRINCIPALS_DIR_NAME,
+  type Principal,
   parseWorkId,
   pendingApprovals,
   pendingQuestions,
+  readPrincipals,
   type Work,
   WorkStore,
 } from "@openshain/core";
@@ -14,12 +21,28 @@ import { formatUsage, summarizeUsage } from "../usage.ts";
 
 export interface WorkListOptions {
   workspaceRoot: string;
+  /** Who this terminal works for, when the person said so. */
+  as?: string | undefined;
   write: (line: string) => void;
 }
 
+/**
+ * The person this terminal works for, out of the people the company has written. Nobody written:
+ * nobody to be, and every work is read, as before there was more than one person.
+ */
+async function actingPerson(workspaceRoot: string, as?: string): Promise<Principal | undefined> {
+  const config = await loadConfig(workspaceRoot, { ...(as !== undefined && { as }) });
+  const people = await readPrincipals(join(workspaceRoot, PRINCIPALS_DIR_NAME));
+  return people.get(config.principal.id);
+}
+
 /** One line per work, oldest first. Works that cannot be read are reported, not hidden. */
-export async function workList({ workspaceRoot, write }: WorkListOptions): Promise<void> {
-  const { works, problems } = await new WorkStore(workspaceRoot).list();
+export async function workList({ workspaceRoot, as, write }: WorkListOptions): Promise<void> {
+  const me = await actingPerson(workspaceRoot, as);
+  const { works: all, problems: unreadable } = await new WorkStore(workspaceRoot).list();
+  const works = all.filter((w) => mayReadWork(me, w.principal));
+  // A work that cannot be read does not say whose it is, so a range leaves it out.
+  const problems = me?.reads === undefined ? unreadable : [];
   if (works.length === 0 && problems.length === 0) {
     write("Work はまだありません。openshain で社員エージェントに依頼すると始まります。");
     return;
@@ -37,14 +60,19 @@ export async function workList({ workspaceRoot, write }: WorkListOptions): Promi
 export interface WorkShowOptions {
   workspaceRoot: string;
   id: string;
+  /** Who this terminal works for, when the person said so. */
+  as?: string | undefined;
   write: (line: string) => void;
 }
 
 /** Everything about one work: state, outcome, what the tools did, the usage, and who acts next. */
-export async function workShow({ workspaceRoot, id, write }: WorkShowOptions): Promise<void> {
+export async function workShow({ workspaceRoot, id, as, write }: WorkShowOptions): Promise<void> {
   const store = new WorkStore(workspaceRoot);
   const workId = parseWorkId(id);
   const work = await store.get(workId);
+  if (!mayReadWork(await actingPerson(workspaceRoot, as), work.principal)) {
+    throw noSuchWork(workspaceRoot, workId);
+  }
   const events = await store.events(workId);
   for (const line of describeWork(work, events)) write(line);
 }
