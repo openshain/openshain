@@ -92,7 +92,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 - **モデル**: 対話型 CLI が使うモデルは `openshain init` が作る設定ファイルで指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています。Claude Code や Codex から使うときは、モデルの設定も API キーも要りません
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
 - **会社の決まり**: `knowledge/` に決まりと根拠の資料を書き、`openshain knowledge build` で索引にします。社員エージェントは名指しされなくても自分で引き、答えに決まりの id と有効日を添えます。出典と有効日のない決まりは索引に載りません
-- **人と担当**: `principals/` に会社の人を 1 人 1 ファイルで書き、その人の社員エージェントが働く範囲を `reads` で決めます。範囲の外は、一覧にも検索にも出ません。`openshain --principal <id>` で、その端末が誰として働くかを選びます
+- **人と範囲**: `principals/` に会社の人を 1 人 1 ファイルで書き、その人の社員エージェントが働く範囲を `reads` で決めます。範囲の外は、一覧にも検索にも出ず、書き込みも届かず、ほかの人の Work の記録も読めません。`openshain --principal <id>` で、その端末が誰として働くかを選びます。止めているのは社員エージェントであって、人ではありません。会社フォルダを開ける人は、どのファイルもそのまま読めます
 - **権限と承認**: `authority/` に書いた規則が、Tool の呼び出しごとに、そのまま実行する、人の承認を待つ、資格者の判断を待つ、実行しない、のどれかを決めます。判定はコードが行い、モデルの出力では変わりません
 - **資格者の判断**: 税務や法務のように資格が要る判断は、Review Package を作って止まります。会社が指名した専門家の判断を記録すると実行し、その判断は次から根拠として引かれます
 - **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
@@ -213,6 +213,8 @@ Tool を追加する例は [examples/](examples/README.md) にあります。
 
 Codex など他のエージェントでも、`openshain mcp` を stdio の MCP サーバーとして登録すると、Claude Code と同じ手順で動きます。
 
+誰として働くかは `.mcp.json` の `env` に `OPENSHAIN_PRINCIPAL` を書きます。`--principal` は端末のフラグなので、Claude Code が自分で `openshain mcp` を起動するこの形では届きません。`reads` の範囲が効くのは openshain の Tool を通る経路だけで、Claude Code や Codex が自分で持つファイル操作には効きません。
+
 ## 権限と承認
 
 会社フォルダの `authority/` に、誰の代理で働いてよいか(`delegations.yaml`)と、どの呼び出しに何が要るか(`policy.yaml`)を書きます。
@@ -235,7 +237,7 @@ rules:
     reviewer: { role: tax-accountant }
 ```
 
-- 規則は上から順に読み、最初に一致したものが決めます。一致しなければ `default` です
+- 規則は上から順に読み、最初に一致したものが決めます。一致しなければ `default` です。`principals/` の `reads` はこの表とは別で、順序のない集合です。どれか 1 つに一致すれば範囲の中で、規則が範囲を広げることはありません
 - 承認が要る呼び出しは、画面が選択の形になり、何が変わるか(書き込みなら差分)を確認してから決めます
 - 資格者の判断が要る呼び出しは、Review Package を `work/<id>/review/` に置いて止まります。判断を記録すると `authority/decisions/` に残り、次からは根拠として引かれます
 - `authority/` を置かない会社フォルダは、これまでどおりすべて許可です
@@ -258,7 +260,7 @@ rules:
 
 - `openshain.yaml` の `profession.instructions`。職種の指示文で、すべての Work のシステムプロンプトの先頭に入ります。短い決まりはここに書きます
 - `knowledge/`。決まりを `knowledge/rules/*.yaml` に、その根拠の資料を `knowledge/sources/*.md` に書きます。出典と有効日を持つので、社員エージェントは有効な版だけを引き、答えに id と有効日を添えます
-- 会社フォルダのファイル。規程や手順書、台帳を置くだけで、社員エージェントは標準 Tool で読みます。読んでほしい場所は指示文で示します(「経費の規程は rules/expenses.md にある」)。渡るのは依頼された範囲のファイルだけで、フォルダの外には出ません
+- 会社フォルダのファイル。規程や手順書、台帳を置くだけで、社員エージェントは標準 Tool で読みます。読んでほしい場所は指示文で示します(「経費の規程は rules/expenses.md にある」)。渡るのは依頼に要るファイルだけで、フォルダの外には出ません
 - `AGENTS.md`。Claude Code や Codex から使うときの指示です。会社の決まりをここに書けば、それらのエージェントも同じ決まりで動きます
 
 ```
@@ -267,7 +269,7 @@ openshain knowledge build   # 決まりと資料を検証して索引を作り�
 openshain knowledge check   # 索引を書かずに検証だけ実行します(CI 向け)
 ```
 
-`build` を通らない決まりは索引に載らず、社員エージェントからは見えません。検索も読み取りも、依頼した人が読んでよい範囲だけを返します。権限のない資料は件数にも現れません(Need-to-Know)。ひな型は [examples/sample-company](examples/sample-company/README.md)、書き方は [docs/configuration.md](docs/configuration.md)、仕様は [spec/knowledge.md](spec/knowledge.md) にあります。
+`build` を通らない決まりは索引に載らず、社員エージェントからは見えません。検索も読み取りも、依頼した人の社員エージェントが読んでよい決まりだけを返します。`scope` の外の資料は件数にも現れません(Need-to-Know)。ひな型は [examples/sample-company](examples/sample-company/README.md)、書き方は [docs/configuration.md](docs/configuration.md)、仕様は [spec/knowledge.md](spec/knowledge.md) にあります。
 
 ### 継続的な日本法域固有知識
 

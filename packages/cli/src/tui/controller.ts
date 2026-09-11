@@ -18,7 +18,7 @@ import {
 } from "@openshain/core";
 import { createMcpServer } from "@openshain/mcp";
 import { toolsList } from "../commands/tools.ts";
-import { workList, workShow } from "../commands/work.ts";
+import { qualifiedAs, workList, workShow } from "../commands/work.ts";
 import { describeInput, plain } from "../format.ts";
 import { statusLabel } from "../labels.ts";
 import { type PreviewLine, previewCall } from "../preview.ts";
@@ -483,11 +483,15 @@ export async function createController(options: ControllerOptions): Promise<Cont
       const outcome = await session.compact();
       push(outcome.done ? "progress" : "notice", compactionLine(outcome));
     } else if (name === "work" && sub === "list")
-      await capture((write) => workList({ workspaceRoot: options.workspaceRoot, write }));
+      await capture((write) =>
+        workList({ workspaceRoot: options.workspaceRoot, as: options.as, write }),
+      );
     else if (name === "work" && (sub === "show" || sub === "resume") && !args[1])
       push("notice", `/work ${sub} には Work の id が要ります。/work list で確かめてください。`);
     else if (name === "work" && sub === "show" && id)
-      await capture((write) => workShow({ workspaceRoot: options.workspaceRoot, id, write }));
+      await capture((write) =>
+        workShow({ workspaceRoot: options.workspaceRoot, id, as: options.as, write }),
+      );
     else if (name === "work" && sub === "resume" && id) {
       try {
         const work = await session.select(id as WorkId);
@@ -530,7 +534,7 @@ export async function createController(options: ControllerOptions): Promise<Cont
         }
         const role = held.reviewer?.role ?? "reviewer";
         const who = await askLine(
-          `${role} の名前と資格(例: 田中 太郎 / 税理士)。会社の申告として記録します`,
+          `${qualifiedAs(held.reviewer?.role)}の名前と資格(例: 田中 太郎 / 税理士)。会社の申告として記録します`,
         );
         const [reviewerName, qualification] = who.split("/").map((part) => part.trim());
         const interpretation = await askLine(

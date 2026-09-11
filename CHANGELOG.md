@@ -21,7 +21,7 @@
 
 ### Changed
 
-- **`ToolRejectionCode` に `out_of_range` が増えました。** 担当の範囲の外だったために実行しなかった呼び出しを表します
+- **`ToolRejectionCode` に `out_of_range` が増えました。** その人の社員エージェントが働く範囲の外だったために実行しなかった呼び出しを表します
 - **`ToolContext` に `roles` と `covers` が増えました。** 一覧や検索を返す第三者の Tool は、`covers` で絞ってください。`path` を持つ呼び出しは Runtime が入口で判定します
 - `knowledge` の `scope` に書く人と役割の文字種を、`principals/` と `authority/` に揃えました
 - `openshain work list` と `openshain work show` が `openshain.yaml` と `principals/` を読みます。誰として表示するかが決まらないと、表示する記録も決まらないためです

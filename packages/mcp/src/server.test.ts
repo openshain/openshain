@@ -915,7 +915,7 @@ rules:
     const read = await asBob("fs_read", { path: "ledger/shortcut.csv" });
 
     expect(read.isError).toBe(true);
-    expect(read.text).toContain("担当の範囲の外");
+    expect(read.text).toContain("働く範囲の外");
   });
 
   test("a rule written while the conversation is open holds from the next call", async () => {

@@ -102,7 +102,7 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   }
   if (work.status === "waiting_approval") {
     for (const a of pendingApprovals(events)) {
-      const who = a.kind === "review" ? `${a.reviewer?.role ?? "資格者"}の判断待ち` : "承認待ち";
+      const who = a.kind === "review" ? `${qualifiedAs(a.reviewer?.role)}の判断待ち` : "承認待ち";
       lines.push(`${who}  ${a.call.name} ${describeInput(a.call.input)}  (${a.approvalId})`);
     }
   }
@@ -115,6 +115,15 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
   lines.push(formatUsage(summarizeUsage(events)));
   lines.push(nextActor(work));
   return lines;
+}
+
+/**
+ * How a reviewer is named on the screen. The role of a reviewer is a qualification the company
+ * names (tax-accountant), not one of the roles a person handles, so the word comes first and the
+ * name the company wrote stays with it.
+ */
+export function qualifiedAs(role: string | undefined): string {
+  return role === undefined ? "資格者" : `資格者(${role})`;
 }
 
 /** One line per tool call, in log order, with its outcome when it was rejected or failed. */

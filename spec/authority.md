@@ -1,6 +1,6 @@
 # Spec: Authority(権限と承認)
 
-Status: v0.1(実装済み。完了の条件 1 から 7 を満たしています。ChangeSet と Need-to-Know、端末の認証、専門家への送付の自動化は後の版です)
+Status: v0.1(実装済み。完了の条件 1 から 7 を満たしています。ChangeSet と端末の認証、専門家への送付の自動化は後の版です。会社の人と Need-to-Know は [principals.md](principals.md) と [knowledge.md](knowledge.md) にあります)
 
 ## 目的
 
@@ -69,7 +69,7 @@ rules:
 ```
 
 - 規則は上から順に読み、最初に一致したものを採ります。一致しなければ `default` です
-- `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`role`(依頼した人が `principals/` で持つ役割)、`work_type`、`action`
+- `match` の項目は AND です。`tool`(名前か名前の並び)、`effect`、`path`(glob。入力に `path` が無い呼び出しには一致しません)、`principal`、`role`(依頼した人が `principals/` で持つ担当)、`work_type`、`action`
 - `path` の glob は workspace root からの相対パスに対して `*`(1 段)と `**`(何段でも)を使います。**判定は path guard を通した後のパスに対して行います**。path guard は会社フォルダの中の symlink を実体に解決するので、`ledger/shortcut -> ../hr/salaries.csv` を渡しても `hr/**` の規則が効きます
 - **照合は大文字小文字を区別せず、Unicode を NFC に揃えてから行います。** 大文字小文字を区別しないファイルシステムでは `HR/salaries.csv` と `hr/salaries.csv` が同じファイルなので、綴りの違いで規則が外れてはいけません。予約パスの判定は前からこの形です。規則を書く人は、ディスク上の綴りと違う大文字小文字で書いても同じに効きます
 - `decision_backed` は `decision_id` の Decision が `authority/decisions/` にあり、有効日の中にあり、`applies_to`(action と path)がその呼び出しを覆うときだけ `allow` と同じに動き、`decision.applied` を記録します。どれかを満たさなければ `review_required` として扱い、理由を呼び出し元に返します。無ければ `review_required` として扱います
@@ -106,7 +106,7 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 - 承認は会話をまたぎます。保留してから決まるまでの間に、その path が別の場所を指すようになることがあります(symlink の差し替え、途中のフォルダの入れ替え)。`approval.requested` に**保留したときの解決済みパス**を残し、実行の直前に解決し直して一致しなければ実行せず、`tool.rejected`(`path_changed`)を残します。人が見て承認したものと、実際に書かれる場所を一致させるためです
 - **判定に使う表は、呼び出しのたびに読み直します。** `authority/` を書き換えたら、開いたままの会話にもその場で効きます。起動時に 1 回だけ読むと、規則を厳しくしても、その日動いているセッションには効きません
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
-- 承認する人の確認は、この版では接続を通して行います。対話型 CLI と MCP の接続は `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます。端末の認証と複数人は後の版です
+- 承認する人の確認は、この版では接続を通して行います。接続は `--principal` か `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます([principals.md](principals.md))。本人確認はしていません。端末の認証は後の版です
 - 「この会話では常に承認する」は client の中だけの決定です。`authority/` には書かず、会話を閉じれば消えます。承認の記録は毎回残ります。`review_required` にはこの選択肢を出しません。資格者の承認を人が肩代わりできないためです
 
 ### Review Package

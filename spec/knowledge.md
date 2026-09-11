@@ -29,7 +29,7 @@ Status: v0.1(実装済み。完了の条件 1 から 10 を満たします。8 �
 - Rule: 会社の決まりです。1 文の主張と、その根拠になる Source を持ちます
 - Provenance: その Source がどこから来たかです。発行者、場所、取得日、版
 - 有効日: いつからいつまで有効かです。業務日で判定します
-- Scope: 誰が読んでよいかです。Need-to-Know の単位になります
+- Scope: その決まりを誰の社員エージェントが引けるかです。Need-to-Know の単位になります
 - Index: build の出力です。人も Tool も書きません
 
 Rule と Source の id は人が書く文字列です(`.` と `-` を含む小文字の英数字。`packages/core` の `identifier` は `.` を許さないので、別の正規表現になります)。Work や Event の id(UUIDv7)とは別の系統で、branded type にはしません。

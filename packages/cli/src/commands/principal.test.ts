@@ -50,7 +50,7 @@ describe("openshain principal check", () => {
     const text = lines.join("\n");
     expect(code).toBe(0);
     expect(text).toContain("Bob(bob)");
-    expect(text).toContain("役割: accounting");
+    expect(text).toContain("担当: accounting");
     expect(text).toContain("ledger/2026-07.csv");
     expect(text).not.toContain("hr/salaries.csv");
     expect(text).toContain("問題はありません");

@@ -92,7 +92,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - **Models**: the configuration file written by `openshain init` names the model the interactive CLI uses. You use your own API key (Bring Your Own Key). Anthropic and OpenAI-compatible APIs are supported. From Claude Code or Codex, no model configuration and no API key are needed
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
 - **Company rules**: write the rules in `knowledge/` with the material behind them and build the index with `openshain knowledge build`. The employee agent looks them up without being told to, and the reply carries the id and the effective dates. A rule with no source and no effective date never reaches the index
-- **People and what they handle**: `principals/` holds one file per person, and `reads` says where that person's employee agent works. Outside it, nothing is listed or searched. `openshain --principal <id>` says who a terminal works for
+- **People and their range**: `principals/` holds one file per person, and `reads` says where that person's employee agent works. Outside it, nothing is listed, searched, written, or read from another person's work record. `openshain --principal <id>` says who a terminal works for. What this stops is the employee agent, not a person: whoever can open the company folder reads every file in it
 - **Permissions and approval**: rules in `authority/` decide, for every tool call, whether it runs, waits for a person's approval, waits for a qualified reviewer, or does not run at all. The judgment is code; the model's output never changes it
 - **Qualified review**: a judgment that takes a licence (tax, law) stops with a review package. Record the decision of the expert your company names and the call runs; later calls cite that decision
 - **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
@@ -213,6 +213,8 @@ An example of adding a tool is in [examples/](examples/README.md).
 
 Any other agent, Codex included, follows the same steps as Claude Code once `openshain mcp` is registered as a stdio MCP server.
 
+Who the agent works for goes in the `env` of `.mcp.json`, as `OPENSHAIN_PRINCIPAL`: `--principal` is a flag of the terminal, and Claude Code starts `openshain mcp` itself. The range in `reads` holds on what goes through openshain's tools; it does not reach the file operations Claude Code and Codex carry of their own.
+
 ## Permissions and approval
 
 `authority/` in the company folder holds who the agent may act for (`delegations.yaml`) and what each call needs (`policy.yaml`).
@@ -235,7 +237,7 @@ rules:
     reviewer: { role: tax-accountant }
 ```
 
-- The first rule that matches decides; the `default` closes the list
+- The first rule that matches decides; the `default` closes the list. `reads` in `principals/` is not part of this table: it is an unordered set, one match puts a path inside the range, and no rule widens it
 - A call that needs approval turns the input box into a choice, with a diff of what would change
 - A call that needs a reviewer leaves a package in `work/<id>/review/` and waits. The recorded decision lands in `authority/decisions/` and later calls cite it
 - A company folder without `authority/` allows everything, as before
@@ -267,7 +269,7 @@ openshain knowledge build   # checks the rules and material, and builds the inde
 openshain knowledge check   # checks without writing the index (for CI)
 ```
 
-A rule that does not pass `build` is not in the index and the employee agent never sees it. Search and read return only what the person who asked may read; material they are not allowed to see does not appear in the counts either (need-to-know). There is a template in [examples/sample-company](examples/sample-company/README.md), the format is in [docs/configuration.md](docs/configuration.md), and the specification in [spec/knowledge.md](spec/knowledge.md).
+A rule that does not pass `build` is not in the index and the employee agent never sees it. Search and read return only the rules the asking person's employee agent may read; material outside its `scope` does not appear in the counts either (need-to-know). There is a template in [examples/sample-company](examples/sample-company/README.md), the format is in [docs/configuration.md](docs/configuration.md), and the specification in [spec/knowledge.md](spec/knowledge.md).
 
 ### Continuously maintained knowledge of the Japanese jurisdiction
 

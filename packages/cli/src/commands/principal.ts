@@ -51,7 +51,7 @@ export async function principalCheck(options: PrincipalOptions): Promise<number>
   const problems: string[] = [];
   write(`${person.name}(${person.id})`);
   write(`  状態: ${person.status === "active" ? "在籍" : "退任(代理も承認もできません)"}`);
-  write(`  役割: ${person.roles.length === 0 ? "なし" : person.roles.join("、")}`);
+  write(`  担当: ${person.roles.length === 0 ? "なし" : person.roles.join("、")}`);
 
   const delegations = authority.delegations.filter((d) => d.principal === person.id);
   if (!authority.present) {
@@ -80,7 +80,7 @@ export async function principalCheck(options: PrincipalOptions): Promise<number>
 
   const byRole = authority.policy.rules.filter((rule) => named(rule.match.role, person.roles));
   if (byRole.length > 0) {
-    write("  役割で一致する規則:");
+    write("  担当で一致する規則:");
     for (const rule of byRole) write(`    ${rule.id}(${rule.decision})`);
   }
 

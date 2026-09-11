@@ -31,7 +31,7 @@ export const REJECTION_LABELS: Record<ToolRejectionCode, string> = {
   denied: "権限の表で不許可",
   rejected_by_person: "承認されなかった",
   path_changed: "承認したときと書き込み先が変わった",
-  out_of_range: "担当の範囲の外",
+  out_of_range: "範囲の外",
 };
 
 /** A heading for a runtime error, before the original message. */

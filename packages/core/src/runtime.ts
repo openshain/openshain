@@ -437,7 +437,7 @@ function within(person: Principal | undefined, path: string): boolean {
 }
 
 /** Said for anything outside the range, whether it is there or not: the same answer either way. */
-const OUT_OF_RANGE = "その場所は担当の範囲の外です";
+const OUT_OF_RANGE = "その場所は、この社員エージェントが働く範囲の外です";
 
 /** The path as the person wrote it, folded to a workspace-relative posix path without touching disk. */
 function workspaceRelative(path: string): string {

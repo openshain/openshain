@@ -482,7 +482,7 @@ describe("the screen's controller", () => {
     const recording = controller.submit(`/review ${approvalId} approve`);
     await waitFor(() => controller.state().question !== undefined);
 
-    expect(texts(controller, "question").at(-1)).toContain("tax-accountant の名前");
+    expect(texts(controller, "question").at(-1)).toContain("資格者(tax-accountant)の名前");
     await controller.submit("田中 太郎 / 税理士");
     await waitFor(() => (texts(controller, "question").at(-1) ?? "").includes("判断の本文"));
     await controller.submit("この処理で進めてよい");

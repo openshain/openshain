@@ -1,6 +1,6 @@
 # Spec: 専門職の責務境界
 
-Status: draft(設計の定義です。Authority、Need-to-Know、Approval、Expert Review、Profession Pack は未実装で、この spec はそれらを実装するときの拠り所です)
+Status: draft(設計の定義です。Authority、Need-to-Know、Approval、Expert Review は実装済みで、この spec はその拠り所です。Profession Pack は未実装です)
 
 ## 目的
 
@@ -35,7 +35,7 @@ openshain は、会社の決まりと権限、そして必要なときは資格�
 
 ## Authority の判定の種類
 
-Authority engine(open-runtime.md の `authorize` の差し込み口に入るもので、未実装)は、Work と Action(Tool の呼び出し、外部への効果)ごとに次のどれかを返します。
+Authority engine(open-runtime.md の `authorize` の差し込み口に入るもの)は、Work と Action(Tool の呼び出し、外部への効果)ごとに次のどれかを返します。
 
 | 判定 | 意味 | Work の状態 |
 |---|---|---|
@@ -82,7 +82,7 @@ approve / reject / modify
 - 社員エージェントが誰の代理で動いたか(principal、Delegation)を Work に残す
 - 実行した Action と結果を Work のイベントとして記録する
 - Source、Evidence、Decision の出どころ(provenance)を失わない
-- Need-to-Know を入れた後は、認可されていない情報を model に渡さない
+- 認可されていない情報を model に渡さない(Need-to-Know)
 - Pause、deny、approval_required、review_required の状態遷移を model に任せない
 
 金額、権限、状態遷移、安全の判定を model の出力にしない原則(AGENTS.md)は、この spec にも当てはまります。
