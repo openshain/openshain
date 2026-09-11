@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-12
+
+会社フォルダで 2 人目から働けるようにする版です。会社の人を `principals/` に書き、その人の社員エージェントが働く範囲を `reads` で決めます。止めているのは社員エージェントであって、人ではありません。会社フォルダを開ける人は、どのファイルもそのまま読めます。`principals/` を置かない会社フォルダは、これまでとまったく同じに動きます。`packages/core` の `ToolRejectionCode` に値が 1 つ増え、`ToolContext` に項目が 2 つ増えるので、第三者の Tool は追加が要ります。
+
 ### Added
 
 - 会社の人を `principals/<id>.yaml` に 1 人 1 ファイルで書きます。`id`、`name`、`roles`(担当)、`status`、`reads`(その人の社員エージェントが働く範囲)です。`principals/` を置かない会社フォルダは、これまでとまったく同じに動きます
@@ -18,7 +22,7 @@
 ### Fixed
 
 - `openshain --principal <id>` と `OPENSHAIN_PRINCIPAL` が、対話型 CLI の中の Runtime に届いていませんでした。Work が `openshain.yaml` の principal の名前で記録され、指定した人の `reads` も効いていませんでした
-- 会話を要約した後に、そのターンが 「壊れた Work の記録」 で止まることがありました。要約が呼び出しを覆い、その結果だけが要約の後に残ったときです(社員エージェントが質問し、人が答えたのが要約をまたいだ場合)。要約が覆った呼び出しの結果は、要約の後には残しません
+- 会話を要約した後に、そのターンが「壊れた Work の記録」で止まることがありました。要約が呼び出しを覆い、その結果だけが要約の後に残ったときです(社員エージェントが質問し、人が答えたのが要約をまたいだ場合)。要約が覆った呼び出しの結果は、要約の後には残しません
 
 ### Changed
 
@@ -165,7 +169,10 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/openshain/openshain/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/openshain/openshain/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/openshain/openshain/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/openshain/openshain/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/openshain/openshain/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/openshain/openshain/compare/v0.3.0...v0.3.1
