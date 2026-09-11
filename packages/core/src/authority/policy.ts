@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { parseYamlFile } from "../config/yaml.ts";
 import { OpenshainError } from "../errors.ts";
+import { isActive, PRINCIPALS_DIR_NAME, type Principal, readPrincipals } from "./principals.ts";
 
 /** Files under authority/ the runtime reads. */
 export const AUTHORITY_DIR_NAME = "authority";
@@ -29,6 +30,7 @@ const MatchSchema = z
     effect: z.enum(["observe", "mutate"]).optional(),
     path: z.string().min(1).max(1000).optional(),
     principal: oneOrMany.optional(),
+    role: oneOrMany.optional(),
     work_type: oneOrMany.optional(),
     action: oneOrMany.optional(),
   })
@@ -110,6 +112,8 @@ export interface Authority {
   delegations: Delegation[];
   /** The reviewers' decisions, by id. A decision_backed rule cites one. */
   decisions: Map<string, DecisionRecord>;
+  /** The people of the company, by id. Empty when principals/ is not written. */
+  principals: Map<string, Principal>;
 }
 
 /** One tool call, as the policy sees it. */
@@ -138,20 +142,23 @@ export const OPEN_AUTHORITY: Authority = Object.freeze<Authority>({
   policy: { version: 1, default: "allow", rules: [] },
   delegations: [],
   decisions: new Map(),
+  principals: new Map(),
 });
 
 /** Reads authority/ of a workspace. A workspace without it is open, as every workspace was before. */
 export async function loadAuthority(workspaceRoot: string): Promise<Authority> {
+  const principals = await readPrincipals(join(workspaceRoot, PRINCIPALS_DIR_NAME));
   const dir = join(workspaceRoot, AUTHORITY_DIR_NAME);
   try {
-    if (!(await stat(dir)).isDirectory()) return OPEN_AUTHORITY;
+    if (!(await stat(dir)).isDirectory()) return { ...OPEN_AUTHORITY, principals };
   } catch {
-    return OPEN_AUTHORITY;
+    return { ...OPEN_AUTHORITY, principals };
   }
   const policy = await readOptional(join(dir, POLICY_FILE_NAME));
   const delegations = await readOptional(join(dir, DELEGATIONS_FILE_NAME));
-  return {
+  const authority: Authority = {
     present: true,
+    principals,
     decisions: await readDecisions(join(dir, DECISIONS_DIR_NAME)),
     policy:
       policy === undefined
@@ -166,6 +173,35 @@ export async function loadAuthority(workspaceRoot: string): Promise<Authority> {
             `${AUTHORITY_DIR_NAME}/${DELEGATIONS_FILE_NAME}`,
           ).data.delegations,
   };
+  known(authority);
+  return authority;
+}
+
+/**
+ * Every person a rule or a delegation names has to be written under principals/. A name nobody
+ * wrote is a typo, and a typo in this table means a rule that matches nobody or a delegation that
+ * lets nobody work: it must be said out loud, not passed over.
+ */
+function known(authority: Authority): void {
+  if (authority.principals.size === 0) return;
+  const missing = (id: string, where: string) => {
+    if (!authority.principals.has(id)) {
+      throw new OpenshainError(
+        "config",
+        `${where} names ${id}, and ${PRINCIPALS_DIR_NAME}/${id}.yaml is not there`,
+      );
+    }
+  };
+  for (const d of authority.delegations) missing(d.principal, DELEGATIONS_FILE_NAME);
+  for (const rule of authority.policy.rules) {
+    for (const id of rule.approvers ?? []) missing(id, `${POLICY_FILE_NAME}: ${rule.id}`);
+    for (const id of many(rule.match.principal)) missing(id, `${POLICY_FILE_NAME}: ${rule.id}`);
+  }
+}
+
+function many(value: string | string[] | undefined): string[] {
+  if (value === undefined) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 /**
@@ -193,15 +229,22 @@ async function stamp(workspaceRoot: string): Promise<string> {
   for (const name of [POLICY_FILE_NAME, DELEGATIONS_FILE_NAME]) {
     parts.push(await mtime(join(dir, name)));
   }
+  for (const name of (await names(join(workspaceRoot, PRINCIPALS_DIR_NAME))).sort()) {
+    parts.push(name, await mtime(join(workspaceRoot, PRINCIPALS_DIR_NAME, name)));
+  }
   const decisions = join(dir, DECISIONS_DIR_NAME);
-  try {
-    for (const name of (await readdir(decisions)).sort()) {
-      parts.push(name, await mtime(join(decisions, name)));
-    }
-  } catch {
-    parts.push("-");
+  for (const name of (await names(decisions)).sort()) {
+    parts.push(name, await mtime(join(decisions, name)));
   }
   return parts.join("|");
+}
+
+async function names(dir: string): Promise<string[]> {
+  try {
+    return await readdir(dir);
+  } catch {
+    return ["-"];
+  }
 }
 
 async function mtime(path: string): Promise<string> {
@@ -311,13 +354,14 @@ async function readOptional(file: string): Promise<string | undefined> {
  */
 export function evaluate(authority: Authority, request: AuthorityRequest): Decision {
   if (!authority.present) return { kind: "allow" };
-  if (!delegated(authority.delegations, request)) {
+  if (!delegated(authority.delegations, authority.principals, request)) {
     return {
       kind: "deny",
       reason: `no delegation lets a ${request.profession} act for ${request.principal} on ${request.businessDate}`,
     };
   }
-  const rule = authority.policy.rules.find((r) => matches(r, request));
+  const roles = authority.principals.get(request.principal)?.roles ?? [];
+  const rule = authority.policy.rules.find((r) => matches(r, request, roles));
   const kind = rule?.decision ?? authority.policy.default;
   switch (kind) {
     case "allow":
@@ -369,7 +413,12 @@ function covers(decision: DecisionRecord, request: AuthorityRequest): boolean {
   return true;
 }
 
-function delegated(delegations: Delegation[], request: AuthorityRequest): boolean {
+function delegated(
+  delegations: Delegation[],
+  people: Map<string, Principal>,
+  request: AuthorityRequest,
+): boolean {
+  if (!isActive(people, request.principal)) return false;
   return delegations.some(
     (d) =>
       d.principal === request.principal &&
@@ -381,11 +430,14 @@ function delegated(delegations: Delegation[], request: AuthorityRequest): boolea
   );
 }
 
-function matches(rule: Rule, request: AuthorityRequest): boolean {
+function matches(rule: Rule, request: AuthorityRequest, roles: string[]): boolean {
   const m = rule.match;
   if (m.tool !== undefined && !oneOf(m.tool, request.tool)) return false;
   if (m.effect !== undefined && m.effect !== request.effect) return false;
   if (m.principal !== undefined && !oneOf(m.principal, request.principal)) return false;
+  if (m.role !== undefined && !roles.some((role) => oneOf(m.role as string | string[], role))) {
+    return false;
+  }
   if (m.work_type !== undefined && !oneOf(m.work_type, request.workType)) return false;
   if (m.action !== undefined && !oneOf(m.action, request.action ?? request.tool)) return false;
   if (m.path !== undefined) {

@@ -21,6 +21,7 @@ import {
   type Event,
   type EventType,
   type InputValidation,
+  isActive,
   isKnownEventType,
   isOpenshainError,
   isTerminal,
@@ -538,6 +539,11 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           return failure(
             `${by} may not decide ${approvalId}; approvers: ${approval.approvers.join(", ")}`,
           );
+        }
+        // Read now, not at startup: somebody taken out of principals/ this morning cannot
+        // approve this afternoon from a session that is still open.
+        if (!isActive((await authority()).principals, by)) {
+          return failure(`${by} is no longer with the company and cannot decide ${approvalId}`);
         }
         return await withWork(workId, async (opened) => {
           // Under the lock: another connection may have decided this approval in between.

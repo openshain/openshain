@@ -25,6 +25,12 @@ export {
   writeDecision,
 } from "./authority/policy.ts";
 export {
+  isActive,
+  PRINCIPALS_DIR_NAME,
+  type Principal,
+  readPrincipals,
+} from "./authority/principals.ts";
+export {
   CONFIG_FILE_NAME,
   loadConfig,
   type ParseConfigOptions,

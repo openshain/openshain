@@ -719,6 +719,46 @@ rules:
     ]);
   });
 
+  test("somebody taken out of principals/ cannot approve from a session that is still open", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "principals"));
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged } = await connected(undefined, root);
+    await judged("work_create", { objective: "帳簿を更新" });
+    const held = await judged("fs_write", { path: "ledger/2026-07.csv", content: "x" });
+    const approvalId = held.json().approval_id as string;
+
+    // Alice leaves while the conversation is open.
+    await writeFile(
+      join(root, "principals", "alice.yaml"),
+      "id: alice\nname: Alice\nstatus: inactive\n",
+    );
+    const decided = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.isError).toBe(true);
+    expect(decided.text).toContain("no longer with the company");
+  });
+
   test("a rule written while the conversation is open holds from the next call", async () => {
     const { root } = await connected();
     await mkdir(join(root, "authority"));

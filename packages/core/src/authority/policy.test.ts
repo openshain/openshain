@@ -32,6 +32,7 @@ const delegated: Authority = {
   policy: { version: 1, default: "allow", rules: [] },
   delegations: [{ principal: "alice", profession: "generic" }],
   decisions: new Map(),
+  principals: new Map(),
 };
 
 const decision = (over: Partial<DecisionRecord> = {}): DecisionRecord => ({
@@ -230,7 +231,7 @@ describe("evaluate, with a reviewer's decision", () => {
 describe("loadAuthority", () => {
   test("reads policy.yaml and delegations.yaml, and reports problems with line numbers", async () => {
     const root = await mkdtemp(join(tmpdir(), "openshain-authority-"));
-    expect(await loadAuthority(root)).toBe(OPEN_AUTHORITY);
+    expect(await loadAuthority(root)).toEqual(OPEN_AUTHORITY);
 
     await mkdir(join(root, "authority"));
     await writeFile(
