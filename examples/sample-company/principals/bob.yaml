@@ -1,0 +1,6 @@
+id: bob
+name: Bob
+roles: [accounting]
+status: active
+# bob の社員エージェントが働く範囲。書かなければ会社フォルダ全体です
+reads: [ledger/**, receipts/**, policies/**]

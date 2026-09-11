@@ -26,6 +26,8 @@ export {
 } from "./authority/policy.ts";
 export {
   isActive,
+  mayReachInto,
+  mayRead,
   PRINCIPALS_DIR_NAME,
   type Principal,
   readPrincipals,

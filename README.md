@@ -92,6 +92,7 @@ openshain はエージェントハーネスとして、会社の社員として�
 - **モデル**: 対話型 CLI が使うモデルは `openshain init` が作る設定ファイルで指定します。API キーはお手持ちのものを使います(Bring Your Own Key)。Anthropic と OpenAI 互換 API に対応しています。Claude Code や Codex から使うときは、モデルの設定も API キーも要りません
 - **標準 Tool**: 会社フォルダの中でファイルの読み書きと検索、CSV の読み取りと集計、Markdown の読み取りをします。フォルダの外には出ず、ファイルを丸ごとモデルに渡しません
 - **会社の決まり**: `knowledge/` に決まりと根拠の資料を書き、`openshain knowledge build` で索引にします。社員エージェントは名指しされなくても自分で引き、答えに決まりの id と有効日を添えます。出典と有効日のない決まりは索引に載りません
+- **人と担当**: `principals/` に会社の人を 1 人 1 ファイルで書き、その人の社員エージェントが働く範囲を `reads` で決めます。範囲の外は、一覧にも検索にも出ません。`openshain --principal <id>` で、その端末が誰として働くかを選びます
 - **権限と承認**: `authority/` に書いた規則が、Tool の呼び出しごとに、そのまま実行する、人の承認を待つ、資格者の判断を待つ、実行しない、のどれかを決めます。判定はコードが行い、モデルの出力では変わりません
 - **資格者の判断**: 税務や法務のように資格が要る判断は、Review Package を作って止まります。会社が指名した専門家の判断を記録すると実行し、その判断は次から根拠として引かれます
 - **Tool の追加**: 第三者の Tool を設定に 1 行追加するだけで、CLI と MCP の両方で有効になります
@@ -194,6 +195,7 @@ openshain work list             # Work の一覧を表示します
 openshain work show <id>        # Work の記録を読みます
 openshain knowledge add         # 会社の決まりを 1 件追加します
 openshain knowledge build       # 決まりと資料を検証して索引を作ります
+openshain principal check <id>  # その人の社員エージェントがどこで働き、何ができるかを確かめます
 openshain tools list            # 使える Tool を表示します
 openshain mcp                   # MCP サーバーとして起動します(通常はエージェントが起動します)
 ```

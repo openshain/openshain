@@ -7,6 +7,7 @@ import { init } from "./commands/init.ts";
 import { knowledgeBuild, knowledgeCheck } from "./commands/knowledge.ts";
 import { knowledgeAdd } from "./commands/knowledge-add.ts";
 import { mcp } from "./commands/mcp.ts";
+import { principalCheck } from "./commands/principal.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workShow } from "./commands/work.ts";
 import { plain } from "./format.ts";
@@ -23,6 +24,7 @@ const USAGE = `使い方:
   openshain knowledge build      knowledge/ の決まりと資料を検証して索引を作る
   openshain knowledge check      同じ検証を、索引を書かずに行う(--stale で古い資料も報告)
   openshain knowledge add        決まりを 1 件、質問に答えて追加する
+  openshain principal check <id> その人の社員エージェントがどこで働き、何ができるかを確かめる
   openshain mcp                  MCP Server を stdio で起動する
 
   --principal <id>               この端末が誰として働くか。principals/ に書いた id
@@ -108,6 +110,15 @@ async function main(argv: string[]): Promise<number> {
       if (sub === "add") return await knowledgeAdd({ workspaceRoot, write });
       const run = sub === "build" ? knowledgeBuild : knowledgeCheck;
       return await run({ workspaceRoot, write, ...(values.stale === true && { stale: true }) });
+    }
+    case "principal": {
+      const id = rest[1] ?? "";
+      if (rest[0] !== "check" || !id) {
+        write(USAGE);
+        return 2;
+      }
+      const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      return await principalCheck({ workspaceRoot, id, write });
     }
     case "work": {
       const sub = rest[0];

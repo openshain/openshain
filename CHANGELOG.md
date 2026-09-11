@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+### Added
+
+- 会社の人を `principals/<id>.yaml` に 1 人 1 ファイルで書きます。`id`、`name`、`roles`(担当)、`status`、`reads`(その人の社員エージェントが働く範囲)です。`principals/` を置かない会社フォルダは、これまでとまったく同じに動きます
+- `openshain --principal <id>` と環境変数 `OPENSHAIN_PRINCIPAL` で、その端末が誰として働くかを選びます。共有された `openshain.yaml` は書き換えません。`reads` を書いた人が 2 人以上いるのに指定が無いときは起動しません。本人確認はしていません
+- `reads` を書いた人の社員エージェントは、範囲の外を一覧にも検索にも件数にも出しません。名指しで読もうとしたときは、そこに何かがあるかどうかに関わらず同じ返事をします。書き込みも届きません。記録には本当の理由(`out_of_range`)が残ります。止めているのは社員エージェントで、人ではありません(会社フォルダを直接読める人は、どのファイルも読めます)
+- `authority/policy.yaml` の `match` に `role` を追加しました。依頼した人が `principals/` で持つ役割に一致します
+- `knowledge` の `scope: { roles: [...] }` が解決できるようになりました。これまでは誰にも見えませんでした。`knowledge build` は、`scope` に書いた人と役割が `principals/` に実在するかを確かめます
+- `openshain principal check <id>`。`reads` に実際に一致するファイルとフォルダ、委任の有無、役割で一致する規則、範囲の外を `allow` している規則を表示します
+- `inactive` にした人は、代理も承認もできません。判定のたびに読み直すので、開いたままの会話にも効きます
+
+### Changed
+
+- **`ToolRejectionCode` に `out_of_range` が増えました。** 担当の範囲の外だったために実行しなかった呼び出しを表します
+- **`ToolContext` に `roles` と `covers` が増えました。** 一覧や検索を返す第三者の Tool は、`covers` で絞ってください。`path` を持つ呼び出しは Runtime が入口で判定します
+- `knowledge` の `scope` に書く人と役割の文字種を、`principals/` と `authority/` に揃えました
+
 ## [0.6.0] - 2026-09-11
 
 規則が、書いたとおりに効くようにする修正です。1 人で使っている会社フォルダにも効きます。`packages/core` の `ToolRejectionCode` に値が 1 つ増えるので、網羅している実装は追加が要ります。
