@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-13
+
+日本の会社が実際に持っているファイルを読めるようにし、既にあるものを失わないようにする版です。銀行とカード会社の CSV は Shift_JIS で、取引先から届く証憑のほとんどは PDF です。どちらもこれまでは読めませんでした(Shift_JIS は例外にもならずに文字化けして返っていました)。書く側では、承認を待つ間に変わったファイルと、読んでいないファイルを置き換えません。`packages/core` の `ToolRejectionCode` に値が 2 つ増え、`ToolDefinition` に任意の項目が 1 つ増えます。第三者の書き込む Tool は、`adds: true` と書かない限り「置き換える」扱いになり、読んでいないファイルに対して実行されなくなります。
+
 ### Added
 
 - `csv_append`。既にある CSV に行を足します。全文を書き直させないための Tool です。長い表を 1 回の返答で書こうとすると、model が 1 回に書ける量の上限に当たり、出力が途中で切れてファイルが 1 つも書かれません。列は既にある見出しに従い、見出しに無い列を持つ行は、黙って落とさずに拒否します
@@ -188,7 +192,8 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/openshain/openshain/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/openshain/openshain/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/openshain/openshain/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/openshain/openshain/compare/v0.4.1...v0.5.0
