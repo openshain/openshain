@@ -1,9 +1,12 @@
-import { extractText, getDocumentProxy, getResolvedPDFJS } from "unpdf";
+import { getDocumentProxy, getResolvedPDFJS } from "unpdf";
 
 /**
  * The words of a PDF. A company's evidence arrives as PDF more than as anything else: invoices
  * from suppliers, statements, contracts. Only the words are taken. Images are not read and no
  * text is guessed from them, so a page that was photographed stays unreadable and says so.
+ *
+ * The file comes from outside the company, so the work done on it is kept to the pages asked
+ * for. Reading one page of a document with ten thousand of them parses one page.
  */
 
 /** Why a PDF gave nothing back. The two have different answers, so they are told apart. */
@@ -20,6 +23,15 @@ export interface PdfPages {
   total: number;
 }
 
+type Document = Awaited<ReturnType<typeof getDocumentProxy>>;
+
+/**
+ * How pdf.js is opened. Quiet, because its warnings would land on the screen and in the MCP
+ * stream, and without the eval path, because the fonts and functions it would compile come from
+ * a file somebody else wrote.
+ */
+const OPENING = { verbosity: 0, isEvalSupported: false } as const;
+
 /**
  * The text of a range of pages. A document whose window holds no words comes back as the reason
  * rather than as empty strings: "this is a scan" and "these fonts are beyond us" lead the person
@@ -30,25 +42,32 @@ export async function readPdf(
   offset: number,
   limit: number,
 ): Promise<PdfPages | { problem: PdfProblem }> {
-  // verbosity 0 keeps pdf.js's own warnings off stderr: the screen and the MCP stream are ours.
-  const document = await getDocumentProxy(bytes, { verbosity: 0 });
-  const { totalPages, text } = await extractText(document, { mergePages: false });
-  const window = text.slice(offset, offset + limit).map((page) => page.trim());
-  if (window.some((page) => page !== "")) return { window, total: totalPages };
+  const document = await getDocumentProxy(bytes, OPENING);
+  const total = document.numPages;
+  const window: string[] = [];
+  for (let page = offset + 1; page <= Math.min(offset + limit, total); page += 1) {
+    window.push((await textOfPage(document, page)).trim());
+  }
+  if (window.some((page) => page !== "")) return { window, total };
   return {
     problem: (await drawsText(document, offset, window.length)) ? "unreadable_fonts" : "no_text",
   };
+}
+
+/** One page's words, in the order the page draws them. */
+async function textOfPage(document: Document, page: number): Promise<string> {
+  const { items } = await (await document.getPage(page)).getTextContent();
+  return items
+    .filter((item): item is typeof item & { str: string } => "str" in item && item.str != null)
+    .map((item) => item.str + ("hasEOL" in item && item.hasEOL ? "\n" : ""))
+    .join("");
 }
 
 /**
  * Whether these pages ask for any text to be drawn. A page of a scan asks for none; a page whose
  * fonts we cannot map asks for plenty and yields no characters. That is the whole difference.
  */
-async function drawsText(
-  document: Awaited<ReturnType<typeof getDocumentProxy>>,
-  offset: number,
-  pages: number,
-): Promise<boolean> {
+async function drawsText(document: Document, offset: number, pages: number): Promise<boolean> {
   const { OPS } = await getResolvedPDFJS();
   const showing = new Set<number>([
     OPS.showText,

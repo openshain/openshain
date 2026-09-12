@@ -851,6 +851,10 @@ rules:
     await mkdir(join(root, "hr"));
     await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
     await writeFile(join(root, "hr", "salaries.csv"), "name,amount\nbob,500000\n");
+    await writeFile(
+      join(root, "hr", "offer.pdf"),
+      await readFile(join(import.meta.dir, "..", "..", "tools", "fixtures", "pdf", "invoice.pdf")),
+    );
     await writeFile(join(root, "principals", "alice.yaml"), "id: alice\nname: Alice\n");
     await writeFile(
       join(root, "principals", "bob.yaml"),
@@ -863,6 +867,8 @@ rules:
     const listed = await asBob("fs_list", { path: "." });
     const found = await asBob("fs_search", { pattern: "500000" });
     const read = await asBob("fs_read", { path: "hr/salaries.csv" });
+    // Every tool that names a path is judged at the same door, a new one included.
+    const pdf = await asBob("pdf_read", { path: "hr/offer.pdf" });
     const missing = await asBob("fs_read", { path: "hr/nothing-here.csv" });
     const written = await asBob("fs_write", { path: "hr/salaries.csv", content: "x" });
     const own = await asBob("csv_read", { path: "ledger/2026-07.csv" });
@@ -882,6 +888,8 @@ rules:
     // The same answer whether the file is there or not: a name that is guessed right learns nothing.
     expect(read.isError).toBe(true);
     expect(read.text).toBe(missing.text);
+    expect(pdf.isError).toBe(true);
+    expect(pdf.text).toContain("働く範囲の外");
     expect(written.isError).toBe(true);
     expect(await readFile(join(root, "hr", "salaries.csv"), "utf8")).toContain("500000");
     expect(own.isError).toBe(false);
@@ -890,6 +898,7 @@ rules:
       (e) => e.type === "tool.rejected",
     );
     expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "out_of_range",
       "out_of_range",
       "out_of_range",
       "out_of_range",
