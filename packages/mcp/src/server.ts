@@ -589,6 +589,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             {
               approvedBy: approvalId,
               ...(approval.judgedPath !== undefined && { judgedPath: approval.judgedPath }),
+              ...(approval.base !== undefined && { base: approval.base }),
             },
           );
           return json({
@@ -712,6 +713,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
               approvedBy: approvalId,
               // A reviewer may change the input, but not where it lands: the same check holds.
               ...(approval.judgedPath !== undefined && { judgedPath: approval.judgedPath }),
+              ...(approval.base !== undefined && { base: approval.base }),
             },
           );
           return json({

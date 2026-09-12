@@ -104,6 +104,7 @@ Tool を実行する直前の `authorize(call)`(open-runtime.md)が、許可リ�
 - 承認は `approval_decide`(approval_id、`approve` か `reject`、by、comment)で記録します。`approve` なら Runtime が、**保留したときに解決したパスを解決し直し、同じ場所を指すことを確かめてから** Tool を実行し、`tool.called` と `tool.completed` を残して `in_progress` に戻します。`reject` なら `tool.rejected`(code `rejected_by_person`)を残して `in_progress` に戻します。client は結果を model に渡します
 - Review の結果は `review_decide`(approval_id、`approve` か `reject` か `modify`、reviewer、interpretation、任意で applies_to と有効日)で記録します。`approve` と `modify` は Decision を `authority/decisions/<id>.yaml` に書き、`review.decided` を残し、Runtime が Action を実行します。`modify` は Reviewer が書き換えた入力で実行しますが、触る先(`path`)は保留した呼び出しと同じでなければ受け付けません。規則が `reviewer.role` を指定していれば、その役の名で決めなければ受け付けません。Decision の id は 1 つのパスの要素で、`/` や `..` を含みません。`reject` は Decision を書かず、`tool.rejected`(`rejected_by_person`)を残します。承認の Tool(`approval_decide`)では Review を決められず、その逆もできません
 - 承認は会話をまたぎます。保留してから決まるまでの間に、その path が別の場所を指すようになることがあります(symlink の差し替え、途中のフォルダの入れ替え)。`approval.requested` に**保留したときの解決済みパス**を残し、実行の直前に解決し直して一致しなければ実行せず、`tool.rejected`(`path_changed`)を残します。人が見て承認したものと、実際に書かれる場所を一致させるためです
+- 同じ間に、書き込む先のファイルの**中身**も変わることがあります。人が自分で編集した、同期サービスが新しい版を落とした、別のセッションが書いた、のどれもです。`approval.requested` に**保留したときのファイルの sha256**(そのとき無ければ null)を残し、実行の直前に読み直して違えば実行せず、`tool.rejected`(`base_changed`)を残します。人は画面で見た差分に対して承認したので、その差分の前提が変わったなら実行しないほうが正しく、黙って上書きするのが最も避けたい結果です。中身を見るのは、書き込む Tool(`effect: mutate`)で path を持つ呼び出しだけです
 - **判定に使う表は、呼び出しのたびに読み直します。** `authority/` を書き換えたら、開いたままの会話にもその場で効きます。起動時に 1 回だけ読むと、規則を厳しくしても、その日動いているセッションには効きません
 - `waiting_approval` の Work では、承認待ちの呼び出し以外の Tool 呼び出しを受け付けません(`ask_user` の `waiting_input` と同じ規則)
 - 承認する人の確認は、この版では接続を通して行います。接続は `--principal` か `openshain.yaml` の principal として動くので、その principal が `approvers` に居れば承認できます([principals.md](principals.md))。本人確認はしていません。端末の認証は後の版です
@@ -174,6 +175,7 @@ applies_to: { action: tax-treatment, path: "ledger/**" }
 5. `authority/` の無い既存の workspace が、この版でも同じに動くこと
 6. core のソースに資格名と士業法が現れないことを lint かテストで確かめる
 7. 対話型 CLI で、承認が要る呼び出しの表示、`/approve`、`/reject`、`/approvals` が動くことを ink-testing-library で示す
+8. 承認を待つ間に書き込む先のファイルが変わったとき、承認しても実行されず、記録に理由が残ることをテストで示す
 
 ## 未確定
 

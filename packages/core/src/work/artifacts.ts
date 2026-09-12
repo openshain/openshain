@@ -23,3 +23,19 @@ export async function verifyArtifact(
     return { path, sha256: reported, missing: true };
   }
 }
+
+/**
+ * What a file of the company folder holds now, as a hash, or null when it is not there. Used to
+ * hold on to what a person was looking at when they approved a write, so the write can be
+ * refused if the file has moved on since.
+ */
+export async function hashWorkspaceFile(root: string, path: string): Promise<string | null> {
+  try {
+    const resolved = await resolveWorkspacePath(root, path);
+    return createHash("sha256")
+      .update(await readFile(resolved))
+      .digest("hex");
+  } catch {
+    return null;
+  }
+}

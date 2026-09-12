@@ -46,6 +46,8 @@ export const TOOL_REJECTION_CODES = [
   "rejected_by_person",
   // Approved for one place, and by the time it ran the same input led to another.
   "path_changed",
+  // Approved against a file that has since changed: the diff the person saw no longer holds.
+  "base_changed",
   // Outside the range of the person this call acts for.
   "out_of_range",
 ] as const;
@@ -84,6 +86,8 @@ export interface EventPayloads {
     call: { callId: string; name: string; input: unknown };
     /** Where the call leads, as the guard answered when the rule judged it. */
     judgedPath?: string;
+    /** What that file held when the rule judged it, or null when it was not there yet. */
+    base?: string | null;
     ruleId: string;
     kind: "approval" | "review";
     approvers?: string[];
@@ -252,6 +256,7 @@ export const payloadFileSchemas = {
     approval_id: z.string(),
     call: z.looseObject({ call_id: z.string(), name: z.string(), input: z.unknown() }),
     judged_path: z.string().optional(),
+    base: z.string().nullable().optional(),
     rule_id: z.string(),
     kind: z.enum(["approval", "review"]),
     approvers: z.array(z.string()).optional(),
@@ -585,6 +590,7 @@ const codecs: { [T in EventType]?: Codec<T> } = {
       approval_id: p.approvalId,
       call: { call_id: p.call.callId, name: p.call.name, input: p.call.input },
       ...(p.judgedPath !== undefined && { judged_path: p.judgedPath }),
+      ...(p.base !== undefined && { base: p.base }),
       rule_id: p.ruleId,
       kind: p.kind,
       ...(p.approvers && { approvers: p.approvers }),
@@ -594,6 +600,7 @@ const codecs: { [T in EventType]?: Codec<T> } = {
       approvalId: p.approval_id,
       call: { callId: p.call.call_id, name: p.call.name, input: p.call.input },
       ...(p.judged_path !== undefined && { judgedPath: p.judged_path }),
+      ...(p.base !== undefined && { base: p.base }),
       ruleId: p.rule_id,
       kind: p.kind,
       ...(p.approvers && { approvers: p.approvers }),

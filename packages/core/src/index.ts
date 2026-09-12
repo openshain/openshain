@@ -154,7 +154,7 @@ export {
 } from "./tool/types.ts";
 export { compileInputValidator, type InputValidation } from "./tool/validate.ts";
 export { uuidv7 } from "./uuid.ts";
-export { verifyArtifact } from "./work/artifacts.ts";
+export { hashWorkspaceFile, verifyArtifact } from "./work/artifacts.ts";
 export { EVENTS_FILE_NAME, EventLog, type NewEvent } from "./work/event-log.ts";
 export {
   type AnyEvent,

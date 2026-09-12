@@ -19,6 +19,7 @@ import type { HiddenTool } from "./tool/registry.ts";
 import { type RegisteredTool, ToolRegistry } from "./tool/registry.ts";
 import type { ToolCall, ToolDefinition, ToolProvider, ToolResult } from "./tool/types.ts";
 import { uuidv7 } from "./uuid.ts";
+import { hashWorkspaceFile } from "./work/artifacts.ts";
 import type { Event, ReviewPackage, ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
 import { WORK_DIR_NAME, type WorkHandle, WorkStore } from "./work/store.ts";
@@ -141,6 +142,8 @@ export interface CallOptions {
   approvedBy?: string;
   /** Where the call led when it was approved. The run stops if it leads elsewhere now. */
   judgedPath?: string;
+  /** What that file held when it was approved, or null for a file that was not there. */
+  base?: string | null;
 }
 
 /** What a held call answers with: the client shows it to the person and the turn stops there. */
@@ -208,6 +211,8 @@ async function callTool(input: {
   approvedBy?: string;
   /** Where the call led when it was approved, so the run can check it still does. */
   judgedPath?: string;
+  /** What that file held when it was approved, so the run can check it still does. */
+  base?: string | null;
 }): Promise<ToolResult> {
   const { registry, config, workspaceRoot, authority, work, call } = input;
   const reject = async (code: ToolRejectionCode, reason: string): Promise<ToolResult> => {
@@ -262,6 +267,18 @@ async function callTool(input: {
       `${call.name} was approved for ${input.judgedPath}; the same input now leads to ${path ?? "nowhere"}`,
     );
   }
+  // The person approved a diff against the file as it was. Between the decision and the run the
+  // file can move on: they edit it, a sync service brings a newer copy, another session writes.
+  // The diff they said yes to no longer holds, so the call does not run.
+  if (input.approvedBy !== undefined && input.base !== undefined && path !== undefined) {
+    const now = await hashWorkspaceFile(workspaceRoot, path);
+    if (now !== input.base) {
+      return reject(
+        "base_changed",
+        `${call.name} was approved against ${path} as it was then; the file has changed since, so what was approved is no longer what would be written. Read it again and propose the change against what it holds now`,
+      );
+    }
+  }
   // The policy judges after the allow list, unless a person already approved this very call.
   if (input.approvedBy === undefined) {
     const judged = evaluate(authority, {
@@ -282,12 +299,18 @@ async function callTool(input: {
       const reviewer = declared
         ? { role: declared.role, ...(declared.name !== undefined && { name: declared.name }) }
         : undefined;
+      // Only a call that writes has a file to hold on to; an observing call changes nothing.
+      const base =
+        tool.definition.effect === "mutate" && path !== undefined
+          ? await hashWorkspaceFile(workspaceRoot, path)
+          : undefined;
       await work.append({
         type: "approval.requested",
         payload: {
           approvalId,
           call: { callId: call.id, name: call.name, input: call.input },
           ...(path !== undefined && { judgedPath: path }),
+          ...(base !== undefined && { base }),
           ruleId: judged.rule.id,
           kind: review ? "review" : "approval",
           ...(review ? reviewer && { reviewer } : { approvers }),

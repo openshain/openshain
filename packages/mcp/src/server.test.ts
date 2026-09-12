@@ -720,6 +720,90 @@ rules:
     ]);
   });
 
+  test("what the person saw is what is written, or it is not written at all", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged, store } = await connected(undefined, root);
+    const workId = (await judged("work_create", { objective: "帳簿を更新" })).json().id as string;
+    const held = await judged("fs_write", {
+      path: "ledger/2026-07.csv",
+      content: "date,amount\n2026-07-01,100\n2026-07-02,250\n",
+    });
+    const approvalId = held.json().approval_id as string;
+
+    // While the person is deciding, the file itself moves on: they edit it, or a sync service
+    // brings a newer copy. The diff they approved was against what it used to hold.
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n2026-07-01,999\n");
+    const decided = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.json().result.isError).toBe(true);
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe(
+      "date,amount\n2026-07-01,999\n",
+    );
+    const rejected = (await store.events(workId as never)).filter(
+      (e) => e.type === "tool.rejected",
+    );
+    expect(rejected.map((e) => (e as { payload: { code: string } }).payload.code)).toEqual([
+      "base_changed",
+    ]);
+  });
+
+  test("a file nobody had written yet, written while the person decides, is not overwritten", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged } = await connected(undefined, root);
+    await judged("work_create", { objective: "帳簿を作る" });
+    const held = await judged("fs_write", { path: "ledger/2026-08.csv", content: "date\n" });
+    const approvalId = held.json().approval_id as string;
+
+    await writeFile(join(root, "ledger", "2026-08.csv"), "somebody got there first\n");
+    const decided = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.json().result.isError).toBe(true);
+    expect(await readFile(join(root, "ledger", "2026-08.csv"), "utf8")).toBe(
+      "somebody got there first\n",
+    );
+  });
+
   test("somebody taken out of principals/ cannot approve from a session that is still open", async () => {
     const { root } = await connected();
     await mkdir(join(root, "principals"));

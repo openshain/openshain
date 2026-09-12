@@ -705,6 +705,7 @@
                 "denied",
                 "rejected_by_person",
                 "path_changed",
+                "base_changed",
                 "out_of_range"
               ]
             },
@@ -913,6 +914,12 @@
             },
             "judged_path": {
               "type": "string"
+            },
+            "base": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "rule_id": {
               "type": "string"

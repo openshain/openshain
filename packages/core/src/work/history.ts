@@ -49,6 +49,8 @@ export interface PendingApproval {
   call: { callId: string; name: string; input: unknown };
   /** Where the call led when the rule judged it, for the run to check against. */
   judgedPath?: string;
+  /** What that file held when the rule judged it, for the run to check against. */
+  base?: string | null;
   ruleId: string;
   kind: "approval" | "review";
   approvers?: string[];
