@@ -36,6 +36,12 @@ export interface ToolDefinition {
   description: string;
   inputSchema: JsonSchema;
   effect: ToolEffect;
+  /**
+   * For a mutate tool: it adds to what the file holds rather than replacing it. A tool that
+   * replaces may not run against a file the work has neither read nor written, since whatever is
+   * in there would be lost without anyone having seen it. Left out, a mutate tool replaces.
+   */
+  adds?: boolean;
 }
 
 export interface ToolCall {

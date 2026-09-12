@@ -6,6 +6,7 @@ import {
   RESERVED_PATHS,
   readWorkspaceBytes,
   readWorkspaceText,
+  readWorkspaceTextIfAny,
   resolveWorkspacePath,
   type ToolContext,
   type ToolDefinition,
@@ -216,6 +217,28 @@ const definitions: ToolDefinition[] = [
     effect: "mutate",
   },
   {
+    name: "csv_append",
+    description:
+      "Add rows to the end of a CSV that is already in the workspace. The columns are the ones the file already has, so rows are given as objects keyed by those names; a column a row leaves out is written as an empty cell, and a row carrying a name the file does not have is refused rather than dropped. Use this rather than csv_write to add to a table: writing a long table in one reply runs into the limit on how much can be written at once. csv_write makes a file that is not there yet.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: pathProperty,
+        rows: {
+          type: "array",
+          minItems: 1,
+          maxItems: 1000,
+          items: { type: "object" },
+          description: "The rows to add, each an object keyed by the file's column names.",
+        },
+      },
+      required: ["path", "rows"],
+      additionalProperties: false,
+    },
+    effect: "mutate",
+    adds: true,
+  },
+  {
     name: "markdown_read",
     description:
       "Read a Markdown file inside the workspace. Returns the outline of headings with their line numbers and the first lines of the file (default 100). With section set to a heading's text, returns that section instead: from the heading up to the next heading of the same or a higher level. For any other range of lines use fs_read with offset.",
@@ -306,6 +329,8 @@ export function standardTools(workspaceRoot?: string): ToolProvider {
           return csvAggregate(ctx, path, input);
         case "csv_write":
           return csvWrite(ctx, path, input.rows, input.columns);
+        case "csv_append":
+          return csvAppend(ctx, path, input.rows);
         case "markdown_read":
           return markdownRead(
             ctx,
@@ -427,6 +452,48 @@ async function fsRead(
       { type: "text", text: joinLines(window) },
     ],
     observation: observed(path),
+  };
+}
+
+/**
+ * Rows added to the end of a table that is already there. The file is rewritten, but only the new
+ * rows pass through the model, which is what the limit on one reply is about. A name the table
+ * does not have is refused: writing it under a new column would move every other row's cells, and
+ * dropping it would lose what the agent meant to record.
+ */
+async function csvAppend(ctx: ToolContext, path: string, rows: unknown): Promise<ToolResult> {
+  if (!Array.isArray(rows)) throw new Error("rows must be an array of objects");
+  const existing = await readWorkspaceTextIfAny(ctx.workspaceRoot, path);
+  if (existing === undefined) {
+    return failure(`"${path}" is not there to add to; csv_write makes a file that does not exist`);
+  }
+  const before = parse(existing, { columns: true, skip_empty_lines: true, bom: true }) as Record<
+    string,
+    string
+  >[];
+  const columns = (parse(existing, { to_line: 1, bom: true }) as string[][])[0] ?? [];
+  const added = rows as Record<string, unknown>[];
+  const unknown = [...new Set(added.flatMap((row) => Object.keys(row)))].filter(
+    (name) => !columns.includes(name),
+  );
+  if (unknown.length > 0) {
+    return failure(
+      `"${path}" has the columns ${columns.join(", ")}; these rows also carry ${unknown.join(", ")}. Add them under the columns the file has, or write the whole table with csv_write.`,
+    );
+  }
+  const after = await writeWorkspaceText(
+    ctx.workspaceRoot,
+    path,
+    csvText([...before, ...added], columns),
+  );
+  return {
+    content: [
+      {
+        type: "json",
+        value: { path: after.path, added: added.length, rows: before.length + added.length },
+      },
+    ],
+    after: [after],
   };
 }
 

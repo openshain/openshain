@@ -182,6 +182,7 @@ export {
 export {
   countToolCalls,
   type FailureReason,
+  filesKnown,
   type HistoryCall,
   type PendingApproval,
   type PendingQuestion,

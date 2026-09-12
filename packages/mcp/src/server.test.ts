@@ -720,6 +720,48 @@ rules:
     ]);
   });
 
+  test("a file the work has not looked at is not overwritten", async () => {
+    const { root, call } = await connected();
+    await mkdir(join(root, "ledger"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n2026-07-01,100\n");
+    await call("work_create", { objective: "帳簿を更新" });
+
+    const blind = await call("fs_write", { path: "ledger/2026-07.csv", content: "date,amount\n" });
+
+    expect(blind.isError).toBe(true);
+    expect(blind.text).toContain("has not read it");
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toContain("2026-07-01,100");
+
+    // Having read it, the same call goes through.
+    await call("csv_read", { path: "ledger/2026-07.csv" });
+    const informed = await call("fs_write", {
+      path: "ledger/2026-07.csv",
+      content: "date,amount\n2026-07-02,250\n",
+    });
+
+    expect(informed.isError).toBe(false);
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toContain("2026-07-02,250");
+  });
+
+  test("a file this work wrote is a file this work knows, and a new one needs no reading", async () => {
+    const { root, call } = await connected();
+    await call("work_create", { objective: "帳簿を作る" });
+
+    const made = await call("csv_write", {
+      path: "ledger/2026-08.csv",
+      columns: ["date", "amount"],
+      rows: [{ date: "2026-08-01", amount: "100" }],
+    });
+    const again = await call("csv_append", {
+      path: "ledger/2026-08.csv",
+      rows: [{ date: "2026-08-02", amount: "250" }],
+    });
+
+    expect(made.isError).toBe(false);
+    expect(again.isError).toBe(false);
+    expect(await readFile(join(root, "ledger", "2026-08.csv"), "utf8")).toContain("2026-08-02,250");
+  });
+
   test("what the person saw is what is written, or it is not written at all", async () => {
     const { root } = await connected();
     await mkdir(join(root, "authority"));

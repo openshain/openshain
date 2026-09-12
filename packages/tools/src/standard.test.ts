@@ -74,7 +74,7 @@ function textOf(result: ToolResult): string {
 }
 
 describe("standard tools", () => {
-  test("lists the nine tools with their effects", async () => {
+  test("lists the ten tools with their effects", async () => {
     const { provider } = await workspace();
 
     const tools = await provider.listTools();
@@ -87,6 +87,7 @@ describe("standard tools", () => {
       ["csv_read", "observe"],
       ["csv_aggregate", "observe"],
       ["csv_write", "mutate"],
+      ["csv_append", "mutate"],
       ["markdown_read", "observe"],
       ["pdf_read", "observe"],
     ]);
@@ -641,6 +642,52 @@ describe("limits on writes", () => {
     expect(text).not.toContain("'-100");
     expect(text).toContain("'+1");
     expect(text).toContain("'@x");
+  });
+});
+
+describe("csv_append", () => {
+  test("adds rows to a table that is already there, and says how many it holds now", async () => {
+    const { root, call } = await workspace();
+
+    const first = await call("csv_append", {
+      path: "receipts/2026-07.csv",
+      rows: [{ date: "2026-07-03", vendor: "みなと運送", amount: "7650" }],
+    });
+    const second = await call("csv_append", {
+      path: "receipts/2026-07.csv",
+      rows: [{ date: "2026-07-04", vendor: "山田文具店" }],
+    });
+
+    expect(jsonOf(first)).toMatchObject({ path: "receipts/2026-07.csv", added: 1, rows: 3 });
+    expect(jsonOf(second)).toMatchObject({ added: 1, rows: 4 });
+    const text = await readFile(join(root, "receipts", "2026-07.csv"), "utf8");
+    // The header stays as it was, and a column the row leaves out is an empty cell.
+    expect(text.split("\n")[0]).toBe("date,vendor,amount");
+    expect(text).toContain("2026-07-03,みなと運送,7650");
+    expect(text).toContain("2026-07-04,山田文具店,");
+    expect(first.after?.[0]?.path).toBe("receipts/2026-07.csv");
+  });
+
+  test("refuses a row carrying a column the table does not have, rather than dropping it", async () => {
+    const { root, call } = await workspace();
+
+    const result = await call("csv_append", {
+      path: "receipts/2026-07.csv",
+      rows: [{ date: "2026-07-03", vendor: "みなと運送", 勘定科目: "荷造運賃" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("勘定科目");
+    expect(await readFile(join(root, "receipts", "2026-07.csv"), "utf8")).toBe(RECEIPTS);
+  });
+
+  test("refuses a file that is not there, and names the tool that makes one", async () => {
+    const { call } = await workspace();
+
+    const result = await call("csv_append", { path: "ledger/2026-07.csv", rows: [{ a: "1" }] });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("csv_write");
   });
 });
 

@@ -123,3 +123,19 @@ export function workHistory(events: readonly AnyEvent[]): WorkHistory {
     modelCalls: events.filter((e) => e.type === "model.requested").length,
   };
 }
+
+/**
+ * The files this work has looked at or written, as the paths the calls named. A work that has
+ * neither read nor written a file has no business replacing it: what is in there now came from
+ * somewhere else, and nobody in this work has seen it.
+ */
+export function filesKnown(events: readonly AnyEvent[]): Set<string> {
+  const known = new Set<string>();
+  for (const event of events) {
+    if (event.type !== "tool.completed") continue;
+    const { observation, after } = (event as Event<"tool.completed">).payload;
+    for (const seen of observation ?? []) known.add(seen.source);
+    for (const wrote of after ?? []) known.add(wrote.path);
+  }
+  return known;
+}

@@ -22,6 +22,7 @@ import { uuidv7 } from "./uuid.ts";
 import { hashWorkspaceFile } from "./work/artifacts.ts";
 import type { Event, ReviewPackage, ToolContent } from "./work/events.ts";
 import { TOOL_REJECTION_CODES, type ToolRejectionCode } from "./work/events.ts";
+import { filesKnown } from "./work/history.ts";
 import { WORK_DIR_NAME, type WorkHandle, WorkStore } from "./work/store.ts";
 
 export interface RuntimeProviders {
@@ -350,6 +351,24 @@ async function callTool(input: {
         payload: { callId: call.id, decisionId: judged.decision.id },
       });
     }
+  }
+
+  // About to run, with nobody having looked at it: a call a person approved came with the diff on
+  // their screen, so they have seen what is there. One running on its own has been seen by no one,
+  // and replacing a file this work never read loses whatever it holds without a trace. A file that
+  // is not there yet has nothing to lose, and a tool that adds rather than replaces says so.
+  if (
+    input.approvedBy === undefined &&
+    tool.definition.effect === "mutate" &&
+    tool.definition.adds !== true &&
+    path !== undefined &&
+    !filesKnown(await work.events()).has(path) &&
+    (await hashWorkspaceFile(workspaceRoot, path)) !== null
+  ) {
+    return reject(
+      "not_read",
+      `${path} is already there and this work has not read it. Read it first, then write what it should hold`,
+    );
   }
 
   await work.append({

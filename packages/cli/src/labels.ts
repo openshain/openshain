@@ -32,6 +32,7 @@ export const REJECTION_LABELS: Record<ToolRejectionCode, string> = {
   rejected_by_person: "承認されなかった",
   path_changed: "承認したときと書き込み先が変わった",
   base_changed: "承認したときからファイルが変わった",
+  not_read: "読まずに置き換えようとした",
   out_of_range: "範囲の外",
 };
 

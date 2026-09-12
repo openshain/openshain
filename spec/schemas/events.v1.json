@@ -706,6 +706,7 @@
                 "rejected_by_person",
                 "path_changed",
                 "base_changed",
+                "not_read",
                 "out_of_range"
               ]
             },

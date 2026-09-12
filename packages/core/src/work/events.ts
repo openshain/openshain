@@ -48,6 +48,8 @@ export const TOOL_REJECTION_CODES = [
   "path_changed",
   // Approved against a file that has since changed: the diff the person saw no longer holds.
   "base_changed",
+  // About to replace a file this work has neither read nor written.
+  "not_read",
   // Outside the range of the person this call acts for.
   "out_of_range",
 ] as const;
