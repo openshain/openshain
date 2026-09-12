@@ -615,6 +615,25 @@ describe("the screen's controller", () => {
     expect(texts(controller, "user")).toEqual(["集計して", "もう一つ"]);
     expect(texts(controller, "assistant")).toEqual(["終わりました", "はい"]);
   });
+
+  test("a reply cut off by the length limit says the work is unfinished and how to continue", async () => {
+    // The model wrote so much in one answer that it ran into the limit. The work it opened is
+    // still there with nothing written into it, and the person is the one who has to know.
+    const cut = {
+      message: { role: "assistant" as const, content: [{ type: "text" as const, text: "" }] },
+      stopReason: "max_tokens" as const,
+      usage: { inputTokens: 1, outputTokens: 1 },
+    };
+    const { controller, store } = await setup([workCreate("c1", "81 行を突き合わせる"), cut]);
+
+    await controller.submit("7月の入出金を突き合わせて");
+
+    const work = await requestWork(store);
+    const notices = texts(controller, "notice").join("\n");
+    expect(work?.status).toBe("in_progress");
+    expect(notices).toContain("長さの上限");
+    expect(notices).toContain(`/work resume ${work?.id}`);
+  });
 });
 
 describe("who the terminal works for", () => {

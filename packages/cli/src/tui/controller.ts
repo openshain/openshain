@@ -417,7 +417,10 @@ export async function createController(options: ControllerOptions): Promise<Cont
       case "aborted":
         return stopped(result.work);
       case "max_tokens":
-        return "返答が長さの上限で切れました。";
+        // The answer ran into the limit mid-sentence, so a work it opened holds nothing yet.
+        return result.work
+          ? `返答が長さの上限で切れました。${result.work} は途中のまま残っています。/work resume ${result.work} で続けられるようにします。一度に扱う量を分けて依頼すると、上限に当たらずに終わります。`
+          : "返答が長さの上限で切れました。";
       case "refusal":
         return "社員エージェントが続けられないと言っています。";
       case "model_error":
