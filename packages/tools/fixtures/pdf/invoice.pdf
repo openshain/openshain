@@ -1,0 +1,130 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [7 0 R 9 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type0 /BaseFont /SampleGothic /Encoding /Identity-H /DescendantFonts [4 0 R] /ToUnicode 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /CIDFontType2 /BaseFont /SampleGothic /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 6 0 R /DW 1000 /W [1 [1000] 2 [1000] 3 [1000] 4 [1000] 5 [1000] 6 [1000] 7 [1000] 8 [1000] 9 [1000] 10 [1000] 11 [1000] 12 [1000] 13 [1000] 14 [1000] 15 [1000] 16 [1000] 17 [1000] 18 [1000] 19 [1000] 20 [1000] 21 [1000] 22 [1000] 23 [1000] 24 [1000] 25 [1000] 26 [1000] 27 [1000] 28 [1000] 29 [1000] 30 [1000] 31 [1000] 32 [1000] 33 [1000] 34 [1000] 35 [1000] 36 [1000] 37 [1000] 38 [1000] 39 [1000] 40 [1000] 41 [1000] 42 [1000] 43 [1000] 44 [1000] 45 [1000] 46 [1000] 47 [1000] 48 [1000]] /CIDToGIDMap /Identity >>
+endobj
+5 0 obj
+<< /Length 1322 >>
+stream
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CMapName /Custom def
+/CMapType 2 def
+/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def
+1 begincodespacerange
+<0000> <FFFF>
+endcodespacerange
+48 beginbfrange
+<0001> <0001> <0020>
+<0002> <0002> <002C>
+<0003> <0003> <002D>
+<0004> <0004> <0030>
+<0005> <0005> <0031>
+<0006> <0006> <0032>
+<0007> <0007> <0033>
+<0008> <0008> <0034>
+<0009> <0009> <0035>
+<000A> <000A> <0036>
+<000B> <000B> <0037>
+<000C> <000C> <0038>
+<000D> <000D> <304A>
+<000E> <000E> <30B5>
+<000F> <000F> <30D7>
+<0010> <0010> <30EB>
+<0011> <0011> <30F3>
+<0012> <0012> <4E2D>
+<0013> <0013> <4E8B>
+<0014> <0014> <4F1A>
+<0015> <0015> <5148>
+<0016> <0016> <5186>
+<0017> <0017> <5408>
+<0018> <0018> <5546>
+<0019> <0019> <5C0F>
+<001A> <001A> <5F0F>
+<001B> <001B> <5FA1>
+<001C> <001C> <6255>
+<001D> <001D> <632F>
+<001E> <001E> <652F>
+<001F> <001F> <65E5>
+<0020> <0020> <666E>
+<0021> <0021> <66F8>
+<0022> <0022> <671F>
+<0023> <0023> <682A>
+<0024> <0024> <6C42>
+<0025> <0025> <6D88>
+<0026> <0026> <767A>
+<0027> <0027> <793E>
+<0028> <0028> <7A0E>
+<0029> <0029> <884C>
+<002A> <002A> <8A08>
+<002B> <002B> <8ACB>
+<002C> <002C> <8CBB>
+<002D> <002D> <8FBC>
+<002E> <002E> <901A>
+<002F> <002F> <9280>
+<0030> <0030> <9650>
+endbfrange
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+endstream
+endobj
+6 0 obj
+<< /Type /FontDescriptor /FontName /SampleGothic /Flags 4 /FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 349 >>
+stream
+BT /F1 12 Tf 50 750 Td 16 TL
+<002B00240021> Tj T*
+<0023001A00140027000E0011000F0010001800130001001B0012> Tj T*
+<00260029001F0001000600040006000A00030004000B000300040007> Tj T*
+<0019002A0001000500060004000200040004000400010016> Tj T*
+<0025002C0028000100050006000200040004000400010016> Tj T*
+<0017002A0001000500070006000200040004000400010016> Tj T*
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 197 >>
+stream
+BT /F1 12 Tf 50 750 Td 16 TL
+<000D001D002D00150001000E0011000F0010002F002900010020002E000100050006000700080009000A000B> Tj T*
+<001E001C002200300001000600040006000A00030004000C000300070005> Tj T*
+ET
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000258 00000 n 
+0000000942 00000 n 
+0000002316 00000 n 
+0000002486 00000 n 
+0000002612 00000 n 
+0000003012 00000 n 
+0000003139 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+3388
+%%EOF

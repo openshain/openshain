@@ -18,6 +18,13 @@ export const MAX_READ_BYTES = 1024 * 1024;
 export const MAX_WRITE_BYTES = MAX_READ_BYTES;
 
 /**
+ * The most a tool reads from one file that is not text. A PDF carries its fonts and its scans,
+ * so its bytes say little about how much of it reaches the model: only the words do, and the
+ * result's own limit holds those.
+ */
+export const MAX_BINARY_READ_BYTES = 20 * 1024 * 1024;
+
+/**
  * The encodings a file of a company folder is read as, in order. A Japanese company's files are
  * not all UTF-8: a bank's CSV, a card statement and a spreadsheet's export are usually Shift_JIS.
  */
@@ -41,10 +48,10 @@ export function textOf(bytes: Buffer): string | undefined {
 }
 
 /**
- * Reads a text file through one descriptor: the size check and the read see the same file, so a
- * swap between the two cannot slip a larger file past the limit.
+ * Reads a file through one descriptor: the size check and the read see the same file, so a swap
+ * between the two cannot slip a larger file past the limit.
  */
-export async function readWorkspaceText(root: string, path: string): Promise<string> {
+async function bytesOf(root: string, path: string, limit: number): Promise<Buffer> {
   const resolved = await resolveWorkspacePath(root, path);
   let handle: FileHandle;
   try {
@@ -54,19 +61,27 @@ export async function readWorkspaceText(root: string, path: string): Promise<str
   }
   try {
     const { size } = await handle.stat();
-    if (size > MAX_READ_BYTES) {
-      throw new Error(`"${path}" is too large to read (${size} bytes, limit ${MAX_READ_BYTES})`);
+    if (size > limit) {
+      throw new Error(`"${path}" is too large to read (${size} bytes, limit ${limit})`);
     }
-    const text = textOf(await handle.readFile());
-    if (text === undefined) {
-      throw new Error(
-        `"${path}" is not text: its bytes are neither ${TEXT_ENCODINGS.join(" nor ")}`,
-      );
-    }
-    return text;
+    return await handle.readFile();
   } finally {
     await handle.close();
   }
+}
+
+/** The text of a file of the company folder. Bytes that are text in no encoding are refused. */
+export async function readWorkspaceText(root: string, path: string): Promise<string> {
+  const text = textOf(await bytesOf(root, path, MAX_READ_BYTES));
+  if (text === undefined) {
+    throw new Error(`"${path}" is not text: its bytes are neither ${TEXT_ENCODINGS.join(" nor ")}`);
+  }
+  return text;
+}
+
+/** The bytes of a file of the company folder, for a tool that reads a format rather than text. */
+export function readWorkspaceBytes(root: string, path: string): Promise<Buffer> {
+  return bytesOf(root, path, MAX_BINARY_READ_BYTES);
 }
 
 /** The same read, but a file that is missing, too large or unreadable comes back as undefined. */

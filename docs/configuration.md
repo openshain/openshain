@@ -36,7 +36,7 @@
 
 ## 標準 Tool
 
-`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read の 8 つが有効になります。`openshain tools list` が、登録された Tool と許可の有無を表示します。自分の Tool を追加するには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
+`tools` に `provider: standard` があると、fs_list、fs_search、fs_read、fs_write、csv_read、csv_aggregate、csv_write、markdown_read、pdf_read の 9 つが有効になります。`openshain tools list` が、登録された Tool と許可の有無を表示します。自分の Tool を追加するには、ToolProvider を default export するファイルを `module` で指すか、別の provider を作ります。例は `examples/tools/echo` にあります。
 
 ## 権限と承認(`authority/`)
 

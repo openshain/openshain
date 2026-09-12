@@ -4,6 +4,7 @@ import {
   MAX_READ_BYTES,
   type Observation,
   RESERVED_PATHS,
+  readWorkspaceBytes,
   readWorkspaceText,
   resolveWorkspacePath,
   type ToolContext,
@@ -22,6 +23,7 @@ import {
   knowledgeRead,
   knowledgeSearch,
 } from "./knowledge.ts";
+import { readPdf } from "./pdf.ts";
 
 /** The window each observing tool returns when the model does not ask for another one. */
 export const DEFAULT_WINDOW = {
@@ -31,6 +33,7 @@ export const DEFAULT_WINDOW = {
   csv_read: 50,
   csv_aggregate: 100,
   markdown_read: 100,
+  pdf_read: 5,
 } as const;
 
 /** fs_search gives up after this many files so that a huge tree cannot stall a Work. */
@@ -232,6 +235,22 @@ const definitions: ToolDefinition[] = [
     },
     effect: "observe",
   },
+  {
+    name: "pdf_read",
+    description:
+      "Read the text of a PDF inside the workspace, a page at a time (default 5 pages). Returns the words of those pages, the number of pages the document has, and whether more remain. Only text is read: a PDF that is a photograph of paper has none, and says so. A table comes back in reading order, so write the values into a CSV before counting or adding them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: pathProperty,
+        offset: offsetProperty("pages"),
+        limit: limitProperty("pages", DEFAULT_WINDOW.pdf_read, 100),
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+    effect: "observe",
+  },
 ];
 
 /**
@@ -293,6 +312,13 @@ export function standardTools(workspaceRoot?: string): ToolProvider {
             path,
             nonEmpty(input.section),
             count(input.limit, DEFAULT_WINDOW.markdown_read),
+          );
+        case "pdf_read":
+          return pdfRead(
+            ctx,
+            path,
+            count(input.offset, 0),
+            count(input.limit, DEFAULT_WINDOW.pdf_read),
           );
         default:
           throw new Error(`the standard tools do not provide "${call.name}"`);
@@ -399,6 +425,52 @@ async function fsRead(
         },
       },
       { type: "text", text: joinLines(window) },
+    ],
+    observation: observed(path),
+  };
+}
+
+/**
+ * The words of a PDF, a page at a time. A PDF that gives none is refused with the reason: a
+ * photograph of paper needs a different document, and a font we cannot map is ours to fix.
+ */
+async function pdfRead(
+  ctx: ToolContext,
+  path: string,
+  offset: number,
+  limit: number,
+): Promise<ToolResult> {
+  const buffer = await readWorkspaceBytes(ctx.workspaceRoot, path);
+  // pdf.js takes a plain Uint8Array and refuses a Buffer, so the same memory goes in as one.
+  const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  let read: Awaited<ReturnType<typeof readPdf>>;
+  try {
+    read = await readPdf(bytes, offset, limit);
+  } catch (err) {
+    return failure(
+      `"${path}" could not be opened as a PDF: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if ("problem" in read) {
+    return failure(
+      read.problem === "no_text"
+        ? `"${path}" has no text on those pages: it is a picture of a document, not a document with words in it. Ask for a PDF with text, or have the numbers typed in.`
+        : `"${path}" draws text, but its fonts cannot be read, so the words cannot be taken out. The words are there; reading them is beyond openshain today.`,
+    );
+  }
+  return {
+    content: [
+      {
+        type: "json",
+        value: {
+          path,
+          offset,
+          returned: read.window.length,
+          pages: read.total,
+          truncated: offset + read.window.length < read.total,
+        },
+      },
+      { type: "text", text: read.window.join("\n\n") },
     ],
     observation: observed(path),
   };

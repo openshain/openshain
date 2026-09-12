@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   MAX_READ_BYTES,
   MAX_WRITE_BYTES,
@@ -12,6 +12,14 @@ import {
   type ToolResult,
 } from "@openshain/core";
 import { standardTools } from "./standard.ts";
+
+const FIXTURES = join(import.meta.dir, "..", "fixtures", "pdf");
+
+/** Puts one of the PDF fixtures into a workspace under the name the test uses. */
+async function withPdf(root: string, fixture: string, as: string): Promise<void> {
+  await mkdir(dirname(join(root, as)), { recursive: true });
+  await writeFile(join(root, as), await readFile(join(FIXTURES, fixture)));
+}
 
 const NOTES = "# 7月\n\nメモ\n\n## 交通費\n\n- 電車\n\n### 内訳\n";
 const RECEIPTS = 'date,vendor,amount\n2026-07-01,"Acme, Inc.",1200\n2026-07-02,"Quote ""Q""",30\n';
@@ -66,7 +74,7 @@ function textOf(result: ToolResult): string {
 }
 
 describe("standard tools", () => {
-  test("lists the eight tools with their effects", async () => {
+  test("lists the nine tools with their effects", async () => {
     const { provider } = await workspace();
 
     const tools = await provider.listTools();
@@ -80,6 +88,7 @@ describe("standard tools", () => {
       ["csv_aggregate", "observe"],
       ["csv_write", "mutate"],
       ["markdown_read", "observe"],
+      ["pdf_read", "observe"],
     ]);
     for (const tool of tools) expect(tool.inputSchema.type).toBe("object");
   });
@@ -632,5 +641,59 @@ describe("limits on writes", () => {
     expect(text).not.toContain("'-100");
     expect(text).toContain("'+1");
     expect(text).toContain("'@x");
+  });
+});
+
+describe("pdf_read", () => {
+  test("takes the words out of an invoice, a page at a time", async () => {
+    const { root, call } = await workspace();
+    await withPdf(root, "invoice.pdf", "invoices/2026-07-03.pdf");
+
+    const first = await call("pdf_read", { path: "invoices/2026-07-03.pdf", limit: 1 });
+    const rest = await call("pdf_read", { path: "invoices/2026-07-03.pdf", offset: 1 });
+
+    expect(jsonOf(first)).toMatchObject({
+      path: "invoices/2026-07-03.pdf",
+      offset: 0,
+      returned: 1,
+      pages: 2,
+      truncated: true,
+    });
+    expect(textOf(first)).toContain("株式会社サンプル商事");
+    expect(textOf(first)).toContain("合計 132,000 円");
+    expect(textOf(first)).not.toContain("支払期限");
+    expect(jsonOf(rest)).toMatchObject({ offset: 1, returned: 1, truncated: false });
+    expect(textOf(rest)).toContain("支払期限 2026-08-31");
+    expect(first.observation?.[0]?.source).toBe("invoices/2026-07-03.pdf");
+  });
+
+  test("says a scanned PDF holds no words, so the person knows to ask for another", async () => {
+    const { root, call } = await workspace();
+    await withPdf(root, "scan.pdf", "receipts/scan.pdf");
+
+    const result = await call("pdf_read", { path: "receipts/scan.pdf" });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("no text");
+  });
+
+  test("says when the words are there but the fonts cannot be read: a different problem", async () => {
+    const { root, call } = await workspace();
+    await withPdf(root, "old-cmap.pdf", "invoices/old.pdf");
+
+    const result = await call("pdf_read", { path: "invoices/old.pdf" });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("fonts");
+    expect(textOf(result)).not.toContain("no text");
+  });
+
+  test("refuses a file that is not a PDF at all", async () => {
+    const { root, call } = await workspace();
+    await writeFile(join(root, "notes.pdf"), "これは PDF ではありません\n");
+
+    const result = await call("pdf_read", { path: "notes.pdf" });
+
+    expect(result.isError).toBe(true);
   });
 });
