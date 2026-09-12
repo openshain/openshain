@@ -17,6 +17,7 @@ import {
 } from "@openshain/core";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
+import { readWorkbook } from "./excel.ts";
 import {
   hasIndex,
   indexReader,
@@ -35,6 +36,7 @@ export const DEFAULT_WINDOW = {
   csv_aggregate: 100,
   markdown_read: 100,
   pdf_read: 5,
+  excel_read: 50,
 } as const;
 
 /** fs_search gives up after this many files so that a huge tree cannot stall a Work. */
@@ -259,6 +261,23 @@ const definitions: ToolDefinition[] = [
     effect: "observe",
   },
   {
+    name: "excel_read",
+    description:
+      "Read one sheet of an .xlsx inside the workspace. Returns the names of every sheet, the column names taken from the first row, the number of rows under it, and a window of those rows (default 50) as objects keyed by the column names, the way csv_read does. sheet picks one by name; without it the first sheet is read. A date comes back as YYYY-MM-DD rather than the number Excel keeps it as, and a formula cell comes back as the value Excel worked out. The old binary .xls is not read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: pathProperty,
+        sheet: { type: "string", minLength: 1, description: "Name of the sheet to read." },
+        offset: offsetProperty("rows"),
+        limit: limitProperty("rows", DEFAULT_WINDOW.excel_read, 1000),
+      },
+      required: ["path"],
+      additionalProperties: false,
+    },
+    effect: "observe",
+  },
+  {
     name: "pdf_read",
     description:
       "Read the text of a PDF inside the workspace, a page at a time (default 5 pages). Returns the words of those pages, the number of pages the document has, and whether more remain. Only text is read: a PDF that is a photograph of paper has none, and says so. A table comes back in reading order, so write the values into a CSV before counting or adding them.",
@@ -337,6 +356,14 @@ export function standardTools(workspaceRoot?: string): ToolProvider {
             path,
             nonEmpty(input.section),
             count(input.limit, DEFAULT_WINDOW.markdown_read),
+          );
+        case "excel_read":
+          return excelRead(
+            ctx,
+            path,
+            nonEmpty(input.sheet),
+            count(input.offset, 0),
+            count(input.limit, DEFAULT_WINDOW.excel_read),
           );
         case "pdf_read":
           return pdfRead(
@@ -494,6 +521,43 @@ async function csvAppend(ctx: ToolContext, path: string, rows: unknown): Promise
       },
     ],
     after: [after],
+  };
+}
+
+/** One sheet of a workbook, a window of rows at a time, in the shape csv_read returns. */
+async function excelRead(
+  ctx: ToolContext,
+  path: string,
+  sheet: string | undefined,
+  offset: number,
+  limit: number,
+): Promise<ToolResult> {
+  const bytes = await readWorkspaceBytes(ctx.workspaceRoot, path);
+  let book: Awaited<ReturnType<typeof readWorkbook>>;
+  try {
+    book = await readWorkbook(bytes, sheet);
+  } catch (err) {
+    return failure(`"${path}": ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const window = book.rows.slice(offset, offset + limit);
+  return {
+    content: [
+      {
+        type: "json",
+        value: {
+          path,
+          sheet: book.name,
+          sheets: book.names,
+          columns: book.columns,
+          rowCount: book.rows.length,
+          offset,
+          returned: window.length,
+          truncated: offset + window.length < book.rows.length,
+          rows: window,
+        },
+      },
+    ],
+    observation: observed(path),
   };
 }
 

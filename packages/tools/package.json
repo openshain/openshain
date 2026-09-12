@@ -48,6 +48,7 @@
     "@openshain/core": "workspace:*",
     "csv-parse": "7.0.2",
     "csv-stringify": "6.8.3",
+    "read-excel-file": "9.3.10",
     "unpdf": "1.8.1"
   },
   "publishConfig": {

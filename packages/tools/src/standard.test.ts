@@ -13,10 +13,10 @@ import {
 } from "@openshain/core";
 import { standardTools } from "./standard.ts";
 
-const FIXTURES = join(import.meta.dir, "..", "fixtures", "pdf");
+const FIXTURES = join(import.meta.dir, "..", "fixtures");
 
 /** Puts one of the PDF fixtures into a workspace under the name the test uses. */
-async function withPdf(root: string, fixture: string, as: string): Promise<void> {
+async function withFixture(root: string, fixture: string, as: string): Promise<void> {
   await mkdir(dirname(join(root, as)), { recursive: true });
   await writeFile(join(root, as), await readFile(join(FIXTURES, fixture)));
 }
@@ -74,7 +74,7 @@ function textOf(result: ToolResult): string {
 }
 
 describe("standard tools", () => {
-  test("lists the ten tools with their effects", async () => {
+  test("lists the eleven tools with their effects", async () => {
     const { provider } = await workspace();
 
     const tools = await provider.listTools();
@@ -89,6 +89,7 @@ describe("standard tools", () => {
       ["csv_write", "mutate"],
       ["csv_append", "mutate"],
       ["markdown_read", "observe"],
+      ["excel_read", "observe"],
       ["pdf_read", "observe"],
     ]);
     for (const tool of tools) expect(tool.inputSchema.type).toBe("object");
@@ -691,10 +692,79 @@ describe("csv_append", () => {
   });
 });
 
+describe("excel_read", () => {
+  test("reads a sheet the way csv_read does, with the dates and the sums Excel saved", async () => {
+    const { root, call } = await workspace();
+    await withFixture(root, "excel/ledger.xlsx", "ledger/2026-07.xlsx");
+
+    const result = await call("excel_read", { path: "ledger/2026-07.xlsx" });
+
+    expect(jsonOf(result)).toMatchObject({
+      path: "ledger/2026-07.xlsx",
+      sheet: "仕訳",
+      sheets: ["仕訳", "残高"],
+      // An empty heading and a repeated one become the column's own letter, so no value is lost.
+      columns: ["日付", "摘要", "金額", "D", "E"],
+      rowCount: 3,
+      returned: 3,
+      truncated: false,
+    });
+    const rows = (jsonOf(result) as { rows: Record<string, unknown>[] }).rows;
+    // A date is a date, not the number Excel keeps it as, and it does not slip a day.
+    expect(rows[0]).toEqual({
+      日付: "2026-07-01",
+      摘要: "さくら電気",
+      金額: 21160,
+      D: "",
+      E: 1,
+    });
+    expect(rows[1]?.D).toBe("メモ");
+    // The cell holds =SUM(C2:C3); what comes back is what Excel worked out.
+    expect(rows[2]).toMatchObject({ 摘要: "合計", 金額: 46490 });
+    expect(result.observation?.[0]?.source).toBe("ledger/2026-07.xlsx");
+  });
+
+  test("reads the sheet it is asked for, and names them all when there is no such sheet", async () => {
+    const { root, call } = await workspace();
+    await withFixture(root, "excel/ledger.xlsx", "ledger/2026-07.xlsx");
+
+    const second = await call("excel_read", { path: "ledger/2026-07.xlsx", sheet: "残高" });
+    const missing = await call("excel_read", { path: "ledger/2026-07.xlsx", sheet: "試算表" });
+
+    expect(jsonOf(second)).toMatchObject({ sheet: "残高", columns: ["残高表"], rowCount: 0 });
+    expect(missing.isError).toBe(true);
+    expect(textOf(missing)).toContain("仕訳");
+  });
+
+  test("does not open a workbook whose parts say they expand to hundreds of megabytes", async () => {
+    const { root, call } = await workspace();
+    await withFixture(root, "excel/overstated.xlsx", "ledger/bomb.xlsx");
+
+    const result = await call("excel_read", { path: "ledger/bomb.xlsx" });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("expands");
+  });
+
+  test("says an old .xls is a format it does not read", async () => {
+    const { root, call } = await workspace();
+    // The signature of the old binary format, which is not a zip at all.
+    await writeFile(
+      join(root, "old.xls"),
+      Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+    );
+
+    const result = await call("excel_read", { path: "old.xls" });
+
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain(".xls");
+  });
+});
+
 describe("pdf_read", () => {
   test("takes the words out of an invoice, a page at a time", async () => {
     const { root, call } = await workspace();
-    await withPdf(root, "invoice.pdf", "invoices/2026-07-03.pdf");
+    await withFixture(root, "pdf/invoice.pdf", "invoices/2026-07-03.pdf");
 
     const first = await call("pdf_read", { path: "invoices/2026-07-03.pdf", limit: 1 });
     const rest = await call("pdf_read", { path: "invoices/2026-07-03.pdf", offset: 1 });
@@ -716,7 +786,7 @@ describe("pdf_read", () => {
 
   test("says a scanned PDF holds no words, so the person knows to ask for another", async () => {
     const { root, call } = await workspace();
-    await withPdf(root, "scan.pdf", "receipts/scan.pdf");
+    await withFixture(root, "pdf/scan.pdf", "receipts/scan.pdf");
 
     const result = await call("pdf_read", { path: "receipts/scan.pdf" });
 
@@ -726,7 +796,7 @@ describe("pdf_read", () => {
 
   test("says when the words are there but the fonts cannot be read: a different problem", async () => {
     const { root, call } = await workspace();
-    await withPdf(root, "old-cmap.pdf", "invoices/old.pdf");
+    await withFixture(root, "pdf/old-cmap.pdf", "invoices/old.pdf");
 
     const result = await call("pdf_read", { path: "invoices/old.pdf" });
 
