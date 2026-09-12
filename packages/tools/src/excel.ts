@@ -57,7 +57,9 @@ export async function readWorkbook(bytes: Buffer, sheet?: string): Promise<Sheet
     name,
     columns,
     rows: grid.slice(1).map((row) => {
-      const out: Record<string, string | number | boolean> = {};
+      // A row starts with no prototype. A column headed __proto__ would otherwise set nothing at
+      // all on a plain object, and the whole column would be gone with no error anywhere.
+      const out: Record<string, string | number | boolean> = Object.create(null);
       for (const [at, column] of columns.entries()) out[column] = plain(row[at]);
       return out;
     }),
@@ -97,18 +99,57 @@ function plain(cell: unknown): string | number | boolean {
   return String(cell);
 }
 
+/** End of central directory, central directory entry: the two records this reads. */
+const END_OF_DIRECTORY = 0x06054b50;
+const DIRECTORY_ENTRY = 0x02014b50;
+/** A .xlsx is small; a zip's end record sits within this of the end unless it has a comment. */
+const END_SEARCH_BYTES = 64 * 1024 + 22;
+
 /**
- * The largest a part of this zip says it expands to, from the central directory. A bomb declares
- * its true size, because a reader has to allocate it; one that lies about it is caught later by
- * the reader itself, which is the case this cannot cover.
+ * The largest a part of this zip says it expands to. The directory is walked from the end record
+ * that points at it, entry by entry, rather than by looking for the entry signature anywhere in
+ * the file: a workbook carries a thumbnail, and four bytes of a picture read as that signature
+ * often enough to refuse a file that is perfectly fine.
+ *
+ * A bomb declares its true size, because a reader has to allocate it. One that declares less than
+ * it holds is left to the reader, which stops at what it was told and reports a file that ends
+ * too early.
  */
 function declaredSize(bytes: Uint8Array): number {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const end = endRecord(view, bytes.length);
+  if (!end) throw new Error("this is not a .xlsx: no zip directory in it");
+  let at = end.offset;
   let largest = 0;
-  // Central directory entries begin with PK\x01\x02 and hold the uncompressed size at offset 24.
-  for (let at = 0; at + 46 <= bytes.length; at += 1) {
-    if (view.getUint32(at, true) !== 0x02014b50) continue;
+  for (let n = 0; n < end.entries; n += 1) {
+    if (at + 46 > bytes.length || view.getUint32(at, true) !== DIRECTORY_ENTRY) {
+      throw new Error("this .xlsx has a damaged directory and is not read");
+    }
     largest = Math.max(largest, view.getUint32(at + 24, true));
+    at +=
+      46 +
+      view.getUint16(at + 28, true) +
+      view.getUint16(at + 30, true) +
+      view.getUint16(at + 32, true);
   }
   return largest;
+}
+
+/** Where the zip says its directory is, and how many entries it holds. */
+function endRecord(
+  view: DataView,
+  length: number,
+): { offset: number; entries: number } | undefined {
+  for (let at = length - 22; at >= 0 && at > length - END_SEARCH_BYTES; at -= 1) {
+    if (view.getUint32(at, true) !== END_OF_DIRECTORY) continue;
+    const entries = view.getUint16(at + 10, true);
+    const offset = view.getUint32(at + 16, true);
+    // The sentinels mean the real numbers are in a zip64 record. A workbook that needs one holds
+    // more than four gigabytes, which is over any limit this would apply anyway.
+    if (entries === 0xffff || offset === 0xffffffff) {
+      throw new Error("this .xlsx is a zip64 archive, far over the size a workbook may hold");
+    }
+    return { offset, entries };
+  }
+  return undefined;
 }

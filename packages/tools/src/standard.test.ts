@@ -746,6 +746,37 @@ describe("excel_read", () => {
     expect(textOf(result)).toContain("expands");
   });
 
+  test("opens a workbook whose thumbnail happens to look like a zip header", async () => {
+    const { root, call } = await workspace();
+    // Excel puts a thumbnail in the file. Its bytes are whatever they are, and a scan for zip
+    // headers finds one in them: the size it reads there says 3 GiB.
+    await withFixture(root, "excel/with-thumbnail.xlsx", "ledger/2026-07.xlsx");
+
+    const result = await call("excel_read", { path: "ledger/2026-07.xlsx" });
+
+    expect(result.isError).toBeFalsy();
+    expect(jsonOf(result)).toMatchObject({ rowCount: 3 });
+  });
+
+  test("keeps a column whose heading is a name JavaScript gives objects", async () => {
+    const { root, call } = await workspace();
+    await withFixture(root, "excel/special-headings.xlsx", "ledger/odd.xlsx");
+
+    const result = await call("excel_read", { path: "ledger/odd.xlsx" });
+
+    const value = jsonOf(result) as { columns: string[]; rows: Record<string, unknown>[] };
+    expect(value.columns).toEqual(["日付", "__proto__", "constructor"]);
+    // Assigning __proto__ on a plain object sets no property at all: the column would vanish.
+    // Written as an object literal here it would do the same, so the row is read key by key.
+    const row = value.rows[0] as Record<string, unknown>;
+    // Read through a variable key: written out, both names mean something else on an object.
+    const cell = (column: string) => row[column];
+    expect(Object.keys(row)).toEqual(["日付", "__proto__", "constructor"]);
+    expect(cell("__proto__")).toBe("消える値");
+    expect(cell("constructor")).toBe("さくら電気");
+    expect(JSON.stringify(row)).toContain("消える値");
+  });
+
   test("says an old .xls is a format it does not read", async () => {
     const { root, call } = await workspace();
     // The signature of the old binary format, which is not a zip at all.

@@ -5,4 +5,6 @@
 | ファイル | 中身 | テストで確かめること |
 |---|---|---|
 | `ledger.xlsx` | シート 2 枚(`仕訳`、`残高`)。1 行目の見出しは `日付`、`摘要`、`金額`、空、`金額`(重複)。日付は Excel の数値、`C4` は `SUM(C2:C3)` の数式とその計算結果 | 日付が `YYYY-MM-DD` になること。数式が計算結果で返ること。空と重複の見出しが列の記号になること。シートを選べること |
+| `with-thumbnail.xlsx` | `ledger.xlsx` に thumbnail を 1 つ足したもの。その中身のバイト列が、zip の項目の見出しに見え、そこを読むと「3 GiB に展開される」と読めます | 正当なファイルを、バイト列の偶然で断らないこと |
+| `special-headings.xlsx` | 見出しが `日付`、`__proto__`、`constructor` のシート | JavaScript が object に与える名前の列でも、値が消えないこと |
 | `overstated.xlsx` | `ledger.xlsx` と同じ中身で、zip の header だけが「`xl/sharedStrings.xml` は 400 MiB に展開される」と申告している | 展開が大きすぎるファイルを、開く前に断ること |
