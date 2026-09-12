@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { type FileHandle, mkdir, open } from "node:fs/promises";
 import { dirname, relative } from "node:path";
+import { TextDecoder } from "node:util";
 import { resolveWorkspacePath } from "./paths.ts";
 
 /**
@@ -15,6 +16,29 @@ export const MAX_READ_BYTES = 1024 * 1024;
 
 /** The most a tool writes to one file. */
 export const MAX_WRITE_BYTES = MAX_READ_BYTES;
+
+/**
+ * The encodings a file of a company folder is read as, in order. A Japanese company's files are
+ * not all UTF-8: a bank's CSV, a card statement and a spreadsheet's export are usually Shift_JIS.
+ */
+const TEXT_ENCODINGS = ["utf-8", "shift_jis"];
+
+/**
+ * The text of these bytes, or nothing when they are text in none of those encodings. Each is
+ * tried strictly, so bytes that fit none come back as nothing rather than as replacement
+ * characters. Mojibake is the worse outcome: it reaches the model looking like a supplier's
+ * name, and gets written into the ledger as one.
+ */
+export function textOf(bytes: Buffer): string | undefined {
+  for (const encoding of TEXT_ENCODINGS) {
+    try {
+      return new TextDecoder(encoding, { fatal: true }).decode(bytes);
+    } catch {
+      // Not this encoding. The last one to fail leaves nothing.
+    }
+  }
+  return undefined;
+}
 
 /**
  * Reads a text file through one descriptor: the size check and the read see the same file, so a
@@ -33,7 +57,13 @@ export async function readWorkspaceText(root: string, path: string): Promise<str
     if (size > MAX_READ_BYTES) {
       throw new Error(`"${path}" is too large to read (${size} bytes, limit ${MAX_READ_BYTES})`);
     }
-    return await handle.readFile("utf8");
+    const text = textOf(await handle.readFile());
+    if (text === undefined) {
+      throw new Error(
+        `"${path}" is not text: its bytes are neither ${TEXT_ENCODINGS.join(" nor ")}`,
+      );
+    }
+    return text;
   } finally {
     await handle.close();
   }

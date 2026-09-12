@@ -251,6 +251,30 @@ describe("standard tools", () => {
     expect(result.observation?.[0]?.source).toBe("receipts/2026-07.csv");
   });
 
+  test("csv_read reads a bank's CSV in its own encoding, and fs_search finds the words in it", async () => {
+    const { root, call } = await workspace();
+    // 日付,摘要,金額 and one row, in Shift_JIS: what a Japanese bank hands you.
+    await writeFile(
+      join(root, "bank.csv"),
+      Buffer.from([
+        0x93, 0xfa, 0x95, 0x74, 0x2c, 0x93, 0x45, 0x97, 0x76, 0x2c, 0x8b, 0xe0, 0x8a, 0x7a, 0x0a,
+        0x32, 0x30, 0x32, 0x36, 0x2d, 0x30, 0x37, 0x2d, 0x30, 0x33, 0x2c, 0x8a, 0x94, 0x8e, 0xae,
+        0x89, 0xef, 0x8e, 0xd0, 0x2c, 0x31, 0x33, 0x32, 0x30, 0x30, 0x30, 0x0a,
+      ]),
+    );
+
+    const read = await call("csv_read", { path: "bank.csv" });
+    const found = await call("fs_search", { pattern: "株式会社" });
+
+    expect(jsonOf(read)).toMatchObject({
+      columns: ["日付", "摘要", "金額"],
+      rows: [{ 日付: "2026-07-03", 摘要: "株式会社", 金額: "132000" }],
+    });
+    expect((jsonOf(found) as { matches: { path: string }[] }).matches.map((m) => m.path)).toContain(
+      "bank.csv",
+    );
+  });
+
   test("csv_read pages through the rows with offset and limit", async () => {
     const { root, call } = await workspace();
     await writeFile(join(root, "ledger.csv"), LEDGER);

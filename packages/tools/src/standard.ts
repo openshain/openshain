@@ -10,6 +10,7 @@ import {
   type ToolDefinition,
   type ToolProvider,
   type ToolResult,
+  textOf,
   writeWorkspaceText,
 } from "@openshain/core";
 import { parse } from "csv-parse/sync";
@@ -688,8 +689,9 @@ function wildcardMatcher(pattern: string): (subject: string) => boolean {
 }
 
 /**
- * The text of a file the search may read, or undefined for one it skips: over 1 MiB, or with
- * a NUL byte in the first 8 KiB. Size, head and content all come from one descriptor.
+ * The text of a file the search may read, or undefined for one it skips: over 1 MiB, with a NUL
+ * byte in the first 8 KiB, or text in no encoding a company folder uses. Size, head and content
+ * all come from one descriptor.
  */
 async function readSearchable(file: string): Promise<string | undefined> {
   const handle = await open(file, "r");
@@ -698,7 +700,7 @@ async function readSearchable(file: string): Promise<string | undefined> {
     const head = Buffer.alloc(8192);
     const { bytesRead } = await handle.read(head, 0, head.length, 0);
     if (head.subarray(0, bytesRead).includes(0)) return undefined;
-    return await handle.readFile("utf8");
+    return textOf(await handle.readFile());
   } finally {
     await handle.close();
   }

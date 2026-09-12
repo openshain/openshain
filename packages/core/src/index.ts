@@ -126,6 +126,7 @@ export {
   MAX_WRITE_BYTES,
   readWorkspaceText,
   readWorkspaceTextIfAny,
+  textOf,
   writeWorkspaceText,
 } from "./tool/files.ts";
 export { loadToolModule } from "./tool/load-module.ts";

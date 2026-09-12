@@ -17,6 +17,29 @@ async function workspace() {
 }
 
 describe("a file of the company folder", () => {
+  test("a file a Japanese bank wrote is read as its own text, not as mojibake", async () => {
+    const root = await workspace();
+    // Shift_JIS for 日付,摘要,金額 and one row naming a company: what a bank's CSV download holds.
+    const bytes = Buffer.from([
+      0x93, 0xfa, 0x95, 0x74, 0x2c, 0x93, 0x45, 0x97, 0x76, 0x2c, 0x8b, 0xe0, 0x8a, 0x7a, 0x0a,
+      0x32, 0x30, 0x32, 0x36, 0x2d, 0x30, 0x37, 0x2d, 0x30, 0x33, 0x2c, 0x8a, 0x94, 0x8e, 0xae,
+      0x89, 0xef, 0x8e, 0xd0, 0x2c, 0x31, 0x33, 0x32, 0x30, 0x30, 0x30, 0x0a,
+    ]);
+    await writeFile(join(root, "bank.csv"), bytes);
+
+    const text = await readWorkspaceText(root, "bank.csv");
+
+    expect(text).toBe("日付,摘要,金額\n2026-07-03,株式会社,132000\n");
+    expect(text).not.toContain("\ufffd");
+  });
+
+  test("a file that is not text at all is refused, rather than read as characters", async () => {
+    const root = await workspace();
+    await writeFile(join(root, "receipt.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe]));
+
+    await expect(readWorkspaceText(root, "receipt.png")).rejects.toThrow(/is not text/);
+  });
+
   test("is read and written through the guard, and a write reports where it landed", async () => {
     const root = await workspace();
 
