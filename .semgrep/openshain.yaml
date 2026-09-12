@@ -49,6 +49,9 @@ rules:
     - "packages/tools/src/*.ts"
     - "packages/cli/src/preview.ts"
     - "packages/core/src/knowledge/*.ts"
+    # Hashing reads a path the model named, so it is held to the same rule. It reads as a
+    # stream rather than whole, which this pattern does not match.
+    - "packages/core/src/work/artifacts.ts"
     exclude:
     - "*.test.ts"
   patterns:
