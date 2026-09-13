@@ -349,7 +349,12 @@ describe("the screen's controller", () => {
     controller.interrupt();
     await turn;
 
-    expect(seen.at(-1)).toEqual({ busy: false, question: undefined });
+    // The screen learns through the notification, which may arrive after the turn's promise
+    // settles. What matters is that it ends up told, not that it was told first.
+    await waitFor(() => {
+      const last = seen.at(-1);
+      return last?.busy === false && last.question === undefined;
+    });
     expect(seen.some((s) => s.question === "何月ですか")).toBe(true);
     expect((await requestWork(store))?.status).toBe("waiting_input");
   });

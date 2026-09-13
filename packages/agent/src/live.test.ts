@@ -168,6 +168,23 @@ async function asked(root: string, request: string) {
   return { reply: turn.reply, store: new WorkStore(root) };
 }
 
+/**
+ * A company folder holding the ledger a tax accountant keeps, as .xlsx. What the sheet really
+ * says is a date kept as a number and a total kept as a formula; both have to reach the person
+ * as what they mean.
+ */
+async function withWorkbook(modelName: string) {
+  const root = await workspace(
+    `  provider: anthropic\n  model: ${modelName}\n  api_key_env: ANTHROPIC_API_KEY\n`,
+  );
+  await mkdir(join(root, "ledger"), { recursive: true });
+  await writeFile(
+    join(root, "ledger", "2026-07.xlsx"),
+    await readFile(join(import.meta.dir, "..", "..", "tools", "fixtures", "excel", "ledger.xlsx")),
+  );
+  return root;
+}
+
 /** The models the reply has to reach the person on: a small one and a large one. */
 const REPORTING_MODELS = (
   process.env.OPENSHAIN_LIVE_MODELS ?? "claude-haiku-4-5-20251001,claude-opus-5"
@@ -369,6 +386,28 @@ describe("live smoke", () => {
         expect(last.reply).toContain("summary.md");
       },
       300_000,
+    );
+  }
+
+  // Excel keeps a date as a count of days and a total as a formula. Read plainly the person
+  // would be told 46204 and nothing at all; what has to reach them is the day and the sum.
+  for (const name of REPORTING_MODELS) {
+    test.skipIf(!live)(
+      `${name}: reads a workbook and says the date and the total it really holds`,
+      async () => {
+        const root = await withWorkbook(name);
+
+        const { reply } = await asked(
+          root,
+          "ledger/2026-07.xlsx の仕訳シートについて、いちばん上の取引の日付と、合計の金額を教えてください。",
+        );
+
+        expect(reply).toContain("2026");
+        expect(reply).toMatch(/7\s*月|-07-|\/07\//);
+        expect(reply).not.toContain("46204");
+        expect(reply).toMatch(/46,?490/);
+      },
+      240_000,
     );
   }
 
