@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { OpenshainError } from "../errors.ts";
 import { WorkStore } from "../work/store.ts";
 import { observe } from "./trigger.ts";
 
@@ -100,6 +101,15 @@ describe("something happened", () => {
     const { works } = await observe(root, "alice", invoice);
 
     expect(works).toHaveLength(2);
+  });
+
+  test("says plainly what is wrong with it, rather than handing over the checker's own words", async () => {
+    const root = await workspace(OBLIGATION);
+
+    const failed = observe(root, "alice", { ...invoice, type: "../../evil" });
+
+    await expect(failed).rejects.toThrow(/not an observation/);
+    await expect(failed).rejects.toBeInstanceOf(OpenshainError);
   });
 
   test("a workspace with no obligations writes the observation and stops there", async () => {

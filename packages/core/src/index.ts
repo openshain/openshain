@@ -117,7 +117,6 @@ export {
   OBSERVATIONS_DIR_NAME,
   type Observation,
   ObservationSchema,
-  readObservations,
   recordObservation,
 } from "./observation/observations.ts";
 export { type Observed, observe } from "./observation/trigger.ts";
@@ -177,6 +176,7 @@ export {
   type Artifact,
   type AssistantPart,
   canonical,
+  describeIssues,
   type Event,
   type EventFile,
   EventFileSchema,

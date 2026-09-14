@@ -1,8 +1,9 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { OpenshainError } from "../errors.ts";
 import { uuidv7 } from "../uuid.ts";
+import { describeIssues } from "../work/events.ts";
 
 /**
  * A fact openshain noticed, inside the company or outside it. Not a work: a work may come of it,
@@ -42,7 +43,9 @@ export interface NewObservation {
 /** Writes one observation. The file is named after it, and a name that exists is never written over. */
 export async function recordObservation(root: string, input: NewObservation): Promise<Observation> {
   const now = new Date().toISOString();
-  const observation: Observation = ObservationSchema.parse({
+  // Whatever noticed this is a script somebody wrote, so what it hands over is said plainly when
+  // it does not fit, the way a wrong line in a configuration file is.
+  const checked = ObservationSchema.safeParse({
     id: `obs_${uuidv7()}`,
     type: input.type,
     source: input.source,
@@ -51,6 +54,13 @@ export async function recordObservation(root: string, input: NewObservation): Pr
     scope: input.scope,
     ...(input.payloadRef !== undefined && { payloadRef: input.payloadRef }),
   });
+  if (!checked.success) {
+    throw new OpenshainError(
+      "config",
+      `this is not an observation openshain can record: ${describeIssues(checked.error)}`,
+    );
+  }
+  const observation = checked.data;
   const dir = join(root, OBSERVATIONS_DIR_NAME);
   await mkdir(dir, { recursive: true });
   await writeFile(
@@ -61,27 +71,4 @@ export async function recordObservation(root: string, input: NewObservation): Pr
     },
   );
   return observation;
-}
-
-/** Every observation on file, oldest first. The id carries the time, so the name sorts them. */
-export async function readObservations(root: string): Promise<Observation[]> {
-  const dir = join(root, OBSERVATIONS_DIR_NAME);
-  let names: string[];
-  try {
-    names = await readdir(dir);
-  } catch {
-    return [];
-  }
-  const found: Observation[] = [];
-  for (const name of names.filter((n) => n.endsWith(".json")).sort()) {
-    const text = await readFile(join(dir, name), "utf8");
-    try {
-      found.push(ObservationSchema.parse(JSON.parse(text)));
-    } catch (cause) {
-      throw new OpenshainError("config", `${OBSERVATIONS_DIR_NAME}/${name} is not an observation`, {
-        cause,
-      });
-    }
-  }
-  return found;
 }

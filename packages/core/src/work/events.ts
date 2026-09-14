@@ -465,7 +465,7 @@ function isKnownType(type: string): type is EventType {
   return Object.hasOwn(payloadFileSchemas, type);
 }
 
-function describeIssues(error: z.ZodError): string {
+export function describeIssues(error: z.ZodError): string {
   return error.issues
     .map(
       (issue) => (issue.path.length ? `${issue.path.map(String).join(".")}: ` : "") + issue.message,
