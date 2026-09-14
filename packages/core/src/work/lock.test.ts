@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
-import { acquireLock } from "./lock.ts";
+import { acquireLock, LOCK_FILE_NAME } from "./lock.ts";
 
 async function freshDir() {
   return mkdtemp(join(tmpdir(), "openshain-lock-"));
@@ -63,6 +63,35 @@ describe("acquireLock", () => {
 
     expect(JSON.parse(await readFile(join(dir, "lock"), "utf8")).pid).toBe(process.pid);
     await lock.release();
+  });
+
+  test("takes over a lock that was copied here from somewhere else", async () => {
+    // A sync service copies the company folder while a session has a work open. The lock comes
+    // along, and the process it names is the one still running back in the original folder.
+    const original = await freshDir();
+    const held = await acquireLock(original);
+    const carried = await freshDir();
+    await cp(join(original, LOCK_FILE_NAME), join(carried, LOCK_FILE_NAME));
+
+    const taken = await acquireLock(carried);
+
+    const holder = JSON.parse(await readFile(join(carried, LOCK_FILE_NAME), "utf8"));
+    expect(holder.pid).toBe(process.pid);
+    expect(holder.dir).toBe(await realpath(carried));
+    await taken.release();
+    await held.release();
+  });
+
+  test("a lock written before it recorded where it was taken still holds", async () => {
+    // An older workspace: the file names a live process and nothing else. Nothing about it says
+    // it was copied, so it is left alone.
+    const dir = await freshDir();
+    await writeFile(
+      join(dir, LOCK_FILE_NAME),
+      JSON.stringify({ pid: process.pid, started_at: new Date().toISOString() }),
+    );
+
+    expect(acquireLock(dir)).rejects.toBeInstanceOf(OpenshainError);
   });
 
   test("takes over a lock file it cannot parse", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
@@ -119,6 +119,27 @@ describe("WorkStore", () => {
     const snapshot = JSON.parse(await readFile(join(root, "work", work.id, "work.json"), "utf8"));
     expect(snapshot.status).toBe("failed");
     expect(snapshot.completed_at).toBeDefined();
+  });
+
+  test("a work copied while it was open can be opened where it landed", async () => {
+    const { root, store } = await freshStore();
+    const work = await store.create({
+      objective: "持ち出す",
+      principal: "alice",
+      profession: "generic",
+    });
+    // The folder is synced away while a session still has the work open.
+    const held = await store.open(work.id);
+    const carried = await mkdtemp(join(tmpdir(), "openshain-carried-"));
+    await cp(root, carried, { recursive: true });
+
+    const there = await new WorkStore(carried).open(work.id);
+    await there.append({ type: "human.message", payload: { text: "続きです" } });
+    await there.close();
+    await held.close();
+
+    const events = await new WorkStore(carried).events(work.id);
+    expect(events.at(-1)?.type).toBe("human.message");
   });
 
   test("transition refuses an impossible move before writing anything", async () => {

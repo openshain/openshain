@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -844,6 +844,40 @@ rules:
     expect(await readFile(join(root, "ledger", "2026-08.csv"), "utf8")).toBe(
       "somebody got there first\n",
     );
+  });
+
+  test("a company folder carried to another place goes on from where it was", async () => {
+    const { root, call, store } = await connected();
+    const workId = (await call("work_create", { objective: "7月の証憑を集計" })).json()
+      .id as string;
+    await call("csv_read", { path: "receipts/2026-07.csv" });
+    await call("ask_user", { question: "7月でよいですか" });
+    const before = await store.get(workId as never);
+
+    // Everything is files, so carrying the folder is copying it.
+    const carried = await mkdtemp(join(tmpdir(), "openshain-carried-"));
+    await cp(root, carried, { recursive: true });
+    const { call: there, store: overThere } = await connected(undefined, carried);
+
+    // The state comes off the disk, not out of a conversation: this server never saw the request.
+    const found = await overThere.get(workId as never);
+    expect(found.status).toBe("waiting_input");
+    expect(found.objective).toBe(before.objective);
+    const history = (await there("work_get", { id: workId, history: true })).json().history;
+    expect((history as { calls: { name: string }[] }).calls.map((c) => c.name)).toEqual([
+      "csv_read",
+      "ask_user",
+    ]);
+
+    // And it goes on from there.
+    const pending = (history as { pending: { callId: string }[] }).pending[0];
+    await there("work_select", { id: workId });
+    await there("work_answer", { call_id: pending?.callId, answer: "はい、7月です" });
+    const done = await there("work_complete", { summary: "7月分を集計しました" });
+
+    expect(done.json().status).toBe("completed");
+    // The folder it came from is untouched by any of that.
+    expect((await store.get(workId as never)).status).toBe("waiting_input");
   });
 
   test("somebody taken out of principals/ cannot approve from a session that is still open", async () => {

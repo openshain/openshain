@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { OpenshainError } from "../errors.ts";
 
@@ -11,12 +11,21 @@ export interface Lock {
 interface Holder {
   pid: number;
   startedAt: string;
+  /** The directory the lock was taken on. Absent in a lock written before this was recorded. */
+  dir?: string;
 }
 
 /**
  * Takes the single-writer lock of a work directory. A lock left behind by a
- * process that no longer exists, or one that cannot be read, is taken over.
- * Release only removes the file while it still records this holder.
+ * process that no longer exists, one that cannot be read, or one that was
+ * copied here from another folder, is taken over. Release only removes the file
+ * while it still records this holder.
+ *
+ * A lock says who holds it and where they took it. The second is what makes a
+ * company folder something you can carry: a sync service copies the folder while
+ * a session has a work open, the lock travels with it, and the process it names
+ * is alive back where it came from. A lock that names another folder says
+ * nothing about this one.
  *
  * Known limit: liveness is judged by pid. A pid reused by an unrelated process
  * keeps the lock held until that process ends or the file is removed by hand.
@@ -28,8 +37,9 @@ export async function acquireLock(dir: string): Promise<Lock> {
     throw new OpenshainError("invalid_path", `cannot create the work directory ${dir}`, { cause });
   }
   const path = join(dir, LOCK_FILE_NAME);
-  const holder: Holder = { pid: process.pid, startedAt: new Date().toISOString() };
-  const content = JSON.stringify({ pid: holder.pid, started_at: holder.startedAt });
+  const here = await realpath(dir);
+  const holder: Holder = { pid: process.pid, startedAt: new Date().toISOString(), dir: here };
+  const content = JSON.stringify({ pid: holder.pid, started_at: holder.startedAt, dir: here });
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -43,7 +53,8 @@ export async function acquireLock(dir: string): Promise<Lock> {
       }
     }
     const current = await readHolder(path);
-    if (current && isAlive(current.pid)) {
+    const elsewhere = current?.dir !== undefined && current.dir !== here;
+    if (current && !elsewhere && isAlive(current.pid)) {
       throw new OpenshainError(
         "lock_held",
         `${dir} is locked by process ${current.pid} since ${current.startedAt}`,
@@ -59,9 +70,14 @@ async function readHolder(path: string): Promise<Holder | undefined> {
     const parsed = JSON.parse(await readFile(path, "utf8")) as {
       pid?: unknown;
       started_at?: unknown;
+      dir?: unknown;
     };
     if (typeof parsed.pid !== "number") return undefined;
-    return { pid: parsed.pid, startedAt: String(parsed.started_at ?? "unknown") };
+    return {
+      pid: parsed.pid,
+      startedAt: String(parsed.started_at ?? "unknown"),
+      ...(typeof parsed.dir === "string" && { dir: parsed.dir }),
+    };
   } catch {
     return undefined;
   }
