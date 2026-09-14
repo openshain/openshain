@@ -211,36 +211,40 @@ describe("standard tools", () => {
     expect(result.after?.[0]?.path).toBe("notes.md");
   });
 
-  test.each(["../outside.txt", "work/anything", ".secret", "openshain.yaml"])(
-    "every tool refuses %s with the path guard's own error",
-    async (path) => {
-      const { call } = await workspace();
+  test.each([
+    "../outside.txt",
+    "work/anything",
+    ".secret",
+    "openshain.yaml",
+    "observations/obs_1.json",
+    "obligations/accounting.yaml",
+  ])("every tool refuses %s with the path guard's own error", async (path) => {
+    const { call } = await workspace();
 
-      for (const name of [
-        "fs_list",
-        "fs_search",
-        "fs_read",
-        "fs_write",
-        "csv_read",
-        "csv_aggregate",
-        "csv_write",
-        "markdown_read",
-      ]) {
-        const input = name.endsWith("write")
-          ? { path, content: "x", rows: [] }
-          : { path, pattern: "x" };
-        try {
-          await call(name, input);
-          throw new Error(`${name} accepted ${path}`);
-        } catch (err) {
-          expect(err).toBeInstanceOf(OpenshainError);
-          expect(["reserved_path", "outside_workspace", "invalid_path"]).toContain(
-            (err as OpenshainError).code,
-          );
-        }
+    for (const name of [
+      "fs_list",
+      "fs_search",
+      "fs_read",
+      "fs_write",
+      "csv_read",
+      "csv_aggregate",
+      "csv_write",
+      "markdown_read",
+    ]) {
+      const input = name.endsWith("write")
+        ? { path, content: "x", rows: [] }
+        : { path, pattern: "x" };
+      try {
+        await call(name, input);
+        throw new Error(`${name} accepted ${path}`);
+      } catch (err) {
+        expect(err).toBeInstanceOf(OpenshainError);
+        expect(["reserved_path", "outside_workspace", "invalid_path"]).toContain(
+          (err as OpenshainError).code,
+        );
       }
-    },
-  );
+    }
+  });
 
   test("csv_read returns the columns, the row count and one object per row", async () => {
     const { call } = await workspace();

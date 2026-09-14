@@ -2,7 +2,6 @@ import { open, readdir, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
   MAX_READ_BYTES,
-  type Observation,
   RESERVED_PATHS,
   readWorkspaceBytes,
   readWorkspaceText,
@@ -10,6 +9,7 @@ import {
   resolveWorkspacePath,
   type ToolContext,
   type ToolDefinition,
+  type ToolObservation,
   type ToolProvider,
   type ToolResult,
   textOf,
@@ -992,6 +992,6 @@ function neutralizeFormula(value: unknown): unknown {
   return /^[=+@\t\r]/.test(value) || /^-(?![0-9.])/.test(value) ? `'${value}` : value;
 }
 
-function observed(path: string): Observation[] {
+function observed(path: string): ToolObservation[] {
   return [{ source: path, retrievedAt: new Date().toISOString() }];
 }

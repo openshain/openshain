@@ -11,6 +11,10 @@ export const RESERVED_PATHS = [
   // The company's rules and their sources are read through the index, which filters by who is
   // asking. Reading the files directly would go around that.
   "knowledge",
+  // What happened, and what the company does about it. An agent that could write these would be
+  // deciding both the facts and its own work.
+  "observations",
+  "obligations",
 ] as const;
 
 const MAX_SYMLINK_HOPS = 32;

@@ -20,6 +20,10 @@ export interface CreateWorkInput {
   parent?: string;
   /** The name the model goes by in this work. */
   agentName?: string;
+  /** The observation this work came of, when nobody asked for it. */
+  observation?: string;
+  /** The obligation that turned that observation into this work. */
+  obligation?: string;
 }
 
 /**
@@ -69,6 +73,8 @@ export class WorkStore {
           type: input.type ?? "request",
           ...(input.parent !== undefined && { parent: input.parent }),
           ...(input.agentName !== undefined && { agentName: input.agentName }),
+          ...(input.observation !== undefined && { observation: input.observation }),
+          ...(input.obligation !== undefined && { obligation: input.obligation }),
         },
       });
       return await this.snapshot(id, await log.read());

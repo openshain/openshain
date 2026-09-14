@@ -25,6 +25,12 @@
     "agent_name": {
       "type": "string"
     },
+    "observation": {
+      "type": "string"
+    },
+    "obligation": {
+      "type": "string"
+    },
     "status": {
       "type": "string",
       "enum": [

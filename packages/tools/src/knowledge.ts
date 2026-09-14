@@ -7,11 +7,11 @@ import {
   type KnowledgeIndex,
   type KnowledgeScope,
   MIN_QUERY_LENGTH,
-  type Observation,
   readIndex,
   search,
   type ToolContext,
   type ToolDefinition,
+  type ToolObservation,
   type ToolResult,
   type WorkId,
 } from "@openshain/core";
@@ -125,7 +125,7 @@ function visibleTo(
  * The day a person last checked the source against its publisher is a different thing: it is in
  * the index and in the result, and the version here says which edition was read.
  */
-function citation(unit: IndexUnit): Observation {
+function citation(unit: IndexUnit): ToolObservation {
   return {
     source: unit.ref,
     retrievedAt: new Date().toISOString(),

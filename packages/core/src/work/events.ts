@@ -62,6 +62,10 @@ export interface EventPayloads {
     principal: string;
     profession: string;
     type: string;
+    /** The observation this work came of, when nobody asked for it. */
+    observation?: string;
+    /** The obligation that turned that observation into this work. */
+    obligation?: string;
     /** The work this one was started from, such as the session that asked for it. */
     parent?: string;
     /** The name the model goes by in this work. A session picks it; the works it starts carry the same one. */
@@ -210,6 +214,8 @@ export const payloadFileSchemas = {
     type: z.string(),
     parent: z.string().optional(),
     agent_name: z.string().optional(),
+    observation: z.string().optional(),
+    obligation: z.string().optional(),
   }),
   "work.status_changed": z.looseObject({ from: z.string(), to: z.string(), reason: z.string() }),
   "model.requested": z.looseObject({
@@ -504,10 +510,12 @@ const codecs: { [T in EventType]?: Codec<T> } = {
       ...rest,
       ...(agentName !== undefined && { agent_name: agentName }),
     }),
-    fromFile: ({ agent_name, parent, ...rest }) => ({
+    fromFile: ({ agent_name, parent, observation, obligation, ...rest }) => ({
       ...rest,
       ...(parent !== undefined && { parent }),
       ...(agent_name !== undefined && { agentName: agent_name }),
+      ...(observation !== undefined && { observation }),
+      ...(obligation !== undefined && { obligation }),
     }),
   },
   "model.requested": {

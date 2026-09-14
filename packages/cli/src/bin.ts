@@ -7,6 +7,7 @@ import { init } from "./commands/init.ts";
 import { knowledgeBuild, knowledgeCheck } from "./commands/knowledge.ts";
 import { knowledgeAdd } from "./commands/knowledge-add.ts";
 import { mcp } from "./commands/mcp.ts";
+import { observeCommand } from "./commands/observe.ts";
 import { principalCheck } from "./commands/principal.ts";
 import { toolsList } from "./commands/tools.ts";
 import { workList, workShow } from "./commands/work.ts";
@@ -25,7 +26,12 @@ const USAGE = `使い方:
   openshain knowledge check      同じ検証を、索引を書かずに行う(--stale で古い資料も報告)
   openshain knowledge add        決まりを 1 件、質問に答えて追加する
   openshain principal check <id> その人の社員エージェントがどこで働き、何ができるかを確かめる
+  openshain observe <type>       起きたことを記録する。当たる義務があれば Work を作る
   openshain mcp                  MCP Server を stdio で起動する
+
+  --source <name>                observe で、それをどこから知ったか(既定は cli)
+  --at <時刻>                    observe で、それが起きた時刻(既定はいま)
+  --ref <path>                   observe で、中身の置き場
 
   --principal <id>               この端末が誰として働くか。principals/ に書いた id
                                  環境変数 OPENSHAIN_PRINCIPAL でも指定できる。本人確認はしない
@@ -52,7 +58,15 @@ function actingFor(flag: string | undefined): string | undefined {
 
 async function main(argv: string[]): Promise<number> {
   const write = (line: string) => console.log(plain(line));
-  let values: { workspace?: string; principal?: string; help?: boolean; stale?: boolean };
+  let values: {
+    workspace?: string;
+    principal?: string;
+    help?: boolean;
+    stale?: boolean;
+    source?: string;
+    at?: string;
+    ref?: string;
+  };
   let positionals: string[];
   try {
     ({ values, positionals } = parseArgs({
@@ -62,6 +76,9 @@ async function main(argv: string[]): Promise<number> {
         principal: { type: "string" },
         help: { type: "boolean", short: "h" },
         stale: { type: "boolean" },
+        source: { type: "string" },
+        at: { type: "string" },
+        ref: { type: "string" },
       },
       allowPositionals: true,
     }));
@@ -119,6 +136,23 @@ async function main(argv: string[]): Promise<number> {
       }
       const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
       return await principalCheck({ workspaceRoot, id, write });
+    }
+    case "observe": {
+      const type = rest[0];
+      if (!type) {
+        write(USAGE);
+        return 2;
+      }
+      const workspaceRoot = await findWorkspace(values.workspace ?? process.cwd());
+      return await observeCommand({
+        workspaceRoot,
+        type,
+        source: values.source ?? "cli",
+        ...(values.at !== undefined && { at: values.at }),
+        ...(values.ref !== undefined && { ref: values.ref }),
+        as: actingFor(values.principal),
+        write,
+      });
     }
     case "work": {
       const sub = rest[0];

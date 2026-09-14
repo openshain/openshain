@@ -69,6 +69,10 @@ export interface Work {
   parent?: string;
   /** The name the model goes by in this work, when a session gave it one. */
   agentName?: string;
+  /** The observation this work came of, when nobody asked for it. */
+  observation?: string;
+  /** The obligation that turned that observation into this work. */
+  obligation?: string;
   status: WorkStatus;
   createdAt: string;
   startedAt?: string;
@@ -92,6 +96,8 @@ export function reduceWork(events: readonly AnyEvent[]): Work {
     objective: created.payload.objective,
     ...(created.payload.parent !== undefined && { parent: created.payload.parent }),
     ...(created.payload.agentName !== undefined && { agentName: created.payload.agentName }),
+    ...(created.payload.observation !== undefined && { observation: created.payload.observation }),
+    ...(created.payload.obligation !== undefined && { obligation: created.payload.obligation }),
     status: "queued",
     createdAt: created.occurredAt,
   };
@@ -173,6 +179,8 @@ export const WorkFileSchema = z.strictObject({
   objective: z.string(),
   parent: z.string().optional(),
   agent_name: z.string().optional(),
+  observation: z.string().optional(),
+  obligation: z.string().optional(),
   status: WorkStatus,
   created_at: z.iso.datetime(),
   started_at: z.iso.datetime().optional(),
@@ -192,6 +200,8 @@ export function workToFile(work: Work): WorkFile {
     objective: work.objective,
     ...(work.parent !== undefined && { parent: work.parent }),
     ...(work.agentName !== undefined && { agent_name: work.agentName }),
+    ...(work.observation !== undefined && { observation: work.observation }),
+    ...(work.obligation !== undefined && { obligation: work.obligation }),
     status: work.status,
     created_at: work.createdAt,
     ...(work.startedAt !== undefined && { started_at: work.startedAt }),

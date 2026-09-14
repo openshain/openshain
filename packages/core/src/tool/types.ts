@@ -73,7 +73,7 @@ export interface ToolContext {
 }
 
 /** One thing a tool read: a file of the company folder, or a source of the knowledge. */
-export interface Observation {
+export interface ToolObservation {
   source: string;
   retrievedAt: string;
   /** The version of a source that carries one. */
@@ -84,7 +84,7 @@ export interface ToolResult {
   content: ToolContent[];
   isError?: boolean;
   /** Where what the tool returned came from, and when it was read. One call may cite several. */
-  observation?: Observation[];
+  observation?: ToolObservation[];
   /** For mutate tools: the files as they are after the call. */
   after?: Artifact[];
 }

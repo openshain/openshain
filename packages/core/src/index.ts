@@ -106,6 +106,22 @@ export type {
   UserPart,
 } from "./model/types.ts";
 export {
+  OBLIGATIONS_DIR_NAME,
+  type Obligation,
+  ObligationSchema,
+  pulledBy,
+  readObligations,
+} from "./observation/obligations.ts";
+export {
+  type NewObservation,
+  OBSERVATIONS_DIR_NAME,
+  type Observation,
+  ObservationSchema,
+  readObservations,
+  recordObservation,
+} from "./observation/observations.ts";
+export { type Observed, observe } from "./observation/trigger.ts";
+export {
   type CallOptions,
   type CreateRuntimeOptions,
   createRuntime,
@@ -142,13 +158,13 @@ export {
 export {
   ASK_USER_TOOL_NAME,
   type JsonSchema,
-  type Observation,
   RESERVED_TOOL_NAMES,
   TOOL_NAME_PATTERN,
   type ToolCall,
   type ToolContext,
   type ToolDefinition,
   type ToolEffect,
+  type ToolObservation,
   type ToolProvider,
   type ToolResult,
 } from "./tool/types.ts";
