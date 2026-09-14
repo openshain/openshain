@@ -194,6 +194,12 @@ export {
 } from "./work/history.ts";
 export { acquireLock, LOCK_FILE_NAME, type Lock } from "./work/lock.ts";
 export {
+  measureWork,
+  summarizeUsage,
+  type UsageSummary,
+  type WorkMeasures,
+} from "./work/measures.ts";
+export {
   buildProjection,
   type Projection,
   type ProjectionInput,

@@ -152,7 +152,7 @@ async function logWithEveryType() {
     });
     await handle.append({
       type: "review.decided",
-      payload: { approvalId: "apr_2", decisionId: "dec_1" },
+      payload: { approvalId: "apr_2", decision: "approve" as const, decisionId: "dec_1" },
     });
     await handle.append({
       type: "decision.applied",

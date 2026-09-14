@@ -2,12 +2,13 @@ import {
   type AnyEvent,
   type Event,
   pendingQuestions,
+  summarizeUsage,
   type ToolContent,
   type Work,
 } from "@openshain/core";
 import { describeInput, truncate } from "./format.ts";
 import { failureLabel, rejectionLabel, statusLabel } from "./labels.ts";
-import { formatUsage, summarizeUsage } from "./usage.ts";
+import { formatUsage } from "./usage.ts";
 
 /** One line for a tool call, a rejection or a failure; nothing for the other events. `names` maps call ids to tool names. */
 export function progressLine(event: AnyEvent, names: Map<string, string>): string | undefined {

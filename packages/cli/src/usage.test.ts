@@ -8,6 +8,7 @@ describe("formatUsage", () => {
       toolCalls: 3,
       inputTokens: 70,
       cachedInputTokens: 25,
+      toolMs: 0,
       outputTokens: 9,
     });
 
@@ -22,6 +23,7 @@ describe("formatUsage", () => {
       toolCalls: 5,
       inputTokens: 0,
       cachedInputTokens: 0,
+      toolMs: 0,
       outputTokens: 0,
     });
 

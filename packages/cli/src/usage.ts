@@ -1,37 +1,4 @@
-import { type AnyEvent, countToolCalls, type Event } from "@openshain/core";
-
-export interface UsageSummary {
-  modelCalls: number;
-  toolCalls: number;
-  inputTokens: number;
-  /** The part of inputTokens a prompt cache served. */
-  cachedInputTokens: number;
-  outputTokens: number;
-}
-
-/** Totals over a work's events: calls and tokens. */
-export function summarizeUsage(events: AnyEvent[]): UsageSummary {
-  const summary: UsageSummary = {
-    modelCalls: 0,
-    toolCalls: 0,
-    inputTokens: 0,
-    cachedInputTokens: 0,
-    outputTokens: 0,
-  };
-  for (const event of events) {
-    if (event.type === "model.requested") summary.modelCalls += 1;
-    if (event.type === "usage.recorded") {
-      const { payload } = event as Event<"usage.recorded">;
-      if (payload.kind === "model_inference") {
-        summary.inputTokens += payload.usage.inputTokens;
-        summary.cachedInputTokens += payload.usage.cachedInputTokens ?? 0;
-        summary.outputTokens += payload.usage.outputTokens;
-      }
-    }
-  }
-  summary.toolCalls = countToolCalls(events);
-  return summary;
-}
+import type { UsageSummary } from "@openshain/core";
 
 export function formatUsage(summary: UsageSummary): string {
   if (summary.modelCalls === 0 && summary.inputTokens === 0 && summary.outputTokens === 0) {

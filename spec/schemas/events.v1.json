@@ -1173,12 +1173,21 @@
             "approval_id": {
               "type": "string"
             },
+            "decision": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "reject",
+                "modify"
+              ]
+            },
             "decision_id": {
               "type": "string"
             }
           },
           "required": [
-            "approval_id"
+            "approval_id",
+            "decision"
           ],
           "additionalProperties": {}
         }

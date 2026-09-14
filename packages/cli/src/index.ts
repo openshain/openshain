@@ -1,4 +1,7 @@
 // openshain: Reference CLI agent for the openshain runtime
+
+// The sums live in core, where anything that reads a record can reach them.
+export { summarizeUsage, type UsageSummary } from "@openshain/core";
 export {
   AGENTS_TEMPLATE,
   CLAUDE_TEMPLATE,
@@ -27,5 +30,5 @@ export {
   statusLabel,
 } from "./labels.ts";
 export { nextActor, progressLine, report } from "./report.ts";
-export { formatUsage, summarizeUsage, type UsageSummary } from "./usage.ts";
+export { formatUsage } from "./usage.ts";
 export { findWorkspace } from "./workspace.ts";

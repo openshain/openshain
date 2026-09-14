@@ -716,7 +716,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             },
           });
           if (decision === "reject") {
-            await opened.append({ type: "review.decided", payload: { approvalId } });
+            await opened.append({ type: "review.decided", payload: { approvalId, decision } });
             await opened.append({
               type: "tool.rejected",
               payload: {
@@ -733,7 +733,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
           const file = await writeDecision(workspaceRoot, written);
           await opened.append({
             type: "review.decided",
-            payload: { approvalId, decisionId: written.id },
+            payload: { approvalId, decision, decisionId: written.id },
           });
           await opened.transition("in_progress", `${reviewer.name} decided ${approvalId}`);
           const ranWith =

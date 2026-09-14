@@ -98,7 +98,11 @@ export interface EventPayloads {
   /** The package handed to the reviewer: the call, what the work established, and the question. */
   "review.requested": { approvalId: string; package: ReviewPackage };
   /** The reviewer's answer. A decision id when they wrote one; absent when they refused. */
-  "review.decided": { approvalId: string; decisionId?: string };
+  "review.decided": {
+    approvalId: string;
+    decision: "approve" | "reject" | "modify";
+    decisionId?: string;
+  };
   /** A call that ran because an approved decision covers it. */
   "decision.applied": { callId: string; decisionId: string };
   /** The answer to an approval: approve runs the call, reject refuses it, modify runs it with the reviewer's input. */
@@ -287,6 +291,7 @@ export const payloadFileSchemas = {
   }),
   "review.decided": z.looseObject({
     approval_id: z.string(),
+    decision: z.enum(["approve", "reject", "modify"]),
     decision_id: z.string().optional(),
   }),
   "decision.applied": z.looseObject({ call_id: z.string(), decision_id: z.string() }),
@@ -653,10 +658,12 @@ const codecs: { [T in EventType]?: Codec<T> } = {
   "review.decided": {
     toFile: (p) => ({
       approval_id: p.approvalId,
+      decision: p.decision,
       ...(p.decisionId !== undefined && { decision_id: p.decisionId }),
     }),
     fromFile: (p) => ({
       approvalId: p.approval_id,
+      decision: p.decision,
       ...(p.decision_id !== undefined && { decisionId: p.decision_id }),
     }),
   },

@@ -4,6 +4,7 @@ import {
   type Event,
   loadConfig,
   mayReadWork,
+  measureWork,
   noSuchWork,
   PRINCIPALS_DIR_NAME,
   type Principal,
@@ -11,13 +12,15 @@ import {
   pendingApprovals,
   pendingQuestions,
   readPrincipals,
+  summarizeUsage,
   type Work,
+  type WorkMeasures,
   WorkStore,
 } from "@openshain/core";
 import { describeInput, padDisplay } from "../format.ts";
 import { errorLabel, failureLabel, rejectionLabel, statusLabel } from "../labels.ts";
 import { nextActor } from "../report.ts";
-import { formatUsage, summarizeUsage } from "../usage.ts";
+import { formatUsage } from "../usage.ts";
 
 export interface WorkListOptions {
   workspaceRoot: string;
@@ -113,8 +116,34 @@ export function describeWork(work: Work, events: AnyEvent[]): string[] {
     for (const line of calls) lines.push(line);
   }
   lines.push(formatUsage(summarizeUsage(events)));
+  lines.push(measureLine(measureWork(work, events)));
   lines.push(nextActor(work));
   return lines;
+}
+
+/**
+ * What the work asked of a person and what the rules stopped, in one line. Only what happened is
+ * written: a work nobody was asked about says so, rather than listing three zeros.
+ */
+function measureLine(measures: WorkMeasures): string {
+  const { intervention, quality, attention, coverage } = measures;
+  const asked = [
+    intervention.clarification > 0 ? `質問 ${intervention.clarification}` : "",
+    intervention.approval > 0 ? `承認 ${intervention.approval}` : "",
+    intervention.expertReview > 0 ? `資格者の判断 ${intervention.expertReview}` : "",
+  ].filter(Boolean);
+  const notes = [
+    quality.corrected > 0 ? `資格者が書き換え ${quality.corrected}` : "",
+    quality.stoppedByRule > 0 ? `規則が止めた ${quality.stoppedByRule}` : "",
+    coverage.seconds !== undefined ? `所要 ${coverage.seconds} 秒` : "",
+  ].filter(Boolean);
+  const called =
+    attention.calls === 0
+      ? coverage.finished
+        ? "人を呼ばずに終わりました"
+        : "まだ人を呼んでいません"
+      : `人を呼んだ回数 ${attention.calls}(${asked.join("、")})`;
+  return [called, ...notes].join("  ");
 }
 
 /**

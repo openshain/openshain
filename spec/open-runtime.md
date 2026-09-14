@@ -319,6 +319,22 @@ Tool の結果は観測であって転送ではありません。ファイルを
 - Work は外から止められます。`work_pause` は、進行中か待ちの Work を `paused` にし、`work.paused` にそれまでの状態を残します。`work_resume` はその状態へ戻します(待っていた Work は待ちに戻ります)。止まっている間は、その Work に対する Tool の呼び出しを受け付けません。**承認済みの呼び出しの実行も受け付けません。** 止めた後に外部への効果が 1 つも起きないことが、この機構の意味だからです。止めた Work も `cancelled` と `failed` にはできます。
 - Runtime 自身が Tool を追加します。`ask_user`(effect: observe)と、MCP Server の `work_*` と `work_record` です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます。`ask_user` の振る舞いは次の節にあります。
 
+## 1 件の Work を測る
+
+記録から、その Work について 5 つのまとまりを数えます。数えるのは記録にあるものだけで、記録の無いものは 0 と書かずに項目を置きません。0 は「起きなかった」であって「分からない」ではないからです。
+
+| まとまり | 中身 | 出どころ |
+|---|---|---|
+| coverage | 終わったか、人を呼ばずに終わったか、かかった時間 | 状態と `work.created` / `work.completed` の時刻 |
+| intervention | 質問、承認、資格者の判断の回数 | `human.input_requested`、`approval.decided`、`review.decided` |
+| quality | 資格者に直された回数、規則が実行させなかった回数 | `review.decided` の `modify`、`tool.rejected` の `denied` |
+| cost | model の呼び出しとトークン、Tool の呼び出しと所要時間 | `model.requested`、`usage.recorded` |
+| attention | その Work が人を呼んだ回数の合計 | 上の intervention の合計 |
+
+まだ記録が無いもの。人が openshain の外でやった作業、選択肢から選ぶ形の判断、専門家に払った金額、通知の回数、終わった Work を開け直した回数。いずれも、その出来事を記録する仕組みを入れてから数えます。
+
+attention は intervention の合計です。通知が入るまでは同じものを人の側から見た数で、通知が入ったら別のまとまりになります。
+
 ## Runtime と client の分担
 
 Runtime(`packages/core`、`packages/tools`、`packages/mcp`)はモデルを呼びません。Work の状態、Tool、記録を持ち、MCP の Tool として公開します。モデルを持ち、Work を作り、Tool を呼び、Work を閉じるのは client(Claude Code、Codex、対話型 CLI)です。対話型 CLI のモデルの loop は `packages/agent` にあり、MCP の in-memory transport で自分の MCP server に接続します。Runtime の Tool の面は MCP の 1 つだけです。
