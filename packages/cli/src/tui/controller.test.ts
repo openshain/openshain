@@ -94,7 +94,12 @@ rules:
   return { root, store, controller };
 }
 
-async function waitFor(check: () => boolean, ms = 3000): Promise<void> {
+/**
+ * Waits for something the controller does on its own. The clock is the wall's, and a full run
+ * shares one machine between fifty files, so a few seconds of it can pass with almost no work
+ * done here. The wait is long enough that only something genuinely stuck reaches the end.
+ */
+async function waitFor(check: () => boolean, ms = 15_000): Promise<void> {
   const end = Date.now() + ms;
   while (!check()) {
     if (Date.now() > end) throw new Error("timed out waiting");

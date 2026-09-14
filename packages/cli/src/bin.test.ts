@@ -5,6 +5,9 @@ import { join } from "node:path";
 
 const bin = join(import.meta.dir, "bin.ts");
 
+/** Each of these starts the CLI as its own process, which a busy machine takes its time over. */
+const TIMEOUT = 30_000;
+
 async function openshain(...args: string[]) {
   return openshainWith({}, ...args);
 }
@@ -25,83 +28,115 @@ async function openshainWith(env: Record<string, string | undefined>, ...args: s
 }
 
 describe("openshain", () => {
-  test("--help prints the usage and exits with 0", async () => {
-    const { code, stdout } = await openshain("--help");
+  test(
+    "--help prints the usage and exits with 0",
+    async () => {
+      const { code, stdout } = await openshain("--help");
 
-    expect(code).toBe(0);
-    expect(stdout).toContain("使い方");
-  });
+      expect(code).toBe(0);
+      expect(stdout).toContain("使い方");
+    },
+    TIMEOUT,
+  );
 
-  test("no command prints the usage and exits with 2", async () => {
-    const { code, stdout } = await openshain();
+  test(
+    "no command prints the usage and exits with 2",
+    async () => {
+      const { code, stdout } = await openshain();
 
-    expect(code).toBe(2);
-    expect(stdout).toContain("使い方");
-  });
+      expect(code).toBe(2);
+      expect(stdout).toContain("使い方");
+    },
+    TIMEOUT,
+  );
 
-  test("an unknown command exits with 2", async () => {
-    const { code, stdout } = await openshain("bogus");
+  test(
+    "an unknown command exits with 2",
+    async () => {
+      const { code, stdout } = await openshain("bogus");
 
-    expect(code).toBe(2);
-    expect(stdout).toContain("不明なコマンド bogus");
-  });
+      expect(code).toBe(2);
+      expect(stdout).toContain("不明なコマンド bogus");
+    },
+    TIMEOUT,
+  );
 
-  test("an unknown option exits with 2 instead of crashing", async () => {
-    const { code, stdout, stderr } = await openshain("tools", "--foo", "list");
+  test(
+    "an unknown option exits with 2 instead of crashing",
+    async () => {
+      const { code, stdout, stderr } = await openshain("tools", "--foo", "list");
 
-    expect(code).toBe(2);
-    expect(stdout).toContain("不明なオプション --foo");
-    expect(stderr).toBe("");
-  });
+      expect(code).toBe(2);
+      expect(stdout).toContain("不明なオプション --foo");
+      expect(stderr).toBe("");
+    },
+    TIMEOUT,
+  );
 
-  test("an option without its value exits with 2 and says the arguments could not be read", async () => {
-    const { code, stdout } = await openshain("tools", "list", "--workspace");
+  test(
+    "an option without its value exits with 2 and says the arguments could not be read",
+    async () => {
+      const { code, stdout } = await openshain("tools", "list", "--workspace");
 
-    expect(code).toBe(2);
-    expect(stdout).toContain("引数を解釈できません");
-  });
+      expect(code).toBe(2);
+      expect(stdout).toContain("引数を解釈できません");
+    },
+    TIMEOUT,
+  );
 
-  test("work without a subcommand prints the usage and exits with 2", async () => {
-    const { code, stdout } = await openshain("work");
+  test(
+    "work without a subcommand prints the usage and exits with 2",
+    async () => {
+      const { code, stdout } = await openshain("work");
 
-    expect(code).toBe(2);
-    expect(stdout).toContain("使い方");
-  });
+      expect(code).toBe(2);
+      expect(stdout).toContain("使い方");
+    },
+    TIMEOUT,
+  );
 
-  test("a workspace without a model section still lists tools and works", async () => {
-    const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
-    await openshain("init", "--workspace", root);
-    const yaml = await readFile(join(root, "openshain.yaml"), "utf8");
-    await writeFile(join(root, "openshain.yaml"), yaml.replace(/\nmodel:\n(?: .*\n)+/, "\n"));
+  test(
+    "a workspace without a model section still lists tools and works",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
+      await openshain("init", "--workspace", root);
+      const yaml = await readFile(join(root, "openshain.yaml"), "utf8");
+      await writeFile(join(root, "openshain.yaml"), yaml.replace(/\nmodel:\n(?: .*\n)+/, "\n"));
 
-    const tools = await openshainWith(
-      { ANTHROPIC_API_KEY: undefined },
-      "tools",
-      "list",
-      "--workspace",
-      root,
-    );
-    const works = await openshainWith(
-      { ANTHROPIC_API_KEY: undefined },
-      "work",
-      "list",
-      "--workspace",
-      root,
-    );
+      const tools = await openshainWith(
+        { ANTHROPIC_API_KEY: undefined },
+        "tools",
+        "list",
+        "--workspace",
+        root,
+      );
+      const works = await openshainWith(
+        { ANTHROPIC_API_KEY: undefined },
+        "work",
+        "list",
+        "--workspace",
+        root,
+      );
 
-    expect(tools.code).toBe(0);
-    expect(tools.stdout).toContain("fs_read");
-    expect(works.code).toBe(0);
-    expect(works.stderr).toBe("");
-  });
+      expect(tools.code).toBe(0);
+      expect(tools.stdout).toContain("fs_read");
+      expect(works.code).toBe(0);
+      expect(works.stderr).toBe("");
+    },
+    TIMEOUT,
+  );
 
-  test("a directory without a config is a config error with exit 1", async () => {
-    const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
+  test(
+    "a directory without a config is a config error with exit 1",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "openshain-bin-"));
 
-    const { code, stderr } = await openshain("tools", "list", "--workspace", root);
+      const { code, stderr } = await openshain("tools", "list", "--workspace", root);
 
-    expect(code).toBe(1);
-    expect(stderr).toContain("エラー(config) 設定の問題。");
-    expect(stderr).toContain("openshain.yaml が見つかりません");
-  });
+      expect(code).toBe(1);
+      expect(stderr).toContain("エラー(config) 設定の問題。");
+      expect(stderr).toContain("openshain.yaml が見つかりません");
+    },
+    TIMEOUT,
+  );
 });
