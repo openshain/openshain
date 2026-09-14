@@ -654,6 +654,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const found = await findApproval(works, approvalId);
         if (!found) return failure(`no pending approval ${approvalId}`);
         const { workId, approval } = found;
+        if ((await works.get(workId)).status === "paused") return failure(PAUSED(workId));
         if (approval.kind !== "review") {
           return failure(
             `${approvalId} waits for a person's approval, not a review; use approval_decide`,
@@ -955,7 +956,9 @@ async function findApproval(
 ): Promise<{ workId: WorkId; approval: PendingApproval } | undefined> {
   const { works: all } = await works.list();
   for (const w of all) {
-    if (w.status !== "waiting_approval") continue;
+    // A stopped work still holds its approvals. Saying they are not there would send the person
+    // looking for one that was never lost; the handlers say why it cannot be decided.
+    if (w.status !== "waiting_approval" && w.status !== "paused") continue;
     const approval = pendingApprovals(await works.events(w.id)).find(
       (a) => a.approvalId === approvalId,
     );

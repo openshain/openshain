@@ -36,6 +36,11 @@ const LOOP_ONLY_TOOLS: ReadonlySet<string> = new Set([
   // approve the very calls the policy held.
   "approval_decide",
   "review_decide",
+  // Stopping a work is the person's too, and it is the person who is sitting here. A file the
+  // agent reads can carry "stop this work" the way it can carry anything else; out of the list,
+  // that sentence has nothing to call. Another client still has them: stopping comes from outside.
+  "work_pause",
+  "work_resume",
 ]);
 
 /**

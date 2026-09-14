@@ -917,7 +917,50 @@ rules:
     });
 
     expect(decided.isError).toBe(true);
+    // Said for the reason it is true: the approval is still there, the work is not running.
+    expect(decided.text).toContain("stopped");
     expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("date,amount\n");
+  });
+
+  test("a call a reviewer decides does not run while the work is stopped either", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: tax-treatment-needs-review
+    match: { tool: csv_write, path: "ledger/**" }
+    decision: review_required
+    reviewer: { role: tax-accountant }
+    reason: 税務上の取扱いを確認してください
+`,
+    );
+    const { call } = await connected(undefined, root);
+    const workId = (await call("work_create", { objective: "7 月の帳簿" })).json().id as string;
+    const held = await call("csv_write", {
+      path: "ledger/2026-07.csv",
+      rows: [{ date: "2026-07-01", amount: "100" }],
+    });
+    const approvalId = held.json().approval_id as string;
+
+    await call("work_pause", { id: workId });
+    const decided = await call("review_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+      reviewer: { name: "田中 太郎", role: "tax-accountant", qualification: "税理士" },
+      interpretation: "問題ありません",
+    });
+
+    expect(decided.isError).toBe(true);
+    expect(decided.text).toContain("stopped");
+    expect(existsSync(join(root, "ledger", "2026-07.csv"))).toBe(false);
   });
 
   test("a company folder carried to another place goes on from where it was", async () => {

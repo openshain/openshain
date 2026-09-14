@@ -668,6 +668,7 @@ describe("a session, when the model misbehaves", () => {
         name: "approval_decide",
         input: { approval_id: "apr_x", decision: "approve" },
       }),
+      callTools({ id: "c5", name: "work_pause", input: { id: "work_x" } }),
       say("やめておきます。"),
       say("まだ話せます。"),
     ]);
@@ -683,7 +684,7 @@ describe("a session, when the model misbehaves", () => {
         (e) =>
           `${(e.payload as { callId: string }).callId} ${e.type === "tool.called" ? "→" : "←"}`,
       ),
-    ).toEqual(["c1 →", "c1 ←", "c2 →", "c2 ←", "c3 →", "c3 ←", "c4 →", "c4 ←"]);
+    ).toEqual(["c1 →", "c1 ←", "c2 →", "c2 ←", "c3 →", "c3 ←", "c4 →", "c4 ←", "c5 →", "c5 ←"]);
     expect((await store.get(session.id)).status).toBe("in_progress");
     const second = await session.turn("続き");
     expect(second.reply).toBe("まだ話せます。");

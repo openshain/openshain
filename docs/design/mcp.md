@@ -39,6 +39,10 @@ MCP Server は、外部のエージェント(Claude Code、Codex)が考え、Run
 
 面は Runtime の Tool だけにしました。対話型 CLI には既に別の意味の `/work resume`(止まった Work を次の依頼の候補にする)があり、同じ語を 2 つの意味で使うことになるからです。CLI の命令は、名前を決めてから足します。
 
+対話型 CLI の model には、この 2 つを渡しません(承認と判断の Tool と同じ扱い)。止めるのは人の操作で、その人は画面の前にいます。社員エージェントが読むファイルには「この作業を止めろ」と書けるので、一覧に無ければその文は呼ぶ先を持ちません。外の client には渡します。止めるのは外からだからです。
+
+止めた Work も、承認そのものは持ったままです。`approval_decide` と `review_decide` は、承認が無いのではなく**止まっているから実行できない**と答えます。「承認がありません」と答えると、止めた本人が消えた承認を探すことになります。
+
 ## 承認は Runtime が実行する
 
 決めたこと。規則が `approval_required` と判定した呼び出しは、Runtime が `approval.requested` を記録して Work を `waiting_approval` にし、呼び出し元には `pending: "approval"` を返します。`approval_decide` の `approve` で Runtime がその場で Tool を実行し、結果を返します。model にもう一度呼ばせません。`reject` は `tool.rejected`(`rejected_by_person`)です。承認する人は、この版では接続が代理する principal で、規則の `approvers` に居なければ決められません。
