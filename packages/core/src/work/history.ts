@@ -1,4 +1,5 @@
 import type { AnyEvent, Event } from "./events.ts";
+import type { WorkStatus } from "./work.ts";
 
 /** Why a client gives up on a work, as recorded in `work.failed`. */
 export type FailureReason = "limit_reached" | "model_refusal" | "model_error";
@@ -138,4 +139,18 @@ export function filesKnown(events: readonly AnyEvent[]): Set<string> {
     for (const wrote of after ?? []) known.add(wrote.path);
   }
   return known;
+}
+
+/**
+ * What a stopped work was doing when it was stopped, so letting it go on puts it back there
+ * rather than setting it running. A work that waited for an answer waits for it again.
+ */
+export function pausedFrom(events: readonly AnyEvent[]): WorkStatus | undefined {
+  for (let at = events.length - 1; at >= 0; at -= 1) {
+    const event = events[at];
+    if (event?.type !== "work.status_changed") continue;
+    const { from, to } = (event as Event<"work.status_changed">).payload;
+    if (to === "paused") return from as WorkStatus;
+  }
+  return undefined;
 }

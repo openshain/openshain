@@ -7,6 +7,7 @@ export const STATUS_LABELS: Record<WorkStatus, string> = {
   waiting_input: "利用者の入力待ち",
   waiting_approval: "承認待ち",
   waiting_external: "外部の応答待ち",
+  paused: "停止中",
   completed: "完了",
   failed: "失敗",
   cancelled: "取り消し",

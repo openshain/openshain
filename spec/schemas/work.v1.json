@@ -33,6 +33,7 @@
         "waiting_input",
         "waiting_approval",
         "waiting_external",
+        "paused",
         "completed",
         "failed",
         "cancelled"

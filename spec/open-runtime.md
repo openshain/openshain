@@ -95,7 +95,7 @@ outcome:
       sha256: "…"
 ```
 
-`status` は `queued`、`in_progress`、`waiting_input`、`waiting_approval`、`waiting_external`、`completed`、`failed`、`cancelled` です。この段階で使うのは `waiting_approval` と `waiting_external` 以外です。`completed` と `failed` には `work.completed` と `work.failed` のイベントでだけ到達します。`failed` のときは `failure: { reason, detail }` を持ちます。
+`status` は `queued`、`in_progress`、`waiting_input`、`waiting_approval`、`waiting_external`、`paused`、`completed`、`failed`、`cancelled` です。この段階で使うのは `waiting_external` 以外です。`completed` と `failed` には `work.completed` と `work.failed` のイベントでだけ到達します。`failed` のときは `failure: { reason, detail }` を持ちます。
 
 `profession` はこの段階では `generic` だけです。指示文は設定ファイルの `profession.instructions` から読みます。Profession Pack が入ると Pack が供給します。
 
@@ -316,6 +316,7 @@ Tool の結果は観測であって転送ではありません。ファイルを
 - 読み取りは UTF-8、次に Shift_JIS の順で、どちらも厳密に復号します。銀行とカード会社の CSV や表計算ソフトの書き出しが Shift_JIS だからです。どちらでもないバイト列(画像、PDF)は、置換文字にせずエラーにします(`fs_search` は飛ばします)。文字コードは推測せず、この順で試すだけなので、同じ入力には同じ結果になります。書き込みは UTF-8 です。
 - `csv_aggregate` は列の存在を先に確かめ、無い列を挙げられたら列名の一覧を `isError` で返します。グループはグループの値の順に並べ、同じ入力には同じ出力を返します。
 - すべてのパスは workspace root からの相対パスです。root の外を指すパス(`..`、絶対パス、symlink の先)と予約パス(`openshain.yaml`、`work/`、先頭が `.` の項目)は拒否します。予約パスの判定は大文字小文字を区別しません。symlink は 1 段ずつ読んで行き先で判定します。行き先がまだ存在しなくても行き先で判定します。判定と実際のファイル操作の間で差し替えられる余地は残るので、書き込む Tool は可能な環境では O_NOFOLLOW で開きます。
+- Work は外から止められます。`work_pause` は、進行中か待ちの Work を `paused` にし、`work.paused` にそれまでの状態を残します。`work_resume` はその状態へ戻します(待っていた Work は待ちに戻ります)。止まっている間は、その Work に対する Tool の呼び出しを受け付けません。**承認済みの呼び出しの実行も受け付けません。** 止めた後に外部への効果が 1 つも起きないことが、この機構の意味だからです。止めた Work も `cancelled` と `failed` にはできます。
 - Runtime 自身が Tool を追加します。`ask_user`(effect: observe)と、MCP Server の `work_*` と `work_record` です。名前は予約で、Tool provider が同じ名前を登録しようとすると `invalid_tool` で弾きます。`ask_user` の振る舞いは次の節にあります。
 
 ## Runtime と client の分担
@@ -484,7 +485,7 @@ import { z } from "zod";
 
 export const WorkStatus = z.enum([
   "queued", "in_progress", "waiting_input", "waiting_approval",
-  "waiting_external", "completed", "failed", "cancelled",
+  "waiting_external", "paused", "completed", "failed", "cancelled",
 ]);
 export type WorkStatus = z.infer<typeof WorkStatus>;
 

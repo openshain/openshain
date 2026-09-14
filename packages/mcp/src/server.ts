@@ -32,6 +32,7 @@ import {
   type PendingApproval,
   parsePayloadFile,
   parseWorkId,
+  pausedFrom,
   pendingApprovals,
   pendingQuestions,
   RUNTIME_PROVIDER_ID,
@@ -120,6 +121,28 @@ const WORK_TOOLS: Tool[] = [
     name: "work_list",
     description: "Every work in this workspace, oldest first, with the ones that cannot be read.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "work_pause",
+    description:
+      "Stop a work where it is. While it is stopped nothing runs for it: no tool call, and no call a person already approved. Records why, if a reason is given. Use work_resume to let it go on from what it was doing.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, reason: { type: "string", maxLength: 2000 } },
+      required: ["id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "work_resume",
+    description:
+      "Let a stopped work go on from whatever it was doing when it was stopped: running, or waiting for an answer, an approval or something outside.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+      additionalProperties: false,
+    },
   },
   {
     name: "work_complete",
@@ -289,6 +312,10 @@ const RECORDABLE_TYPES: ReadonlySet<string> = new Set([
 const SESSION_HAS_NO_TOOLS =
   "a session records the conversation and runs no tools: call work_create with parent set to the session's id, then call the tool inside that work";
 
+/** Said whenever a stopped work is asked to do something: the point of stopping is that it does not. */
+const PAUSED = (id: string) =>
+  `work ${id} is stopped; nothing runs for it until work_resume lets it go on`;
+
 const NO_WORK =
   "no current work: call work_create to start one for the person's request, or work_select to pick an existing one";
 
@@ -337,6 +364,9 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
     if (isTerminal(work.status)) {
       session.clear();
       return { refused: failure(`work ${id} is already ${work.status}; ${NO_WORK}`) };
+    }
+    if (work.status === "paused") {
+      return { refused: failure(PAUSED(id)) };
     }
     return { id };
   }
@@ -544,6 +574,7 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
         const found = await findApproval(works, approvalId);
         if (!found) return failure(`no pending approval ${approvalId}`);
         const { workId, approval } = found;
+        if ((await works.get(workId)).status === "paused") return failure(PAUSED(workId));
         const by = config.principal.id;
         if (approval.kind === "review") {
           return failure(
@@ -749,6 +780,25 @@ export async function createMcpServer(options: McpServerOptions): Promise<Server
             message: p.error.message,
           })),
         });
+      }
+      case "work_pause": {
+        const { id: given, reason } = input as { id: string; reason?: string };
+        const id = parseWorkId(given);
+        const work = await works.get(id);
+        if (!(await readsRecord(work))) throw noSuchWork(workspaceRoot, id);
+        if (isTerminal(work.status)) return failure(`work ${id} is already ${work.status}`);
+        if (work.status === "paused") return failure(`work ${id} is already stopped`);
+        await works.transition(id, "paused", reason ?? "stopped from outside");
+        return json(await works.get(id));
+      }
+      case "work_resume": {
+        const id = parseWorkId((input as { id: string }).id);
+        const work = await works.get(id);
+        if (!(await readsRecord(work))) throw noSuchWork(workspaceRoot, id);
+        if (work.status !== "paused") return failure(`work ${id} is ${work.status}, not stopped`);
+        const back = pausedFrom(await works.events(id)) ?? "in_progress";
+        await works.transition(id, back, "let go on from outside");
+        return json(await works.get(id));
       }
       case "work_complete": {
         const gate = await openWork();

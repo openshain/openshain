@@ -846,6 +846,80 @@ rules:
     );
   });
 
+  test("a work stopped from outside does nothing until it is let go on", async () => {
+    const { root, call, store } = await connected();
+    const workId = (await call("work_create", { objective: "帳簿を更新" })).json().id as string;
+
+    // Somebody who is not this conversation stops the work.
+    const { call: outside } = await connected(undefined, root);
+    const paused = await outside("work_pause", { id: workId, reason: "確認したいことがある" });
+
+    expect(paused.json().status).toBe("paused");
+    const blocked = await call("fs_write", { path: "ledger.csv", content: "date\n" });
+    expect(blocked.isError).toBe(true);
+    expect(existsSync(join(root, "ledger.csv"))).toBe(false);
+
+    const resumed = await outside("work_resume", { id: workId });
+
+    expect(resumed.json().status).toBe("in_progress");
+    const after = await call("fs_write", { path: "ledger.csv", content: "date\n" });
+    expect(after.isError).toBe(false);
+    expect((await store.get(workId as never)).status).toBe("in_progress");
+  });
+
+  test("a work waiting for an answer comes back to waiting, not to running", async () => {
+    const { root, call } = await connected();
+    const workId = (await call("work_create", { objective: "聞いてから進める" })).json()
+      .id as string;
+    await call("ask_user", { question: "7月でよいですか" });
+
+    const { call: outside } = await connected(undefined, root);
+    await outside("work_pause", { id: workId });
+    const back = await outside("work_resume", { id: workId });
+
+    expect(back.json().status).toBe("waiting_input");
+  });
+
+  test("a call a person approved does not run while the work is stopped", async () => {
+    const { root } = await connected();
+    await mkdir(join(root, "authority"));
+    await mkdir(join(root, "ledger"));
+    await writeFile(join(root, "ledger", "2026-07.csv"), "date,amount\n");
+    await writeFile(
+      join(root, "authority", "delegations.yaml"),
+      "version: 1\ndelegations:\n  - principal: alice\n    profession: generic\n",
+    );
+    await writeFile(
+      join(root, "authority", "policy.yaml"),
+      `version: 1
+default: allow
+rules:
+  - id: ledger-needs-approval
+    match: { tool: fs_write, path: "ledger/**" }
+    decision: approval_required
+    approvers: [alice]
+`,
+    );
+    const { call: judged } = await connected(undefined, root);
+    const workId = (await judged("work_create", { objective: "帳簿を更新" })).json().id as string;
+    await judged("csv_read", { path: "ledger/2026-07.csv" });
+    const held = await judged("fs_write", {
+      path: "ledger/2026-07.csv",
+      content: "date,amount\nx\n",
+    });
+    const approvalId = held.json().approval_id as string;
+
+    // Held for a person, and stopped before that person decided.
+    await judged("work_pause", { id: workId });
+    const decided = await judged("approval_decide", {
+      approval_id: approvalId,
+      decision: "approve",
+    });
+
+    expect(decided.isError).toBe(true);
+    expect(await readFile(join(root, "ledger", "2026-07.csv"), "utf8")).toBe("date,amount\n");
+  });
+
   test("a company folder carried to another place goes on from where it was", async () => {
     const { root, call, store } = await connected();
     const workId = (await call("work_create", { objective: "7月の証憑を集計" })).json()

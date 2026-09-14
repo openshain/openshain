@@ -186,6 +186,7 @@ export {
   type HistoryCall,
   type PendingApproval,
   type PendingQuestion,
+  pausedFrom,
   pendingApprovals,
   pendingQuestions,
   type WorkHistory,
