@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-18
+
+会社で働く社員の状態を、記録だけで保てるようにする版です。会社フォルダを別の場所へ運んでも、同じ Work を続けられます。Work は外から止められ、止めている間は承認済みの呼び出しも資格者の判断も実行されません。1 件の Work が何を要したかを記録から数えられます。そして、言われる前に仕事を始める最初の一段として、起きたことを記録し、会社が書いた義務に当たれば Work を作ります。
+
+`.xlsx` を読めるようになりました。税理士の台帳と、取引先から届く表の多くがこの形です。
+
+**移行**。0.8.0 までに書かれた記録はそのまま読めます。`packages/core` では `WorkStatus` に `paused` が増え、`Observation` という型名が Vol.1 の Fundamental Object のものになりました(Tool の結果に付く出どころは `ToolObservation` です。項目名は変わりません)。`Record<WorkStatus, ...>` を書いている実装は追加が要ります。
+
 ### Added
 
 - 観測と義務。`openshain observe <type>` で起きたことを `observations/` に記録し、`obligations/` に書いた義務に当たれば Work を作ります。Work には、どの観測から、どの義務で作られたかが残ります。観測は書き換えません(事実は後から変わりません)。この版の引き金は観測だけで、時刻と条件の引き金は後の版です。`observations/` と `obligations/` は予約パスで、Tool からは読み書きできません
@@ -214,7 +222,8 @@
 - 各 package の設計ノート(`docs/design/`)
 - 公式サイトが読む path の一覧と変更の規則(`docs/website-integration.md`)。Release workflow は stable の tag(`vX.Y.Z`)のときだけサイトの repo へ `repository_dispatch`(`openshain-release`)を送り、印付きの tag は prerelease にします
 
-[Unreleased]: https://github.com/openshain/openshain/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/openshain/openshain/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/openshain/openshain/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/openshain/openshain/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/openshain/openshain/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/openshain/openshain/compare/v0.5.0...v0.6.0
