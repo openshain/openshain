@@ -259,6 +259,42 @@ openshain knowledge check   # 索引を書かずに検証だけ実行します
 - `knowledge/` はランタイムの予約パスです。`fs_read` や `markdown_read` では読めません。索引を通さずに読めると、この絞り込みが素通りするからです
 - そのため、社員エージェントは `build` を通す前の決まりを読めません。書いた内容の確認は `knowledge check` の出力を人が読みます
 
+## 起きたこと(`observations/`)と義務(`obligations/`)
+
+言われる前に仕事を始めるための組み合わせです。どちらも置かない会社フォルダは、これまでどおり動きます。
+
+```
+openshain observe invoice.received --source mailbox --ref inbox/2026-09-15.eml
+```
+
+起きたことが `observations/<id>.json` に残ります。**観測は書き換えません。** 間違いに気づいたら新しい観測を書きます。
+
+```yaml
+# obligations/accounting.yaml
+version: 1
+obligations:
+  - id: accounting.invoice-received
+    trigger:
+      event: invoice.received      # この type の観測が来たら
+    profession: generic            # この職種のときに
+    create_work:
+      type: accounts_payable       # この Work を作る
+      objective: 届いた請求書を処理する
+```
+
+| 項目 | 内容 |
+|---|---|
+| `trigger.event` | 引き金になる観測の type です。この版の引き金はこれだけで、時刻と条件の引き金は後の版です |
+| `profession` | その義務が働く職種です。`openshain.yaml` の `profession.id` と同じ語を書きます |
+| `create_work.type` | 作る Work の種類です |
+| `create_work.objective` | 作る Work の依頼文です |
+
+当たる義務が複数あれば、そのすべてが Work を作ります。Work には、どの観測から、どの義務で作られたかが残ります(`openshain work show` で確認します)。
+
+`observations/` と `obligations/` はランタイムの予約パスです。Tool からは読み書きできません。社員エージェントが観測を書けると、自分で「請求書が届いた」と書いて自分でその仕事を始められます。義務を書けると、自分の仕事を自分で決めます。どちらも人が書くものです。
+
+`--source` はどこから知ったか、`--at` はそれが起きた時刻(省略するといま)、`--ref` は中身の在りかです。`--ref` は不透明な文字列で、パスでも、メールの message-id でも構いません。
+
 ## 会社フォルダの置き場
 
 会社フォルダは、そのまま別の機械へ持ち運べます。Dropbox や Google Drive や git で同期しても構いません。ただし **同じ会社フォルダを同時に 2 か所で動かさないでください**。作業中の Work の lock はプロセスの番号で判定するため、別の機械のプロセスは判定できません。同時に書き込むと、記録(`work/<id>/events.jsonl`)が同期の競合として分かれ、一方の出来事が失われます。

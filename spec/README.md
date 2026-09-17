@@ -16,6 +16,12 @@
 | [interactive-cli.plan.md](interactive-cli.plan.md) | draft | 上の spec の実装計画です。5 タスク、1 checkpoint |
 | [authority.md](authority.md) | v0.1(実装済み) | 権限と承認です。Principal と Delegation、`authority/` の判定の表、承認と Review の流れ、Decision の記録を決めます |
 | [authority.plan.md](authority.plan.md) | draft | 上の spec の実装計画です。5 タスク |
+| [knowledge.md](knowledge.md) | v0.1(実装済み) | 会社の決まりと根拠の資料です。出典と有効日、`knowledge build` の検証と索引、引ける範囲を決めます |
+| [knowledge.plan.md](knowledge.plan.md) | draft | 上の spec の実装計画です |
+| [principals.md](principals.md) | v0.1(実装済み) | 会社の人と、その人の社員エージェントが働く範囲です。`principals/`、名乗り、`reads`、担当を決めます |
+| [principals.plan.md](principals.plan.md) | draft | 上の spec の実装計画です。6 タスク |
+| [observations.md](observations.md) | v0.1(実装済み) | 観測と義務です。起きたことの記録と、それが Work になる道筋を決めます |
+| [compaction.plan.md](compaction.plan.md) | draft | 会話の要約の実装計画です |
 | [professional-boundary.md](professional-boundary.md) | draft | 専門職の責務境界です。処理の 5 区分、Authority の判定の種類、Expert Review の流れ、core と Profession Pack の境界を決めます。実装は Authority と Expert Review の版で行います |
 
 ## JSON Schema(`schemas/`)

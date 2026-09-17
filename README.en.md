@@ -93,6 +93,7 @@ openshain is an agent harness that supplies what an agent needs to work as an em
 - **Standard tools**: read, write, and search files, read and aggregate CSV, and read Markdown, all inside the company folder. Nothing leaves it, and no file is handed to the model whole
 - **Company rules**: write the rules in `knowledge/` with the material behind them and build the index with `openshain knowledge build`. The employee agent looks them up without being told to, and the reply carries the id and the effective dates. A rule with no source and no effective date never reaches the index
 - **People and their range**: `principals/` holds one file per person, and `reads` says where that person's employee agent works. Outside it, nothing is listed, searched, written, or read from another person's work record. `openshain --principal <id>` says who a terminal works for. What this stops is the employee agent, not a person: whoever can open the company folder reads every file in it
+- **Observations and obligations**: `openshain observe` writes down something that happened, such as an invoice arriving. Write in `obligations/` which observation starts which work, and the work begins before anyone asks. The work records the observation it came of
 - **Permissions and approval**: rules in `authority/` decide, for every tool call, whether it runs, waits for a person's approval, waits for a qualified reviewer, or does not run at all. The judgment is code; the model's output never changes it
 - **Qualified review**: a judgment that takes a licence (tax, law) stops with a review package. Record the decision of the expert your company names and the call runs; later calls cite that decision
 - **Your own tools**: a third-party tool is one line in the configuration, and it is available from both the CLI and MCP
@@ -196,6 +197,7 @@ openshain work show <id>        # reads the record of a Work
 openshain knowledge add         # adds one company rule
 openshain knowledge build       # checks the rules and material, and builds the index
 openshain principal check <id>  # shows where a person's agent works and what it may do
+openshain observe <type>        # writes down what happened; starts the work an obligation asks for
 openshain tools list            # lists the tools available
 openshain mcp                   # runs as an MCP server (normally the agent starts it)
 ```

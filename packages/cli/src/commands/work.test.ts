@@ -207,6 +207,22 @@ describe("work show", () => {
     expect(out.text()).toContain("どの月?");
   });
 
+  test("a work nobody asked for says what started it", async () => {
+    const { root, store } = await workspace();
+    const work = await store.create({
+      ...request,
+      objective: "届いた請求書を処理する",
+      type: "accounts_payable",
+      observation: "obs_01a0",
+      obligation: "accounting.invoice-received",
+    });
+    const out = io();
+
+    await workShow({ workspaceRoot: root, id: work.id, write: out.write });
+
+    expect(out.text()).toContain("きっかけ  obs_01a0(accounting.invoice-received)");
+  });
+
   test("rejects an id that is not a work id", async () => {
     const { root } = await workspace();
 
