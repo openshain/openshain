@@ -1192,8 +1192,7 @@
             }
           },
           "required": [
-            "approval_id",
-            "decision"
+            "approval_id"
           ],
           "additionalProperties": {}
         }

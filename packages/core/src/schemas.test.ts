@@ -6,7 +6,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { parse as parseYaml } from "yaml";
 import { jsonSchemas } from "./schemas.ts";
 import { EVENTS_FILE_NAME } from "./work/event-log.ts";
-import { payloadFileSchemas } from "./work/events.ts";
+import { eventFromFile, payloadFileSchemas } from "./work/events.ts";
 import { WORK_DIR_NAME, WorkStore } from "./work/store.ts";
 import { workToFile } from "./work/work.ts";
 
@@ -216,6 +216,37 @@ describe("events.v1", () => {
     expect(check({ ...completed, payload: {} })).toBe(false);
     expect(check({ ...completed, payload: { summary: "done", later_field: true } })).toBe(true);
     expect(check({ ...completed, type: "future.event", payload: { anything: [1] } })).toBe(true);
+  });
+});
+
+describe("a record written by an older openshain", () => {
+  test("still reads, so a company folder does not lose its own history", async () => {
+    // Lines as 0.8.0 wrote them: no decision on a reviewer's answer, and a work that came of
+    // nobody's observation. A folder carried forward must still open.
+    const before = [
+      {
+        v: 1,
+        id: "evt_01a0",
+        work_id: "work_01a0",
+        seq: 7,
+        type: "review.decided",
+        occurred_at: "2026-09-10T00:00:00.000Z",
+        recorded_at: "2026-09-10T00:00:00.000Z",
+        payload: { approval_id: "apr_1", decision_id: "dec_1" },
+      },
+      {
+        v: 1,
+        id: "evt_01a1",
+        work_id: "work_01a0",
+        seq: 1,
+        type: "work.created",
+        occurred_at: "2026-09-10T00:00:00.000Z",
+        recorded_at: "2026-09-10T00:00:00.000Z",
+        payload: { objective: "x", principal: "alice", profession: "generic", type: "request" },
+      },
+    ];
+
+    for (const line of before) expect(eventFromFile(line).type).toBe(line.type);
   });
 });
 
